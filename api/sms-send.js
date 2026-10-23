@@ -1,23 +1,15 @@
 // /api/sms-send.js
-// Sends a text message through the voip.ms REST API.
-// Stateless like /api/shorten.js: nothing is stored, the request is relayed.
+// Sends a text message through voip.ms (see lib/voipms.js for the env vars
+// and the fixed-IP relay).
 //
 // POST /api/sms-send
 //   Header:  Authorization: Bearer <SMS_SEND_KEY>
 //   Body:    { "to": "5551234567", "message": "Hello", "media": ["https://..."] }
 //
 // Env vars:
-//   VOIPMS_API_USERNAME  voip.ms account email
-//   VOIPMS_API_PASSWORD  the API password (not the portal password)
-//   VOIPMS_DID           the voip.ms number to send from, digits only
-//   SMS_SEND_KEY         shared secret so this isn't an open SMS relay
-//   VOIPMS_API_URL       optional; point at a fixed-IP relay, since voip.ms only
-//                        accepts API calls from whitelisted IPs and Vercel's
-//                        outbound IPs are not fixed
+//   SMS_SEND_KEY  shared secret so this isn't an open SMS relay
 
-const API_URL = process.env.VOIPMS_API_URL || "https://voip.ms/api/v1/rest.php";
-const SMS_MAX = 160;
-const MMS_MAX = 2048;
+import { MMS_MAX, sendText } from "../lib/voipms.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -52,34 +44,12 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Plain SMS when it fits; otherwise MMS, which allows longer text and attachments.
-  const useMMS = media.length > 0 || message.length > SMS_MAX;
-  const params = new URLSearchParams({
-    api_username: process.env.VOIPMS_API_USERNAME || "",
-    api_password: process.env.VOIPMS_API_PASSWORD || "",
-    method: useMMS ? "sendMMS" : "sendSMS",
-    did: process.env.VOIPMS_DID || "",
-    dst,
-    message,
-  });
-  media.forEach((url, i) => params.set(`media${i + 1}`, url));
-
   try {
-    const upstream = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
-    const data = await upstream.json();
-
-    if (data.status !== "success") {
-      // e.g. "ip_not_enabled" when this server's IP isn't whitelisted at voip.ms
-      res.status(502).json({ error: data.status || "voip.ms returned an error." });
-      return;
-    }
-
-    res.status(200).json({ id: data.sms ?? data.mms ?? null, method: params.get("method") });
+    res.status(200).json(await sendText(dst, message, media));
   } catch (err) {
-    res.status(500).json({ error: "Could not reach voip.ms: " + err.message });
+    // err.status is voip.ms's reason, e.g. "ip_not_enabled" when the calling
+    // IP isn't whitelisted; without it, voip.ms or the relay wasn't reached.
+    if (err.status) res.status(502).json({ error: err.status });
+    else res.status(500).json({ error: "Could not reach voip.ms: " + err.message });
   }
 }

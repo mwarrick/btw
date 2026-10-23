@@ -1,0 +1,66 @@
+{
+  "name": "btw: voip.ms relay",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voipms-relay",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook (X-Relay-Key)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "f816a9d1-5f87-40e1-bbc2-ea4f34f13756"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://voip.ms/api/v1/rest.php",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "Forward to voip.ms",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "name": "Return voip.ms reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [480, 0]
+    }
+  ],
+  "connections": {
+    "Webhook (X-Relay-Key)": {
+      "main": [[{ "node": "Forward to voip.ms", "type": "main", "index": 0 }]]
+    },
+    "Forward to voip.ms": {
+      "main": [[{ "node": "Return voip.ms reply", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "pinData": {}
+}

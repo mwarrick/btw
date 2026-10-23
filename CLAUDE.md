@@ -11,7 +11,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
   - `js/engine.js`: the conversation as a pure function, `reply(state, text) -> { state, replies }`. Shared by the demo and (next) the SMS handler. State is JSON for `btw_sessions`; `data` uses `btw_churches` column names. The first message is `menu_intro`, then `<n> <menu_label>` per switched-on language, then `menu_footer`. After an opt-out (STOP and the other carrier words) it sends nothing until START.
   - `js/sms.js`: GSM-7 / Unicode segment counting, imported by the pages and by the API.
 - `api/`: serverless functions. `api/admin/*` needs the `ADMIN_PASSWORD` session cookie.
-- `lib/`: server helpers. `supabase.js` (PostgREST over fetch), `admin-auth.js` (HMAC cookie, no session store), `prompts.js` (English-only keys, quote straightening, placeholder checks), `translate.js` (Google v2 behind `translate()`).
+- `lib/`: server helpers. `voipms.js` (voip.ms API calls and `sendText`, direct or via the relay), `supabase.js` (PostgREST over fetch), `admin-auth.js` (HMAC cookie, no session store), `prompts.js` (English-only keys, quote straightening, placeholder checks), `translate.js` (Google v2 behind `translate()`).
 - `supabase/migrations/`: schema and seed, already applied to the shared project.
 - No package.json and no dependencies; everything relies on Node's built-in `fetch`.
 
@@ -31,7 +31,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 
 ## Next steps
 - Build the conversation handler: have `sms-inbound.js` run `public/js/engine.js` against `btw_sessions` / `btw_churches`, read text from `btw_prompts`, log to `btw_messages` and deduplicate on the voip.ms `id`.
-- Get round the voip.ms IP whitelist for sending: Vercel's outbound IPs aren't fixed. Options: a static-IP relay (set `VOIPMS_API_URL`), Vercel's static IP option, or a whitelisted hostname.
+- voip.ms IP whitelist: sending goes through an n8n relay at https://n8n.markwarrick.org (`relay/`; `lib/voipms.js` sends `X-Relay-Key`). Vercel Static IPs were rejected at $100/month. The site is behind Cloudflare, so the IP to whitelist is the server's own outbound IP, not what the hostname resolves to: **76.175.179.85** (Spectrum residential, unchanged for years per the user). If sending starts failing with `ip_not_enabled`, check `curl https://api.ipify.org` on the server first. `/admin` has a Text messaging panel (`api/admin/sms-check.js`) that checks the relay (`getIP`), credentials and whitelist (`getBalance`), and sends a test text. Still to do: import the workflow, whitelist the IP, set `VOIPMS_API_URL` / `VOIPMS_RELAY_KEY`, run that check.
 - Register 10DLC (brand about $4 + campaign about $15, plus carrier fees) for US numbers.
 
 ## Research sources

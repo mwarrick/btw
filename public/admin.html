@@ -150,6 +150,33 @@
   .switch input:disabled, .switch input:disabled + .track { cursor: not-allowed; opacity: .6; }
   .switch-text { font-size: 13px; color: var(--muted); }
 
+  /* text messaging checks */
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; display: grid; gap: 14px; max-width: 720px;
+  }
+  .panel-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .checks li { display: grid; grid-template-columns: 9.5em auto 1fr; gap: 10px; align-items: baseline; }
+  .checks .what { font-weight: 600; font-size: 14px; }
+  .checks .chip { justify-self: start; }
+  .checks .detail { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+  .test-form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 14px; }
+  .field-stack { display: grid; gap: 5px; font-weight: 600; font-size: 14px; flex: 1 1 170px; min-width: 0; }
+  .field-stack.wide { flex: 3 1 260px; }
+  .field-stack input {
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+    background: var(--surface-2); font-weight: 400; min-width: 0;
+  }
+  .test-result { margin: 0; font-size: 14px; }
+  .test-result:empty { display: none; }
+  .test-result.ok { color: var(--ok); }
+  .test-result.bad { color: var(--bad); }
+  @media (max-width: 560px) {
+    .checks li { grid-template-columns: auto 1fr; }
+    .checks .detail { grid-column: 1 / -1; }
+  }
+
   /* first-message preview */
   .preview {
     margin-top: 12px; max-width: 420px; background: var(--surface);
@@ -303,6 +330,28 @@
   </section>
 
   <div id="editor" hidden>
+    <section class="block">
+      <h2>Text messaging</h2>
+      <p class="hint">Texts go out from Vercel through the n8n relay to voip.ms. Check connection tests each step the same way a real text travels; a test text goes out the same way too.</p>
+      <div class="panel">
+        <div class="panel-row">
+          <button class="btn" id="check-sms" type="button">Check connection</button>
+          <span class="meter" id="check-when"></span>
+        </div>
+        <ul class="checks" id="checks" hidden></ul>
+        <form class="test-form" id="test-form">
+          <label class="field-stack">Send a test text to
+            <input id="test-to" type="tel" inputmode="tel" autocomplete="off" placeholder="(512) 555-0100" required>
+          </label>
+          <label class="field-stack wide">Message
+            <input id="test-message" type="text" maxlength="160" value="Test message from the btw admin page.">
+          </label>
+          <button class="btn primary" id="test-send" type="submit">Send test</button>
+        </form>
+        <p class="test-result" id="test-result" role="status"></p>
+      </div>
+    </section>
+
     <section class="block">
       <h2>Languages</h2>
       <p class="hint">A language appears in the first message's menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is how it's listed there. Names in their own script, like Español or 中文, are easiest to recognise but make that message a Unicode SMS, which holds less text; the preview shows the count.</p>
@@ -1071,6 +1120,65 @@ $("result-close").addEventListener("click", () => $("result-dialog").close());
 // A click on the dimmed backdrop (the dialog element itself) closes it too.
 $("result-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
+});
+
+// ---------- text messaging checks ----------
+
+$("check-sms").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  button.textContent = "Checking...";
+  try {
+    const { relay, ip, account } = await api("/api/admin/sms-check");
+    const row = (what, ok, label, detail) =>
+      h("li", {}, h("span", { class: "what", text: what }), chip(label, ok ? "ok" : "bad"), h("span", { class: "detail", text: detail }));
+
+    const relayDetail = !relay.configured
+      ? "VOIPMS_API_URL isn't set, so texts go straight to voip.ms, which refuses Vercel's changing IPs."
+      : relay.keySet ? relay.url : `${relay.url}, but VOIPMS_RELAY_KEY isn't set, so the relay will refuse calls.`;
+    $("checks").replaceChildren(
+      row("Relay", relay.configured && relay.keySet, relay.configured && relay.keySet ? "On" : "Not ready", relayDetail),
+      row("Reaching voip.ms", ip.ok, ip.ok ? "OK" : "Failed", ip.ok ? `voip.ms sees this IP: ${ip.ip}` : ip.error),
+      row("Account", account.ok, account.ok ? "OK" : "Failed", account.ok
+        ? `Credentials accepted from a whitelisted IP.${account.balance != null ? ` Balance: $${account.balance}` : ""}`
+        : account.error),
+    );
+    $("checks").hidden = false;
+    $("check-when").textContent = `Checked at ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Check connection";
+  }
+});
+
+$("test-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = $("test-send");
+  const out = $("test-result");
+  button.disabled = true;
+  button.textContent = "Sending...";
+  out.className = "test-result";
+  out.textContent = "";
+  try {
+    const r = await api("/api/admin/sms-check", {
+      method: "POST",
+      body: { to: $("test-to").value, message: $("test-message").value },
+    });
+    out.className = r.ok ? "test-result ok" : "test-result bad";
+    out.textContent = r.ok
+      ? `Sent by ${r.method}${r.id ? ` (voip.ms message ${r.id})` : ""}. It should arrive within a minute.`
+      : r.error;
+  } catch (err) {
+    if (!err.silent) {
+      out.className = "test-result bad";
+      out.textContent = err.message;
+    }
+  } finally {
+    button.disabled = false;
+    button.textContent = "Send test";
+  }
 });
 
 // ---------- toast ----------

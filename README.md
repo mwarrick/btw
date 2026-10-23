@@ -8,7 +8,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off. Needs `ADMIN_PASSWORD`. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved) |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -21,7 +21,8 @@ Only `public/` is published as the website (see `vercel.json`). Everything else 
 | `VOIPMS_DID` | Your voip.ms number to send from, as 10 digits |
 | `SMS_SEND_KEY` | Shared secret that callers of `/api/sms-send` must send |
 | `SMS_INBOUND_KEY` | Shared secret in the voip.ms callback URL |
-| `VOIPMS_API_URL` | Optional: the address of a fixed-IP relay (see below) |
+| `VOIPMS_API_URL` | The n8n relay's webhook URL (see `relay/README.md`). Unset: call voip.ms directly, which fails from Vercel. |
+| `VOIPMS_RELAY_KEY` | The relay's shared secret, sent as the `X-Relay-Key` header |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | The service role (secret) key. Server-side only. |
 | `ADMIN_PASSWORD` | Password for `/admin`. Changing it logs everyone out. |
@@ -68,6 +69,6 @@ Text of 160 characters or less goes out through `sendSMS`. Longer text (up to 20
 
 ## Caveats
 
-- **IP whitelist and Vercel:** voip.ms only accepts API calls from whitelisted IPs, and Vercel's outbound IPs aren't fixed. To send from Vercel, set `VOIPMS_API_URL` to a relay with a static IP, or use Vercel's static IP option. Receiving isn't affected.
+- **IP whitelist and Vercel:** voip.ms only accepts API calls from whitelisted IPs, and Vercel's outbound IPs aren't fixed. Sending therefore goes through an n8n workflow on a server with a fixed IP; setup is in `relay/README.md`. Receiving isn't affected.
 - **Incoming request format isn't confirmed:** sources disagree on whether voip.ms sends GET with placeholders (sometimes separated by `;`) or POST with JSON. `sms-inbound` accepts both. Log one real message to confirm.
 - These notes come from voip.ms wiki pages and third-party integrations. Check them against the official API docs at <https://voip.ms/m/apidocs.php>, which you can read when logged in to the portal.
