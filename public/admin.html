@@ -455,7 +455,7 @@
 
     <section class="block" data-screen="churches">
       <h2>Churches</h2>
-      <p class="hint">Every church that finished signing up by text, most recent first. Conversation shows the signup texts and answers; Message lets you text the person yourself.</p>
+      <p class="hint">Every church that finished signing up by text, most recent first. Conversations shows the signup texts and answers; Message lets you text the person yourself.</p>
       <div class="convo-bar">
         <input id="church-search" type="search" placeholder="Search church, contact, city or number" aria-label="Search churches">
         <button class="btn" id="church-refresh" type="button">Refresh</button>
@@ -1622,7 +1622,7 @@ function renderChurches() {
         c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)}${c.editor?.name ? ` by ${c.editor.name}` : ""}` }) : null),
       h("td", {}, h("div", { class: "row-actions" },
         h("button", { class: "btn small ghost", type: "button", onclick: () => editChurch(c.phone) }, "Edit"),
-        h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversation"),
+        h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversations"),
         messageButton(c))));
   }));
 }
