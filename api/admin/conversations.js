@@ -6,6 +6,9 @@
 //                        newest activity first; one per phone number
 //   GET ?phone=+1...  -> { church, session, messages: [{ direction, body, created_at }] }
 //                        the latest messages, oldest first
+//   DELETE ?phone=+1...  -> { deleted: true }: the number's texts, answers,
+//                        session and logged problems, so its next text
+//                        starts a new signup
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { db, eq } from "../../lib/supabase.js";
@@ -15,13 +18,14 @@ const THREAD_LIMIT = 1000;
 
 export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    res.status(405).json({ error: "Use GET." });
+  if (req.method !== "GET" && req.method !== "DELETE") {
+    res.setHeader("Allow", "GET, DELETE");
+    res.status(405).json({ error: "Use GET or DELETE." });
     return;
   }
   try {
     const phone = new URL(req.url, "http://x").searchParams.get("phone");
+    if (req.method === "DELETE") return await remove(phone, res);
     if (phone) return await thread(phone, res);
     return await list(res);
   } catch (err) {
@@ -57,4 +61,14 @@ async function thread(phone, res) {
   // Fetched newest first so a long thread keeps its latest texts.
   messages.sort((a, b) => a.id - b.id);
   res.status(200).json({ church: church || null, session: session || null, messages });
+}
+
+async function remove(phone, res) {
+  if (!/^\+1\d{10}$/.test(phone || "")) {
+    res.status(400).json({ error: "Send the number as ?phone=+1XXXXXXXXXX." });
+    return;
+  }
+  await Promise.all(["btw_sessions", "btw_churches", "btw_messages", "btw_events"].map((table) =>
+    db(`${table}?phone=${eq(phone)}`, { method: "DELETE" })));
+  res.status(200).json({ deleted: true });
 }

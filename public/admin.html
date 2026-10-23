@@ -236,6 +236,12 @@
   .ref { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
   .ref-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
   .ref-text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ref-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .ref textarea {
+    width: 100%; resize: vertical; min-height: 44px; margin-top: 6px; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; background: var(--surface); line-height: 1.4;
+  }
+  .ref-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .note { margin: 0; font-size: 13.5px; color: var(--muted); font-style: italic; }
   .prompt textarea {
     width: 100%; resize: vertical; min-height: 44px; border: 1px solid var(--line);
@@ -484,6 +490,7 @@
   <div class="dialog-head">
     <h2 id="thread-title"></h2>
     <span class="chips">
+      <button class="btn small" id="thread-delete" type="button">Delete</button>
       <button class="btn small" id="thread-refresh" type="button">Refresh</button>
       <button class="btn small" id="thread-close" type="button">Close</button>
     </span>
@@ -866,6 +873,84 @@ function renderList() {
   }
 }
 
+// The English text above a translation, editable in place: a translation
+// that runs long is best fixed by shortening the English and translating
+// again, without switching to English.
+function englishRef(k) {
+  const box = h("div", { class: "ref" });
+  const show = () => {
+    box.replaceChildren(
+      h("div", { class: "ref-head" },
+        h("span", { class: "ref-label", text: "English" }),
+        h("button", { type: "button", class: "btn small ghost", text: "Edit English", onclick: edit }),
+      ),
+      h("p", { class: "ref-text", text: savedText("en", k.key) }),
+    );
+  };
+  const edit = () => {
+    const ta = h("textarea", { rows: "2", maxlength: String(PROMPT_MAX), "aria-label": `English text for ${k.key}` });
+    ta.value = savedText("en", k.key);
+    const count = h("span", { class: "meter" });
+    const error = h("p", { class: "row-error", role: "alert" });
+    const translateToo = translatable(k.key);
+    const go = h("button", { type: "button", class: "btn small primary", text: translateToo ? "Save and translate" : "Save English" });
+    const sync = () => {
+      const info = smsInfo(ta.value.replace(/\{(\w+)\}/g, (m, p) => SAMPLE[p] ?? m));
+      count.textContent = `${ta.value.length}/${PROMPT_MAX} characters · ${info.segments} SMS`;
+      count.className = info.segments > 1 ? "meter over" : "meter";
+      const missing = (k.placeholders || []).filter((p) => !ta.value.includes(`{${p}}`));
+      error.textContent = missing.length ? `Keep ${missing.map((p) => `{${p}}`).join(", ")} in the text.` : "";
+      go.disabled = state.busy || !ta.value.trim() || missing.length > 0 || ta.value.trim() === savedText("en", k.key);
+    };
+    ta.addEventListener("input", () => { autosize(ta); sync(); });
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      go.textContent = "Saving...";
+      try {
+        const { prompt } = await api("/api/admin/prompts", { method: "PUT", body: { key: k.key, lang: "en", text: ta.value } });
+        (state.saved.en ||= {})[k.key] = prompt.text;
+        (state.updated.en ||= {})[k.key] = prompt.updated_at;
+        if (translateToo) {
+          go.textContent = "Translating...";
+          // The fresh translation replaces any unsaved edit of this one.
+          if (await translateAll(k.key)) delete state.edits[state.lang]?.[k.key];
+        } else {
+          toast("Saved.");
+        }
+        const row = $(`row-${k.key}`);
+        if (row) {
+          const fresh = renderRow(k);
+          row.replaceWith(fresh);
+          updateRow(k, fresh);
+          fresh.querySelectorAll("textarea").forEach(autosize);
+        }
+        renderSavebar();
+        renderLanguages();
+      } catch (err) {
+        if (!err.silent) error.textContent = err.message;
+        go.textContent = translateToo ? "Save and translate" : "Save English";
+        sync();
+      }
+    });
+    box.replaceChildren(
+      h("div", { class: "ref-head" }, h("span", { class: "ref-label", text: "English" })),
+      ta,
+      h("div", { class: "ref-foot" },
+        count,
+        h("span", { class: "spacer" }),
+        h("button", { type: "button", class: "btn small ghost", text: "Cancel", onclick: show }),
+        go,
+      ),
+      error,
+    );
+    sync();
+    autosize(ta);
+    ta.focus();
+  };
+  show();
+  return box;
+}
+
 function renderRow(k) {
   const lang = state.lang;
   const row = h("article", { class: "prompt", id: `row-${k.key}` },
@@ -876,12 +961,7 @@ function renderRow(k) {
     h("p", { class: "desc", text: k.description }),
   );
 
-  if (lang !== "en") {
-    row.append(h("div", { class: "ref" },
-      h("span", { class: "ref-label", text: "English" }),
-      h("p", { class: "ref-text", text: savedText("en", k.key) }),
-    ));
-  }
+  if (lang !== "en") row.append(englishRef(k));
   if (lang !== "en" && !translatable(k.key)) {
     row.append(h("p", { class: "note", text: "Sent before a language is chosen, so this message is English only." }));
     return row;
@@ -1170,8 +1250,10 @@ async function translateAll(key) {
       (state.updated[r.lang] ||= {})[key] = r.updated_at;
     }
     showResults(key, english, results);
+    return true;
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
+    return false;
   } finally {
     state.busy = false;
     state.translating = null;
@@ -1363,6 +1445,19 @@ $("convo-refresh").addEventListener("click", () => { loadConversations(); loadLo
 $("convo-search").addEventListener("input", (e) => { convos.search = e.target.value; renderConversations(); });
 $("thread-refresh").addEventListener("click", () => { openThread(convos.open); loadConversations(); });
 $("thread-close").addEventListener("click", () => $("thread-dialog").close());
+$("thread-delete").addEventListener("click", async () => {
+  const phone = convos.open;
+  if (!phone || !confirm(`Delete everything for ${formatPhone(phone)}: the texts, the answers and where they are in the signup? Their next text starts a new signup.`)) return;
+  try {
+    await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`, { method: "DELETE" });
+    $("thread-dialog").close();
+    toast("Conversation deleted.");
+    loadConversations();
+    loadLog();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+});
 $("thread-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
