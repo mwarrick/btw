@@ -48,7 +48,7 @@ async function thread(phone, res) {
   const [[church], [session], messages] = await Promise.all([
     db(`btw_churches?phone=${eq(phone)}&select=*`),
     db(`btw_sessions?phone=${eq(phone)}&select=*`),
-    db(`btw_messages?phone=${eq(phone)}&select=id,direction,body,created_at&order=id.desc&limit=${THREAD_LIMIT}`),
+    db(`btw_messages?phone=${eq(phone)}&select=id,direction,body,error,created_at&order=id.desc&limit=${THREAD_LIMIT}`),
   ]);
   if (!church && !session && messages.length === 0) {
     res.status(404).json({ error: "No conversation with that number." });

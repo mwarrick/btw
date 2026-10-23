@@ -7,10 +7,11 @@
 //
 // "Every other language" means each one that is switched on or already has
 // translations; a language nobody has started stays empty. A translation
-// that loses a {placeholder} is not saved, and its result says why.
+// that loses a {placeholder} or runs over PROMPT_MAX characters is not
+// saved, and its result says why.
 
 import { requireAdmin } from "../../lib/admin-auth.js";
-import { ENGLISH_ONLY_KEYS, missingPlaceholders } from "../../lib/prompts.js";
+import { ENGLISH_ONLY_KEYS, PROMPT_MAX, missingPlaceholders } from "../../lib/prompts.js";
 import { db, eq } from "../../lib/supabase.js";
 import { translate } from "../../lib/translate.js";
 
@@ -64,6 +65,9 @@ async function translateAll(req, res) {
       const missing = missingPlaceholders(text, keyRow.placeholders);
       if (missing.length) {
         return { lang: l.code, name: l.name, text, saved: false, error: `Lost ${missing.map((p) => `{${p}}`).join(", ")}, so it wasn't saved.` };
+      }
+      if (text.length > PROMPT_MAX) {
+        return { lang: l.code, name: l.name, text, saved: false, error: `${text.length} characters, over the ${PROMPT_MAX} limit, so it wasn't saved. Shorten the English, or write this one in its own language.` };
       }
       return { lang: l.code, name: l.name, text, saved: true };
     } catch (err) {

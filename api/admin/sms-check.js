@@ -12,20 +12,7 @@
 //   POST { to, message } -> sends a test text: { ok, id, method } or { ok: false, error }
 
 import { requireAdmin } from "../../lib/admin-auth.js";
-import { sendText, voipms } from "../../lib/voipms.js";
-
-// voip.ms status codes, in words.
-const REASONS = {
-  ip_not_enabled: "voip.ms refused the caller's IP. Add it in voip.ms under Main Menu, SOAP & REST/JSON API.",
-  invalid_credentials: "voip.ms didn't accept the API username or password (VOIPMS_API_USERNAME / VOIPMS_API_PASSWORD).",
-  missing_credentials: "VOIPMS_API_USERNAME or VOIPMS_API_PASSWORD isn't set in Vercel.",
-  api_not_enabled: "The API isn't enabled in the voip.ms portal.",
-  invalid_did: "VOIPMS_DID isn't one of your voip.ms numbers, or SMS isn't enabled on it.",
-  invalid_dst: "voip.ms didn't accept that phone number.",
-  sms_failed: "voip.ms couldn't send the text.",
-};
-
-const explain = (status) => REASONS[status] || `voip.ms said: ${status}`;
+import { explainStatus, sendText, voipms } from "../../lib/voipms.js";
 
 export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
@@ -65,7 +52,7 @@ async function call(method, pick) {
   try {
     const data = await voipms(method);
     if (data.status === "success") return { ok: true, ...pick(data) };
-    return { ok: false, status: data.status, error: explain(data.status) };
+    return { ok: false, status: data.status, error: explainStatus(data.status) };
   } catch (err) {
     return { ok: false, error: `Couldn't reach ${process.env.VOIPMS_API_URL ? "the relay" : "voip.ms"}: ${err.message}` };
   }
@@ -88,7 +75,7 @@ async function sendTest(req, res) {
   } catch (err) {
     res.status(200).json({
       ok: false,
-      error: err.status ? explain(err.status) : `Couldn't reach ${process.env.VOIPMS_API_URL ? "the relay" : "voip.ms"}: ${err.message}`,
+      error: err.status ? explainStatus(err.status) : `Couldn't reach ${process.env.VOIPMS_API_URL ? "the relay" : "voip.ms"}: ${err.message}`,
     });
   }
 }

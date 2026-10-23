@@ -312,6 +312,11 @@
   }
   .bubble.in { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 5px; }
   .bubble.out { align-self: flex-end; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-bottom-right-radius: 5px; }
+  .bubble.failed { border-color: var(--bad); border-style: dashed; opacity: .8; }
+  .bubble-error { align-self: flex-end; font-size: 12.5px; color: var(--bad); max-width: 85%; text-align: right; }
+  .log-table td { font-size: 14px; vertical-align: top; }
+  .log-table .msg { overflow-wrap: anywhere; min-width: 16rem; }
+  .log-table .phone-link { background: none; border: 0; padding: 0; color: var(--brand); text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .bubble-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .bubble-time.in { align-self: flex-start; }
   .bubble-time.out { align-self: flex-end; }
@@ -377,6 +382,24 @@
             <tr><th>Church</th><th>Phone</th><th>Status</th><th>Where they are</th><th>Last text</th></tr>
           </thead>
           <tbody id="convo-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Log</h2>
+      <p class="hint">Problems with texting: replies voip.ms refused, errors handling an incoming text, callbacks with the wrong key. Newest first.</p>
+      <div class="convo-bar">
+        <div class="tabs" id="log-tabs"></div>
+        <span class="spacer"></span>
+        <button class="btn" id="log-refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="log-table">
+          <thead>
+            <tr><th>When</th><th>Level</th><th>Number</th><th>What happened</th></tr>
+          </thead>
+          <tbody id="log-rows"></tbody>
         </table>
       </div>
     </section>
@@ -485,6 +508,8 @@ const SECTIONS = [
   ["keywords", "Keywords"],
 ];
 const RTL = new Set(["ar", "ur"]);
+// Most characters a prompt may hold; the server checks the same (lib/prompts.js).
+const PROMPT_MAX = 160;
 const LATIN = new Set(["en", "es", "fr", "pt"]);
 
 const state = {
@@ -569,7 +594,8 @@ function editCount() {
 function langStats(code) {
   const keys = code === "en" ? state.keys : state.keys.filter((k) => translatable(k.key));
   const have = keys.filter((k) => savedText(code, k.key)).length;
-  return { total: keys.length, have, missing: keys.length - have, unsaved: Object.keys(state.edits[code] || {}).length };
+  const long = keys.filter((k) => savedText(code, k.key).length > PROMPT_MAX).length;
+  return { total: keys.length, have, missing: keys.length - have, long, unsaved: Object.keys(state.edits[code] || {}).length };
 }
 
 const savedAt = (lang, key) => Date.parse(state.updated[lang]?.[key] || "") || 0;
@@ -591,7 +617,8 @@ function staleLangs(key) {
 function needsWork(lang, key) {
   if (editOf(lang, key)) return true;
   if (lang !== "en" && !translatable(key)) return false;
-  return !savedText(lang, key);
+  const text = savedText(lang, key);
+  return !text || text.length > PROMPT_MAX;
 }
 
 // ---------- login ----------
@@ -661,6 +688,7 @@ async function load() {
   renderList();
   renderSavebar();
   loadConversations();
+  loadLog();
 }
 
 // ---------- languages ----------
@@ -672,6 +700,7 @@ function renderLanguages() {
       l.code === "en"
         ? chip(`All ${s.total}`, "ok")
         : s.missing ? chip(`${s.missing} of ${s.total} missing`, s.have ? "warn" : "muted") : chip("Complete", "ok"),
+      s.long ? chip(`${s.long} too long`, "bad") : null,
       s.unsaved ? chip(`${s.unsaved} unsaved`, "warn") : null,
     );
     const label = h("input", {
@@ -863,6 +892,7 @@ function renderRow(k) {
     lang,
     dir: RTL.has(lang) ? "rtl" : "auto",
     rows: "2",
+    maxlength: String(PROMPT_MAX),
     "aria-label": `Text for ${k.key}`,
     placeholder: lang === "en" ? null : "No translation yet. The English text is sent instead.",
   });
@@ -945,8 +975,8 @@ function updateRow(k, row = $(`row-${k.key}`)) {
   } else {
     const filled = text.replace(/\{(\w+)\}/g, (m, p) => SAMPLE[p] ?? m);
     const info = smsInfo(filled);
-    meter.textContent = `${info.segments} SMS · ${info.encoding} · ${info.length} characters`;
-    meter.className = info.segments > 1 ? "meter over" : "meter";
+    meter.textContent = `${text.length}/${PROMPT_MAX} characters · ${info.segments} SMS · ${info.encoding}`;
+    meter.className = info.segments > 1 || text.length > PROMPT_MAX ? "meter over" : "meter";
     meter.title = placeholders.length
       ? `Counted with ${placeholders.map((p) => `{${p}} as "${SAMPLE[p] ?? p}"`).join(", ")}`
       : "";
@@ -959,11 +989,13 @@ function updateRow(k, row = $(`row-${k.key}`)) {
     missing.includes(p) ? chip(`{${p}} missing`, "bad") : chip(`{${p}}`, "ok")
   ));
 
+  const tooLong = text.length > PROMPT_MAX;
   const error = state.errors[`${lang}:${k.key}`]
-    || (missing.length ? `Put ${missing.map((p) => `{${p}}`).join(", ")} back in. It's replaced with the real value when the message is sent.` : "");
+    || (missing.length ? `Put ${missing.map((p) => `{${p}}`).join(", ")} back in. It's replaced with the real value when the message is sent.` : "")
+    || (tooLong ? `${text.length} characters: shorten it to ${PROMPT_MAX}, one text message.` : "");
   part("error").textContent = error;
 
-  part("save").disabled = state.busy || !edit || missing.length > 0 || (lang === "en" && !text.trim());
+  part("save").disabled = state.busy || !edit || missing.length > 0 || tooLong || (lang === "en" && !text.trim());
   part("undo").hidden = !edit;
   const draft = part("draft");
   if (draft) draft.disabled = state.busy;
@@ -1311,9 +1343,10 @@ async function openThread(phone) {
     $("thread-title").textContent = [church?.church_name, formatPhone(phone)].filter(Boolean).join(" · ");
     $("thread-messages").replaceChildren(...(messages.length
       ? messages.flatMap((m) => [
-        h("div", { class: `bubble ${m.direction}`, text: m.body || "(empty)" }),
+        h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }),
+        m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
         h("span", { class: `bubble-time ${m.direction}`, text: when(m.created_at) }),
-      ])
+      ].filter(Boolean))
       : [h("p", { class: "empty", text: "No texts recorded." })]));
     const answers = answerList(church);
     $("thread-answers").replaceChildren(...(answers.length
@@ -1326,7 +1359,7 @@ async function openThread(phone) {
   }
 }
 
-$("convo-refresh").addEventListener("click", loadConversations);
+$("convo-refresh").addEventListener("click", () => { loadConversations(); loadLog(); });
 $("convo-search").addEventListener("input", (e) => { convos.search = e.target.value; renderConversations(); });
 $("thread-refresh").addEventListener("click", () => { openThread(convos.open); loadConversations(); });
 $("thread-close").addEventListener("click", () => $("thread-dialog").close());
@@ -1334,6 +1367,52 @@ $("thread-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
 $("thread-dialog").addEventListener("close", () => { convos.open = null; });
+
+// ---------- log ----------
+
+const LEVELS = { error: ["Error", "bad"], warning: ["Warning", "warn"], info: ["Info", "muted"] };
+const log = { events: [], level: "all" };
+
+async function loadLog() {
+  const button = $("log-refresh");
+  button.disabled = true;
+  try {
+    log.events = (await api("/api/admin/events")).events;
+    renderLog();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderLog() {
+  const tabs = [["all", "All"], ["error", "Errors"], ["warning", "Warnings"]];
+  const count = (level) => log.events.filter((e) => level === "all" || e.level === level).length;
+  $("log-tabs").replaceChildren(...tabs.map(([id, label]) => h("button", {
+    class: "tab", type: "button", "aria-pressed": String(log.level === id),
+    onclick: () => { log.level = id; renderLog(); },
+  }, `${label} ${count(id)}`)));
+
+  const rows = log.events.filter((e) => log.level === "all" || e.level === log.level);
+  if (!rows.length) {
+    $("log-rows").replaceChildren(h("tr", {}, h("td", { colspan: "4", class: "empty",
+      text: log.events.length ? "Nothing at this level." : "No problems logged." })));
+    return;
+  }
+  $("log-rows").replaceChildren(...rows.map((e) => {
+    const [label, kind] = LEVELS[e.level] || [e.level, "muted"];
+    return h("tr", {},
+      h("td", { class: "when", text: when(e.created_at) }),
+      h("td", {}, chip(label, kind)),
+      h("td", {}, e.phone
+        ? h("button", { class: "phone-link", type: "button", onclick: () => openThread(e.phone) }, formatPhone(e.phone))
+        : ""),
+      h("td", { class: "msg", text: e.message }));
+  }));
+}
+
+$("log-refresh").addEventListener("click", loadLog);
 
 // ---------- text messaging checks ----------
 

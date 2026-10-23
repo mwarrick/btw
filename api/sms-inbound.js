@@ -23,7 +23,8 @@
 import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
-import { sendText } from "../lib/voipms.js";
+import { logEvent } from "../lib/events.js";
+import { explainStatus, sendText } from "../lib/voipms.js";
 
 // btw_churches columns the engine keeps in state.data under the same name.
 const ANSWER_COLUMNS = [
@@ -36,6 +37,9 @@ export default async function handler(req, res) {
   const query = parseQuery(req.url);
 
   if (!process.env.SMS_INBOUND_KEY || query.key !== process.env.SMS_INBOUND_KEY) {
+    await logEvent("warning", "sms-inbound", process.env.SMS_INBOUND_KEY
+      ? "A callback came in with the wrong key, so it was refused. Check the key in the SMS URL Callback on the DID matches SMS_INBOUND_KEY."
+      : "A callback came in, but SMS_INBOUND_KEY isn't set in Vercel, so it was refused.");
     res.status(401).send("unauthorized");
     return;
   }
@@ -43,11 +47,11 @@ export default async function handler(req, res) {
   const sms = normalize({ ...query, ...flattenBody(req.body) });
 
   if (!sms.from || !sms.to) {
+    await logEvent("warning", "sms-inbound", "A callback came in without a from or to number.", { detail: sms });
     res.status(400).send("missing from/to");
     return;
   }
 
-  // Kept until the callback format is confirmed (CLAUDE.md, open question 1).
   console.log("Inbound SMS", JSON.stringify(sms));
 
   // Short codes and other non-US/Canada senders can't be replied to.
@@ -61,7 +65,8 @@ export default async function handler(req, res) {
     res.status(200).send("ok");
   } catch (err) {
     // Anything but "ok" makes voip.ms retry later.
-    console.error("sms-inbound:", err.message);
+    await logEvent("error", "sms-inbound", `Couldn't handle an incoming text; voip.ms will retry it. ${err.message}`,
+      { phone: "+1" + sms.from, detail: { message: sms.message } });
     res.status(500).send("error");
   }
 }
@@ -98,15 +103,22 @@ async function converse(sms) {
   }
 
   // The state is already saved, so a failed send isn't retried: that would
-  // run the same answer through the engine twice.
-  for (const body of replies) {
+  // run the same answer through the engine twice. The failed reply is kept
+  // with its error, so the conversation in /admin shows it, and the rest
+  // aren't sent.
+  for (const [i, body] of replies.entries()) {
+    let error = null;
     try {
       await sendText(sms.from, body);
-      await db("btw_messages", { method: "POST", body: { phone, direction: "out", body } });
     } catch (err) {
-      console.error("sms-inbound: reply to", phone, "failed:", err.status || err.message);
-      break;
+      error = err.status ? explainStatus(err.status) : `Couldn't reach ${process.env.VOIPMS_API_URL ? "the relay" : "voip.ms"}: ${err.message}`;
+      const left = replies.length - i;
+      await logEvent("error", "sms-inbound", `A reply wasn't sent${left > 1 ? ` (nor the ${left - 1} after it)` : ""}: ${error}`,
+        { phone, detail: { status: err.status || null, length: body.length } });
     }
+    await db("btw_messages", { method: "POST", body: { phone, direction: "out", body, error } })
+      .catch((err) => console.error("sms-inbound: couldn't record a reply:", err.message));
+    if (error) break;
   }
 }
 
