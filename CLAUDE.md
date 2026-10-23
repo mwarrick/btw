@@ -19,7 +19,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - `api/sms-send.js`: sends a text. POST with a Bearer `SMS_SEND_KEY`. Uses `sendSMS` for text of 160 characters or less, and `sendMMS` for longer text (up to 2048) or media (up to 3 URLs).
 - `api/sms-inbound.js`: the voip.ms SMS URL callback. Checks `?key=SMS_INBOUND_KEY`, accepts GET (with `&` or `;` between values) or POST JSON, normalizes the message to `{id, from, to, message, date, media}`, logs it and replies `ok`. It does not run the conversation yet.
 - Neither has been run against real voip.ms.
-- Prompt editor (`/admin`, `api/admin/*`): done, and working live against the real Supabase and Google Translate (login, loading prompts, Google drafts all confirmed in production).
+- Prompt editor (`/admin`, `api/admin/*`): done, and working live against the real Supabase and Google Translate (login, loading prompts, Google drafts all confirmed in production). The user edits in English only: once an English prompt is saved and newer than a translation (by `updated_at`), it shows Translate, which calls `api/admin/translate-all` to translate and **save** into every language that is on or started, then shows the results in a dialog.
 - Prompt text is data: 88 keys in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). Only English is active.
 
 ## Open questions (verify against https://voip.ms/m/apidocs.php)

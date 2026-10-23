@@ -5,10 +5,10 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | Path | Purpose |
 | --- | --- |
 | `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
-| `/admin` | Prompt editor: edit every message in every language, switch languages on and off. Needs `ADMIN_PASSWORD`. |
+| `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off. Needs `ADMIN_PASSWORD`. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -41,7 +41,7 @@ The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_
 | `btw_sessions` | Where each phone number is in the conversation |
 | `btw_messages` | Every text in and out; the voip.ms id is unique so retries are handled once |
 
-A language can only be switched on once every message has text in it. Google drafts are never saved until someone reviews them and clicks Save.
+A language can only be switched on once every message has text in it. Editing happens in English: after an English message is saved, its Translate button translates it into every language that's switched on or started, saves the results and shows them. A translation that loses a `{placeholder}` is not saved. Drafts made per language with "Draft with Google" are only saved when someone clicks Save.
 
 ## voip.ms setup
 

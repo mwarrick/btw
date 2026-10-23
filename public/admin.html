@@ -239,6 +239,31 @@
   }
   .toast.bad { background: var(--bad); color: #fff; }
 
+  /* translate-all confirmation */
+  .dialog {
+    width: min(640px, calc(100% - 32px)); max-height: min(82vh, 780px);
+    border: 1px solid var(--line); border-radius: 14px; padding: 0;
+    background: var(--surface); color: var(--ink);
+  }
+  .dialog::backdrop { background: rgba(5, 12, 20, 0.55); }
+  .dialog-head {
+    position: sticky; top: 0; z-index: 1; background: var(--surface);
+    display: flex; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+  }
+  .dialog-head h2 { margin: 0; font-size: 17px; text-wrap: balance; }
+  .dialog-key { margin: 12px 16px 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .result-list { list-style: none; margin: 0; padding: 10px 16px 16px; display: grid; gap: 10px; }
+  .result-list li {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    background: var(--surface-2); display: grid; gap: 4px; min-width: 0;
+  }
+  .result-list li.failed { border-color: var(--bad); }
+  .result-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .result-head .meter { margin-left: auto; }
+  .result-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .result-error { margin: 0; color: var(--bad); font-size: 13.5px; }
+
   @media (max-width: 560px) {
     .top p { display: none; }
     .toolbar { position: static; }
@@ -300,7 +325,7 @@
 
     <section class="block">
       <h2>Prompts</h2>
-      <p class="hint">Saved text goes straight to the database the SMS signup reads. Words in braces, like {name}, are replaced with the real value when the message is sent, so keep them.</p>
+      <p class="hint">Saved text goes straight to the database the SMS signup reads. Words in braces, like {name}, are replaced with the real value when the message is sent, so keep them. After you save a change in English, Translate updates every other language from it.</p>
       <div class="toolbar">
         <label class="field">Language <select id="lang-select"></select></label>
         <div class="tabs" id="tabs"></div>
@@ -323,6 +348,15 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<dialog class="dialog" id="result-dialog" aria-labelledby="result-title">
+  <div class="dialog-head">
+    <h2 id="result-title"></h2>
+    <button class="btn small" id="result-close" type="button">Close</button>
+  </div>
+  <p class="dialog-key" id="result-key"></p>
+  <ul class="result-list" id="result-list"></ul>
+</dialog>
+
 <script type="module">
 import { createEngine } from "/js/engine.js";
 import { smsInfo } from "/js/sms.js";
@@ -344,6 +378,7 @@ const state = {
   keys: [],
   englishOnly: new Set(),
   saved: {},   // lang -> key -> text
+  updated: {}, // lang -> key -> when it was last saved
   edits: {},   // lang -> key -> { text, source: "you" | "google" }
   errors: {},  // "lang:key" -> message
   lang: "en",
@@ -352,6 +387,7 @@ const state = {
   todoOnly: false,
   busy: false,
   progress: "",
+  translating: null, // key being translated into every language
 };
 
 const $ = (id) => document.getElementById(id);
@@ -422,6 +458,22 @@ function langStats(code) {
   return { total: keys.length, have, missing: keys.length - have, unsaved: Object.keys(state.edits[code] || {}).length };
 }
 
+const savedAt = (lang, key) => Date.parse(state.updated[lang]?.[key] || "") || 0;
+
+// Languages kept in step with English: switched on, or already started.
+function maintainedLangs() {
+  return state.languages
+    .filter((l) => l.code !== "en" && (l.active || Object.keys(state.saved[l.code] || {}).length))
+    .map((l) => l.code);
+}
+
+// Languages whose text for `key` is missing or older than the English.
+function staleLangs(key) {
+  if (!translatable(key) || !savedText("en", key)) return [];
+  const english = savedAt("en", key);
+  return maintainedLangs().filter((code) => !savedText(code, key) || savedAt(code, key) < english);
+}
+
 function needsWork(lang, key) {
   if (editOf(lang, key)) return true;
   if (lang !== "en" && !translatable(key)) return false;
@@ -481,7 +533,11 @@ async function load() {
   state.keys = data.keys;
   state.englishOnly = new Set(data.englishOnly);
   state.saved = {};
-  for (const p of data.prompts) (state.saved[p.lang] ||= {})[p.key] = p.text;
+  state.updated = {};
+  for (const p of data.prompts) {
+    (state.saved[p.lang] ||= {})[p.key] = p.text;
+    (state.updated[p.lang] ||= {})[p.key] = p.updated_at;
+  }
 
   $("login").hidden = true;
   $("editor").hidden = false;
@@ -716,6 +772,10 @@ function renderRow(k) {
         type: "button", class: "btn small ghost", "data-role": "draft", text: "Draft with Google",
         onclick: () => draftWithGoogle([k.key], false),
       }) : null,
+      lang === "en" ? h("button", {
+        type: "button", class: "btn small", "data-role": "translate-all", text: "Translate",
+        onclick: () => translateAll(k.key),
+      }) : null,
       h("button", {
         type: "button", class: "btn small ghost", "data-role": "undo", text: "Undo",
         onclick: () => {
@@ -749,9 +809,11 @@ function updateRow(k, row = $(`row-${k.key}`)) {
   const text = currentText(lang, k.key);
 
   row.classList.toggle("dirty", !!edit);
+  const stale = lang === "en" ? staleLangs(k.key) : [];
   const status = edit?.source === "google" ? chip("Google draft, not saved", "draft")
     : edit ? chip("Unsaved", "warn")
     : !saved && lang !== "en" && translatable(k.key) ? chip("Not translated", "muted")
+    : stale.length ? chip(`${stale.length} language${stale.length === 1 ? "" : "s"} to update`, "warn")
     : null;
   part("chips").replaceChildren(...(status ? [status] : []));
 
@@ -790,6 +852,17 @@ function updateRow(k, row = $(`row-${k.key}`)) {
   part("undo").hidden = !edit;
   const draft = part("draft");
   if (draft) draft.disabled = state.busy;
+  // Shown once the English is saved and newer than some translation.
+  const translateBtn = part("translate-all");
+  if (translateBtn) {
+    const working = state.translating === k.key;
+    translateBtn.hidden = !working && (!!edit || !stale.length);
+    translateBtn.disabled = state.busy;
+    translateBtn.textContent = working ? "Translating..." : "Translate";
+    translateBtn.title = stale.length
+      ? `Translate this English text into ${stale.length} other language${stale.length === 1 ? "" : "s"} and save it`
+      : "";
+  }
 }
 
 function autosize(ta) {
@@ -812,8 +885,14 @@ async function saveOne(lang, key, { quiet = false } = {}) {
   try {
     const { prompt } = await api("/api/admin/prompts", { method: "PUT", body: { key, lang, text: edit.text } });
     (state.saved[lang] ||= {});
-    if (prompt) state.saved[lang][key] = prompt.text;
-    else delete state.saved[lang][key];
+    (state.updated[lang] ||= {});
+    if (prompt) {
+      state.saved[lang][key] = prompt.text;
+      state.updated[lang][key] = prompt.updated_at;
+    } else {
+      delete state.saved[lang][key];
+      delete state.updated[lang][key];
+    }
     delete state.edits[lang][key];
     delete state.errors[`${lang}:${key}`];
     // The server may have straightened quotes, so show what was stored.
@@ -929,6 +1008,70 @@ async function draftWithGoogle(keys, bulk) {
     refreshButtons();
   }
 }
+
+// ---------- Translate: English into every other language, saved ----------
+
+async function translateAll(key) {
+  state.busy = true;
+  state.translating = key;
+  refreshButtons();
+  try {
+    const { english, results } = await api("/api/admin/translate-all", { method: "POST", body: { key } });
+    for (const r of results) {
+      if (!r.saved) continue;
+      (state.saved[r.lang] ||= {})[key] = r.text;
+      (state.updated[r.lang] ||= {})[key] = r.updated_at;
+    }
+    showResults(key, english, results);
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    state.busy = false;
+    state.translating = null;
+    renderLanguages();
+    renderToolbar();
+    refreshButtons();
+  }
+}
+
+function showResults(key, english, results) {
+  const saved = results.filter((r) => r.saved).length;
+  $("result-title").textContent = saved === results.length
+    ? `Saved in English and ${saved} other language${saved === 1 ? "" : "s"}`
+    : `Saved in English and ${saved} of ${results.length} other languages`;
+  $("result-key").textContent = key;
+
+  const placeholders = keyDef(key)?.placeholders || [];
+  const meter = (text) => {
+    const info = smsInfo(text.replace(/\{(\w+)\}/g, (m, p) => SAMPLE[p] ?? m));
+    return h("span", { class: info.segments > 1 ? "meter over" : "meter", text: `${info.segments} SMS · ${info.encoding}` });
+  };
+  const item = (name, lang, text, ok, error) =>
+    h("li", { class: ok ? null : "failed" },
+      h("div", { class: "result-head" },
+        h("strong", { lang, text: name }),
+        ok ? chip("Saved", "ok") : chip("Not saved", "bad"),
+        text ? meter(text) : null,
+      ),
+      text ? h("p", { class: "result-text", lang, dir: RTL.has(lang) ? "rtl" : "auto", text }) : null,
+      error ? h("p", { class: "result-error", text: error }) : null,
+    );
+
+  $("result-list").replaceChildren(
+    item("English", "en", english, true),
+    ...results.map((r) => item(r.name, r.lang, r.text, r.saved, r.error)),
+  );
+  if (placeholders.length) {
+    $("result-key").textContent += ` · keeps ${placeholders.map((p) => `{${p}}`).join(", ")}`;
+  }
+  $("result-dialog").showModal();
+}
+
+$("result-close").addEventListener("click", () => $("result-dialog").close());
+// A click on the dimmed backdrop (the dialog element itself) closes it too.
+$("result-dialog").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.close();
+});
 
 // ---------- toast ----------
 
