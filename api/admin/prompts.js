@@ -9,10 +9,8 @@
 // that is switched on.
 
 import { requireAdmin } from "../../lib/admin-auth.js";
-import { ENGLISH_ONLY_KEYS, missingPlaceholders, straighten } from "../../lib/prompts.js";
+import { ENGLISH_ONLY_KEYS, PROMPT_MAX, missingPlaceholders, straighten } from "../../lib/prompts.js";
 import { db, eq } from "../../lib/supabase.js";
-
-const MAX_LENGTH = 1000;
 
 export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
@@ -42,8 +40,8 @@ async function save(req, res) {
     return;
   }
   const text = straighten(String(req.body.text ?? "")).trim();
-  if (text.length > MAX_LENGTH) {
-    res.status(400).json({ error: `Keep it under ${MAX_LENGTH} characters.` });
+  if (text.length > PROMPT_MAX) {
+    res.status(400).json({ error: `Keep it to ${PROMPT_MAX} characters, one text message. This is ${text.length}.` });
     return;
   }
 

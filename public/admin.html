@@ -508,6 +508,8 @@ const SECTIONS = [
   ["keywords", "Keywords"],
 ];
 const RTL = new Set(["ar", "ur"]);
+// Most characters a prompt may hold; the server checks the same (lib/prompts.js).
+const PROMPT_MAX = 160;
 const LATIN = new Set(["en", "es", "fr", "pt"]);
 
 const state = {
@@ -592,7 +594,8 @@ function editCount() {
 function langStats(code) {
   const keys = code === "en" ? state.keys : state.keys.filter((k) => translatable(k.key));
   const have = keys.filter((k) => savedText(code, k.key)).length;
-  return { total: keys.length, have, missing: keys.length - have, unsaved: Object.keys(state.edits[code] || {}).length };
+  const long = keys.filter((k) => savedText(code, k.key).length > PROMPT_MAX).length;
+  return { total: keys.length, have, missing: keys.length - have, long, unsaved: Object.keys(state.edits[code] || {}).length };
 }
 
 const savedAt = (lang, key) => Date.parse(state.updated[lang]?.[key] || "") || 0;
@@ -614,7 +617,8 @@ function staleLangs(key) {
 function needsWork(lang, key) {
   if (editOf(lang, key)) return true;
   if (lang !== "en" && !translatable(key)) return false;
-  return !savedText(lang, key);
+  const text = savedText(lang, key);
+  return !text || text.length > PROMPT_MAX;
 }
 
 // ---------- login ----------
@@ -696,6 +700,7 @@ function renderLanguages() {
       l.code === "en"
         ? chip(`All ${s.total}`, "ok")
         : s.missing ? chip(`${s.missing} of ${s.total} missing`, s.have ? "warn" : "muted") : chip("Complete", "ok"),
+      s.long ? chip(`${s.long} too long`, "bad") : null,
       s.unsaved ? chip(`${s.unsaved} unsaved`, "warn") : null,
     );
     const label = h("input", {
@@ -887,6 +892,7 @@ function renderRow(k) {
     lang,
     dir: RTL.has(lang) ? "rtl" : "auto",
     rows: "2",
+    maxlength: String(PROMPT_MAX),
     "aria-label": `Text for ${k.key}`,
     placeholder: lang === "en" ? null : "No translation yet. The English text is sent instead.",
   });
@@ -969,8 +975,8 @@ function updateRow(k, row = $(`row-${k.key}`)) {
   } else {
     const filled = text.replace(/\{(\w+)\}/g, (m, p) => SAMPLE[p] ?? m);
     const info = smsInfo(filled);
-    meter.textContent = `${info.segments} SMS · ${info.encoding} · ${info.length} characters`;
-    meter.className = info.segments > 1 ? "meter over" : "meter";
+    meter.textContent = `${text.length}/${PROMPT_MAX} characters · ${info.segments} SMS · ${info.encoding}`;
+    meter.className = info.segments > 1 || text.length > PROMPT_MAX ? "meter over" : "meter";
     meter.title = placeholders.length
       ? `Counted with ${placeholders.map((p) => `{${p}} as "${SAMPLE[p] ?? p}"`).join(", ")}`
       : "";
@@ -983,11 +989,13 @@ function updateRow(k, row = $(`row-${k.key}`)) {
     missing.includes(p) ? chip(`{${p}} missing`, "bad") : chip(`{${p}}`, "ok")
   ));
 
+  const tooLong = text.length > PROMPT_MAX;
   const error = state.errors[`${lang}:${k.key}`]
-    || (missing.length ? `Put ${missing.map((p) => `{${p}}`).join(", ")} back in. It's replaced with the real value when the message is sent.` : "");
+    || (missing.length ? `Put ${missing.map((p) => `{${p}}`).join(", ")} back in. It's replaced with the real value when the message is sent.` : "")
+    || (tooLong ? `${text.length} characters: shorten it to ${PROMPT_MAX}, one text message.` : "");
   part("error").textContent = error;
 
-  part("save").disabled = state.busy || !edit || missing.length > 0 || (lang === "en" && !text.trim());
+  part("save").disabled = state.busy || !edit || missing.length > 0 || tooLong || (lang === "en" && !text.trim());
   part("undo").hidden = !edit;
   const draft = part("draft");
   if (draft) draft.disabled = state.busy;
