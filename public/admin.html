@@ -1488,13 +1488,14 @@ const formatPhone = (p) => {
 };
 const yesNo = (v) => (v == null ? null : v ? "Yes" : "No");
 
+// Date and time, e.g. "Oct 23, 9:59 AM"; the year too when it isn't this one.
 function when(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay
-    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const otherYear = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleString([], {
+    month: "short", day: "numeric", ...(otherYear ? { year: "numeric" } : {}), hour: "numeric", minute: "2-digit",
+  });
 }
 
 function whereTheyAre(c) {
