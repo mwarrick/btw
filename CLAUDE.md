@@ -32,7 +32,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - Log panel (`/admin`, `api/admin/events.js`): the latest 200 `btw_events` rows (errors and warnings from `sms-inbound` and `sms-send`), with a link from a phone number to its conversation. Checked in a browser against an in-memory database, not yet against production.
 - Each prompt is capped at 160 characters (`PROMPT_MAX` in `lib/prompts.js`, mirrored in `admin.html`): the box stops typing there, `PUT /api/admin/prompts` refuses longer text, and `translate-all` doesn't save a translation that runs over. As of 2026-10-23, 20 saved translations (none in English) were over the cap; the editor flags them as "too long" and lists them under "Only what needs work" (all fixed since: 0 over the cap at the end of 2026-10-23). Messages built from several prompts (menu, summary) can still run longer and go out as MMS.
 - `lang_detected` and `kw_menu` (migration `20261023170000`) were translated by hand into all 10 languages; worth a native-speaker check.
-- Prompt text is data: 99 keys in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). All 10 languages were switched on as of 2026-10-23.
+- Prompt text is data: 108 keys (as of 2026-10-24) in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). All 10 languages were switched on as of 2026-10-23.
 
 ## Decisions (the user's; details in docs/session-2026-10-23.md)
 - Any text starts or continues a signup; no keyword.
