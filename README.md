@@ -5,7 +5,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | Path | Purpose |
 | --- | --- |
 | `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
-| `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off, shows the conversations (and lets you text pastors), the problem log and the users. Each person logs in with their own email and password. |
+| `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (languages and message text, edited in English with Translate into the rest), Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
 | `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove) |
