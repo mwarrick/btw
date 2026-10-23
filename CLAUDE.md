@@ -6,8 +6,9 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 
 ## Layout
 - `public/`: the only folder Vercel publishes (`vercel.json` sets `outputDirectory`). Before that, the whole repo, `docs/` and `CLAUDE.md` included, was publicly downloadable. `cleanUrls` serves `admin.html` at `/admin`.
-  - `index.html`: browser demo of the English conversation. Its logic is still inline; it should move to a shared engine that the SMS handler also uses.
+  - `index.html`: browser demo. Runs `js/engine.js` on the live prompts from `GET /api/prompts`, so edits at `/admin` show there (that endpoint is cached 15s at Vercel's edge).
   - `admin.html`: prompt editor (vanilla JS module, no build step).
+  - `js/engine.js`: the conversation as a pure function, `reply(state, text) -> { state, replies }`. Shared by the demo and (next) the SMS handler. State is JSON for `btw_sessions`; `data` uses `btw_churches` column names. The first message is `menu_intro`, then `<n> <menu_label>` per switched-on language, then `menu_footer`. After an opt-out (STOP and the other carrier words) it sends nothing until START.
   - `js/sms.js`: GSM-7 / Unicode segment counting, imported by the pages and by the API.
 - `api/`: serverless functions. `api/admin/*` needs the `ADMIN_PASSWORD` session cookie.
 - `lib/`: server helpers. `supabase.js` (PostgREST over fetch), `admin-auth.js` (HMAC cookie, no session store), `prompts.js` (English-only keys, quote straightening, placeholder checks), `translate.js` (Google v2 behind `translate()`).
@@ -18,7 +19,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - `api/sms-send.js`: sends a text. POST with a Bearer `SMS_SEND_KEY`. Uses `sendSMS` for text of 160 characters or less, and `sendMMS` for longer text (up to 2048) or media (up to 3 URLs).
 - `api/sms-inbound.js`: the voip.ms SMS URL callback. Checks `?key=SMS_INBOUND_KEY`, accepts GET (with `&` or `;` between values) or POST JSON, normalizes the message to `{id, from, to, message, date, media}`, logs it and replies `ok`. It does not run the conversation yet.
 - Neither has been run against real voip.ms.
-- Prompt editor (`/admin`, `api/admin/*`): done and tested locally against PGlite with the real migrations and a fake Google. Not yet tried against the real Supabase or Google.
+- Prompt editor (`/admin`, `api/admin/*`): done, and working live against the real Supabase and Google Translate (login, loading prompts, Google drafts all confirmed in production).
 - Prompt text is data: 88 keys in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). Only English is active.
 
 ## Open questions (verify against https://voip.ms/m/apidocs.php)
@@ -29,7 +30,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 5. The exact placeholder names. `{TIMESTAMP}` vs `{DATE}` is unconfirmed.
 
 ## Next steps
-- Build the conversation handler: factor the state machine out of `public/index.html` into a shared engine, have `sms-inbound.js` run it against `btw_sessions` / `btw_churches`, read text from `btw_prompts` (falling back to English), log to `btw_messages` and deduplicate on the voip.ms `id`.
+- Build the conversation handler: have `sms-inbound.js` run `public/js/engine.js` against `btw_sessions` / `btw_churches`, read text from `btw_prompts`, log to `btw_messages` and deduplicate on the voip.ms `id`.
 - Get round the voip.ms IP whitelist for sending: Vercel's outbound IPs aren't fixed. Options: a static-IP relay (set `VOIPMS_API_URL`), Vercel's static IP option, or a whitelisted hostname.
 - Register 10DLC (brand about $4 + campaign about $15, plus carrier fees) for US numbers.
 
