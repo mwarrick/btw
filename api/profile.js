@@ -2,9 +2,10 @@
 // The pastor's own signup page (/p/<key>, public/profile.html). The key from
 // the DONE message's link is the only login: it opens that one signup.
 //
-//   GET ?key=...    -> { church, lang, dir, text }: the answers, plus the
-//                      page's wording in the signup's language (English where
-//                      a prompt is missing)
+//   GET ?key=...    -> { church, phone, lang, dir, text }: the answers, the
+//                      signup's phone (shown, not editable), plus the page's
+//                      wording in the signup's language (English where a
+//                      prompt is missing)
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
 //
@@ -23,6 +24,7 @@ const TEXT_KEYS = [
   "sum_website", "sum_contact", "sum_baptism", "sum_map", "val_yes", "val_no",
   ...Object.values(ERROR_PROMPTS),
   "web_title", "web_intro", "web_save", "web_saved", "web_contact_hint", "web_contact_phone", "web_baptism_same", "web_bad_link",
+  "web_phone", "web_phone_hint",
 ];
 const RTL = new Set(["ar", "ur"]);
 
@@ -44,7 +46,7 @@ export default async function handler(req, res) {
     const lang = church.lang || "en";
 
     if (req.method === "GET") {
-      res.status(200).json({ church: publicFields(church), lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
+      res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
       return;
     }
 
@@ -67,10 +69,17 @@ export default async function handler(req, res) {
   }
 }
 
-// The phone stays on the server: the page doesn't need it.
+// The answers the page can edit; the phone is sent apart, since it can't be
+// changed (it's the signup's identity).
 function publicFields(church) {
   const { phone, lang, ...rest } = church;
   return rest;
+}
+
+// +17145550100 -> (714) 555-0100
+function formatPhone(phone) {
+  const d = String(phone || "").replace(/^\+1/, "");
+  return /^\d{10}$/.test(d) ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : phone;
 }
 
 // TEXT_KEYS in `lang`, English where a translation is missing.

@@ -14,6 +14,10 @@
 //   POST ?phone=+1... { sendLink: true } -> { message }: the same, with the
 //                        pastor's page link (done_link in their language); makes
 //                        the link's key first if the signup has none
+//   POST ?phone=+1... { finish: true } -> { finished: true }: closes an
+//                        unfinished signup as if they'd texted DONE (nothing is
+//                        texted): the questions stop, missing answers stay
+//                        blank, and their replies go to the team thread
 //   POST ?phone=+1... { translate } -> { text }: that English in the
 //                        pastor's signup language, to check before sending
 //   DELETE ?phone=+1...  -> { deleted: true }: the number's texts, answers,
@@ -105,9 +109,11 @@ async function post(phone, body, user, res, site) {
   }
   const [[session], [church]] = await Promise.all([
     db(`btw_sessions?phone=${eq(phone)}&select=phase,lang`),
-    db(`btw_churches?phone=${eq(phone)}&select=lang,simulated,profile_key`),
+    db(`btw_churches?phone=${eq(phone)}&select=lang,simulated,profile_key,completed_at`),
   ]);
   const lang = session?.lang || church?.lang || "en";
+
+  if (body.finish) return finish(phone, session, church, res);
 
   if (typeof body.translate === "string") {
     const english = body.translate.trim();
@@ -159,6 +165,29 @@ async function post(phone, body, user, res, site) {
     prefer: "return=representation",
   });
   res.status(200).json({ message });
+}
+
+// Closes the signup: the session is "done" (the engine's finished state, so
+// texts that aren't commands go to the team thread) and the church row is
+// complete, with a page link key like a DONE would make.
+async function finish(phone, session, church, res) {
+  if (!session || !church) {
+    res.status(404).json({ error: "This number hasn't started a signup." });
+    return;
+  }
+  if (session.phase === "stopped") {
+    res.status(400).json({ error: "They texted STOP, so the signup is already closed." });
+    return;
+  }
+  const now = new Date().toISOString();
+  await Promise.all([
+    db(`btw_sessions?phone=${eq(phone)}`, { method: "PATCH", body: { phase: "done", queue: [], editing: false } }),
+    church.completed_at ? null : db(`btw_churches?phone=${eq(phone)}`, {
+      method: "PATCH",
+      body: { completed_at: now, status: "complete", profile_key: church.profile_key || newProfileKey() },
+    }),
+  ]);
+  res.status(200).json({ finished: true });
 }
 
 // done_link ("See or update your signup anytime: {link}") in the pastor's
