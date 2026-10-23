@@ -317,5 +317,15 @@ export function createEngine({ prompts, languages }) {
     return { ...send(text(state.lang, state.phase === "done" ? "done_reply" : "summary_hint")), unhandled: true };
   }
 
-  return { start, startIn, reply, menu };
+  // The open question again (or the menu), without taking an answer: for a
+  // text with only a picture in it.
+  function again(previous) {
+    const state = previous || newState();
+    if (state.phase === "collect" && state.queue.length) return [question(state)];
+    if (state.phase === "lang") return [menu()];
+    if (state.phase === "summary") return [text(state.lang, "summary_hint")];
+    return [];
+  }
+
+  return { start, startIn, reply, menu, again };
 }

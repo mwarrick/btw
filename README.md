@@ -55,10 +55,10 @@ A language can only be switched on once every message has text in it. Editing ha
 2. Edit your DID and turn on SMS (and MMS if you want it). Set the **SMS URL Callback** to:
 
    ```
-   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}
+   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}&media={MEDIA}
    ```
 
-   Turn on **URL callback retry** too. voip.ms keeps retrying until the endpoint replies `ok`.
+   Keep `&media={MEDIA}` last: it's the MMS attachments (comma-separated links), and everything after `media=` is read as that list. Turn on MMS on the number to receive pictures. Turn on **URL callback retry** too. voip.ms keeps retrying until the endpoint replies `ok`.
 3. US numbers: register a brand and a campaign for 10DLC in the portal. Carriers filter unregistered application-to-person traffic.
 
 ## Sending

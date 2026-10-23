@@ -5,7 +5,7 @@
 //   GET               -> { conversations: [{ phone, church_name, name, status, lang, phase, step,
 //                        last_at, unread, ... }] } newest activity first; one per phone number;
 //                        unread counts the pastor's team texts nobody has opened
-//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, translation, error,
+//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, media, translation, error,
 //                        created_at, sender: { name } }] }
 //                        the latest messages, oldest first; marks the team texts read
 //   POST ?phone=+1... { body }  -> { message }: texts the pastor from the
@@ -34,7 +34,7 @@ import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
 const LIST_LIMIT = 500;
 const THREAD_LIMIT = 1000;
 // sender: who sent a team message, through btw_messages.sent_by.
-const MESSAGE_FIELDS = "id,thread,direction,body,translation,error,read_at,created_at,sender:btw_users(name)";
+const MESSAGE_FIELDS = "id,thread,direction,body,media,translation,error,read_at,created_at,sender:btw_users(name)";
 
 export default async function handler(req, res) {
   const user = await requireAdmin(req, res);
