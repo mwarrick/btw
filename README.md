@@ -1,11 +1,16 @@
 # btw
 
-Send and receive text messages through [voip.ms](https://voip.ms), using two Vercel serverless functions. They are stateless: no database, nothing stored.
+Church signup for Baptize 2027, entirely by text message through [voip.ms](https://voip.ms), on Vercel serverless functions with a Supabase database. The SMS wording lives in the database and is edited at `/admin`.
 
-| Endpoint | Purpose |
+| Path | Purpose |
 | --- | --- |
+| `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
+| `/admin` | Prompt editor: edit every message in every language, switch languages on and off. Needs `ADMIN_PASSWORD`. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` |
+
+Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
 ## Environment variables
 
@@ -17,6 +22,26 @@ Send and receive text messages through [voip.ms](https://voip.ms), using two Ver
 | `SMS_SEND_KEY` | Shared secret that callers of `/api/sms-send` must send |
 | `SMS_INBOUND_KEY` | Shared secret in the voip.ms callback URL |
 | `VOIPMS_API_URL` | Optional: the address of a fixed-IP relay (see below) |
+| `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | The service role (secret) key. Server-side only. |
+| `ADMIN_PASSWORD` | Password for `/admin`. Changing it logs everyone out. |
+| `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
+| `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
+
+## Database
+
+The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_` because the Supabase project is shared with other apps. Row level security is on with no policies, so only the service role key reaches the data.
+
+| Table | Holds |
+| --- | --- |
+| `btw_languages` | Languages in the SMS menu, with an on/off switch and a GSM-safe menu label |
+| `btw_prompt_keys` | One row per message, with a description and the `{placeholders}` it must keep |
+| `btw_prompts` | The text of each message in each language |
+| `btw_churches` | One signup per phone number |
+| `btw_sessions` | Where each phone number is in the conversation |
+| `btw_messages` | Every text in and out; the voip.ms id is unique so retries are handled once |
+
+A language can only be switched on once every message has text in it. Google drafts are never saved until someone reviews them and clicks Save.
 
 ## voip.ms setup
 

@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Prompt Editor &middot; Baptize 2027</title>
+<style>
+  /* Layout: one centered working column; languages table, then a sticky
+     toolbar over the prompt list, with a save bar pinned to the bottom. */
+  :root {
+    --bg: #eef2f6;
+    --surface: #ffffff;
+    --surface-2: #f6f8fb;
+    --ink: #13212d;
+    --muted: #5b6977;
+    --line: #d7dee6;
+    --brand: #0b6ea8;
+    --brand-ink: #ffffff;
+    --focus: #2b8fd0;
+    --ok: #1c7a45;
+    --ok-bg: #e3f4ea;
+    --warn: #8a5300;
+    --warn-bg: #fdf0d9;
+    --bad: #b3261e;
+    --bad-bg: #fbe7e5;
+    --draft: #5b45b0;
+    --draft-bg: #ece8fb;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b1117; --surface: #121a22; --surface-2: #17212b; --ink: #e5ecf2;
+      --muted: #8c9aa7; --line: #253240; --brand: #3fa6dd; --brand-ink: #07121a;
+      --focus: #5bb8ea; --ok: #5ccc8f; --ok-bg: #12291d; --warn: #e6ae55;
+      --warn-bg: #2c2210; --bad: #f08a80; --bad-bg: #2f1715; --draft: #b3a2f5;
+      --draft-bg: #221d3a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b1117; --surface: #121a22; --surface-2: #17212b; --ink: #e5ecf2;
+    --muted: #8c9aa7; --line: #253240; --brand: #3fa6dd; --brand-ink: #07121a;
+    --focus: #5bb8ea; --ok: #5ccc8f; --ok-bg: #12291d; --warn: #e6ae55;
+    --warn-bg: #2c2210; --bad: #f08a80; --bad-bg: #2f1715; --draft: #b3a2f5;
+    --draft-bg: #221d3a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 var(--font);
+    padding-bottom: 80px;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* header */
+  .top { background: var(--brand); color: var(--brand-ink); }
+  .top .wrap {
+    display: flex; align-items: center; gap: 12px;
+    padding-block: 12px;
+  }
+  .mark {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700;
+    background: color-mix(in srgb, var(--brand-ink) 18%, transparent);
+    flex: 0 0 auto;
+  }
+  .top h1 { font-size: 17px; margin: 0; line-height: 1.2; }
+  .top p { margin: 0; font-size: 12.5px; opacity: .85; }
+  .top .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .top a { color: inherit; font-size: 13px; }
+
+  /* buttons */
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer; font-weight: 600;
+    font-size: 14px; white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--muted); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .btn.ghost { background: transparent; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .btn.current { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .top .btn { background: transparent; color: var(--brand-ink); border-color: color-mix(in srgb, var(--brand-ink) 45%, transparent); }
+
+  /* login */
+  .login {
+    max-width: 380px; margin: 64px auto 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px;
+  }
+  .login h2 { margin: 0 0 4px; font-size: 19px; }
+  .login p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  .login form { display: grid; gap: 12px; }
+  .login label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+  .login input {
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+    background: var(--surface-2);
+  }
+  .login .error { color: var(--bad); min-height: 1.4em; margin: 0; font-size: 14px; }
+
+  /* sections */
+  section.block { margin-top: 24px; }
+  .block > h2 { font-size: 15px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .block > .hint { margin: 0 0 12px; color: var(--muted); font-size: 14px; max-width: 70ch; }
+
+  /* languages table */
+  .table-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  tr:last-child td { border-bottom: none; }
+  tr.current td { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+  td.right { text-align: right; }
+  .lang-name { font-weight: 600; margin-right: 8px; }
+  .code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .label-input {
+    width: 130px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+    background: var(--surface-2);
+  }
+
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; position: relative; }
+  .switch input { position: absolute; opacity: 0; width: 38px; height: 22px; margin: 0; cursor: pointer; }
+  .switch .track {
+    width: 38px; height: 22px; border-radius: 11px; background: var(--line);
+    position: relative; transition: background .15s; flex: 0 0 auto;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--surface); transition: transform .15s;
+  }
+  .switch input:checked + .track { background: var(--ok); }
+  .switch input:checked + .track::after { transform: translateX(16px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .switch input:disabled, .switch input:disabled + .track { cursor: not-allowed; opacity: .6; }
+  .switch-text { font-size: 13px; color: var(--muted); }
+
+  /* chips */
+  .chip {
+    display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px;
+    padding: 1px 9px; white-space: nowrap;
+  }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); }
+  .chip.bad { color: var(--bad); background: var(--bad-bg); }
+  .chip.draft { color: var(--draft); background: var(--draft-bg); }
+  .chip.muted { color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); }
+  .chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+
+  /* toolbar */
+  .toolbar {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding-block: 10px; border-bottom: 1px solid var(--line);
+  }
+  .toolbar select, .toolbar input[type="search"] {
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface);
+  }
+  .toolbar input[type="search"] { flex: 1 1 180px; min-width: 0; }
+  .field { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab {
+    border: 1px solid transparent; background: transparent; border-radius: 999px;
+    padding: 4px 11px; cursor: pointer; font-size: 13.5px; color: var(--muted); font-weight: 600;
+  }
+  .tab[aria-pressed="true"] { background: var(--surface); border-color: var(--line); color: var(--ink); }
+  .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+
+  /* prompt list */
+  .list { display: grid; gap: 10px; margin-top: 12px; }
+  .list h3 { margin: 14px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .prompt {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; display: grid; gap: 8px; min-width: 0;
+  }
+  .prompt.dirty { border-color: var(--warn); }
+  .prompt-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .key { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+  .desc { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .ref { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+  .ref-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .ref-text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note { margin: 0; font-size: 13.5px; color: var(--muted); font-style: italic; }
+  .prompt textarea {
+    width: 100%; resize: vertical; min-height: 44px; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; background: var(--surface-2); line-height: 1.4;
+  }
+  .prompt-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .meter { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .meter.over { color: var(--warn); font-weight: 600; }
+  .uni { font-size: 12.5px; color: var(--warn); }
+  .spacer { flex: 1 1 auto; }
+  .row-error { margin: 0; color: var(--bad); font-size: 13.5px; }
+  .row-error:empty { display: none; }
+
+  /* save bar + toast */
+  .savebar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: var(--surface); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .savebar .wrap { display: flex; gap: 10px; align-items: center; padding-block: 10px; }
+  .savebar-text { font-weight: 600; margin-right: auto; }
+  .toast {
+    position: fixed; z-index: 20; left: 50%; transform: translateX(-50%);
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    max-width: min(560px, calc(100% - 32px));
+    background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px;
+    font-size: 14px;
+  }
+  .toast.bad { background: var(--bad); color: #fff; }
+
+  @media (max-width: 560px) {
+    .top p { display: none; }
+    .toolbar { position: static; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .switch .track, .switch .track::after { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="mark" aria-hidden="true">B</div>
+    <div>
+      <h1>Prompt editor</h1>
+      <p>Baptize 2027 SMS signup</p>
+    </div>
+    <div class="actions">
+      <a href="/">Demo</a>
+      <button class="btn small" id="logout" type="button" hidden>Log out</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="login" id="login" hidden>
+    <h2>Log in</h2>
+    <p>Enter the admin password to edit the text messages.</p>
+    <form id="login-form">
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="error" id="login-error" role="alert"></p>
+      <button class="btn primary" id="login-button" type="submit">Log in</button>
+    </form>
+  </section>
+
+  <div id="editor" hidden>
+    <section class="block">
+      <h2>Languages</h2>
+      <p class="hint">A language appears in the SMS language menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is what churches see in that menu, so keep it to plain letters.</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Language</th><th>Menu label</th><th>Prompts</th><th>In SMS menu</th><th></th></tr>
+          </thead>
+          <tbody id="lang-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Prompts</h2>
+      <p class="hint">Saved text goes straight to the database the SMS signup reads. Words in braces, like {name}, are replaced with the real value when the message is sent, so keep them.</p>
+      <div class="toolbar">
+        <label class="field">Language <select id="lang-select"></select></label>
+        <div class="tabs" id="tabs"></div>
+        <input id="search" type="search" placeholder="Search prompts" aria-label="Search prompts">
+        <label class="check"><input id="todo-only" type="checkbox"> Only what needs work</label>
+        <button class="btn" id="translate-missing" type="button" hidden></button>
+      </div>
+      <div class="list" id="list"></div>
+    </section>
+  </div>
+</main>
+
+<div class="savebar" id="savebar" hidden>
+  <div class="wrap">
+    <span class="savebar-text" id="savebar-text"></span>
+    <button class="btn ghost" id="discard-all" type="button">Discard all</button>
+    <button class="btn primary" id="save-all" type="button">Save all</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module">
+import { smsInfo } from "/js/sms.js";
+
+// Typical values, so the length counter is close to what is really sent.
+const SAMPLE = { name: "Maria", contact: "Pastor James" };
+const SECTIONS = [
+  ["all", "All"],
+  ["system", "System messages"],
+  ["fields", "Questions"],
+  ["summary", "Summary"],
+  ["keywords", "Keywords"],
+];
+const RTL = new Set(["ar", "ur"]);
+const LATIN = new Set(["en", "es", "fr", "pt"]);
+
+const state = {
+  languages: [],
+  keys: [],
+  englishOnly: new Set(),
+  saved: {},   // lang -> key -> text
+  edits: {},   // lang -> key -> { text, source: "you" | "google" }
+  errors: {},  // "lang:key" -> message
+  lang: "en",
+  section: "all",
+  search: "",
+  todoOnly: false,
+  busy: false,
+  progress: "",
+};
+
+const $ = (id) => document.getElementById(id);
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === false || v == null) continue;
+    if (k === "class") el.className = v;
+    else if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c != null && c !== false) el.append(c);
+  return el;
+}
+
+const chip = (text, kind) => h("span", { class: `chip ${kind}`, text });
+
+// ---------- talking to the API ----------
+
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "same-origin",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/admin/session") {
+    showLogin(data.error || "Your session has ended. Log in again.");
+    const err = new Error(data.error || "Log in again.");
+    err.silent = true;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(data.error || `Something went wrong (${res.status}).`);
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+// ---------- state helpers ----------
+
+const savedText = (lang, key) => state.saved[lang]?.[key] ?? "";
+const editOf = (lang, key) => state.edits[lang]?.[key];
+const currentText = (lang, key) => editOf(lang, key)?.text ?? savedText(lang, key);
+const translatable = (key) => !state.englishOnly.has(key);
+const keyDef = (key) => state.keys.find((k) => k.key === key);
+
+function setEdit(lang, key, text, source = "you") {
+  if (text === savedText(lang, key)) {
+    if (state.edits[lang]) delete state.edits[lang][key];
+  } else {
+    (state.edits[lang] ||= {})[key] = { text, source };
+  }
+  delete state.errors[`${lang}:${key}`];
+}
+
+function editCount() {
+  return Object.values(state.edits).reduce((n, m) => n + Object.keys(m).length, 0);
+}
+
+function langStats(code) {
+  const keys = code === "en" ? state.keys : state.keys.filter((k) => translatable(k.key));
+  const have = keys.filter((k) => savedText(code, k.key)).length;
+  return { total: keys.length, have, missing: keys.length - have, unsaved: Object.keys(state.edits[code] || {}).length };
+}
+
+function needsWork(lang, key) {
+  if (editOf(lang, key)) return true;
+  if (lang !== "en" && !translatable(key)) return false;
+  return !savedText(lang, key);
+}
+
+// ---------- login ----------
+
+function showLogin(message = "") {
+  $("editor").hidden = true;
+  $("savebar").hidden = true;
+  $("logout").hidden = true;
+  $("login").hidden = false;
+  $("login-error").textContent = message;
+  $("password").value = "";
+  $("password").focus();
+}
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = $("login-button");
+  button.disabled = true;
+  button.textContent = "Checking...";
+  try {
+    await api("/api/admin/session", { method: "POST", body: { password: $("password").value } });
+    await load();
+  } catch (err) {
+    $("login-error").textContent = err.message;
+    $("password").select();
+  } finally {
+    button.disabled = false;
+    button.textContent = "Log in";
+  }
+});
+
+$("logout").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  if (editCount() && button.dataset.armed !== "1") {
+    button.dataset.armed = "1";
+    button.textContent = "Lose unsaved changes?";
+    setTimeout(() => { button.dataset.armed = ""; button.textContent = "Log out"; }, 4000);
+    return;
+  }
+  button.dataset.armed = "";
+  button.textContent = "Log out";
+  await api("/api/admin/session", { method: "DELETE" }).catch(() => {});
+  state.edits = {};
+  state.errors = {};
+  showLogin("You're logged out.");
+});
+
+// ---------- loading ----------
+
+async function load() {
+  const data = await api("/api/admin/prompts");
+  state.languages = data.languages;
+  state.keys = data.keys;
+  state.englishOnly = new Set(data.englishOnly);
+  state.saved = {};
+  for (const p of data.prompts) (state.saved[p.lang] ||= {})[p.key] = p.text;
+
+  $("login").hidden = true;
+  $("editor").hidden = false;
+  $("logout").hidden = false;
+  renderLanguages();
+  renderToolbar();
+  renderList();
+  renderSavebar();
+}
+
+// ---------- languages ----------
+
+function renderLanguages() {
+  const rows = state.languages.map((l) => {
+    const s = langStats(l.code);
+    const status = h("span", { class: "chips" },
+      l.code === "en"
+        ? chip(`All ${s.total}`, "ok")
+        : s.missing ? chip(`${s.missing} of ${s.total} missing`, s.have ? "warn" : "muted") : chip("Complete", "ok"),
+      s.unsaved ? chip(`${s.unsaved} unsaved`, "warn") : null,
+    );
+    const label = h("input", {
+      class: "label-input",
+      id: `label-${l.code}`,
+      value: l.menu_label,
+      maxlength: "20",
+      "aria-label": `Menu label for ${l.name}`,
+      onchange: (e) => updateLanguage(l.code, { menu_label: e.target.value }),
+    });
+    const toggle = h("input", {
+      type: "checkbox",
+      role: "switch",
+      id: `active-${l.code}`,
+      checked: l.active,
+      disabled: l.code === "en",
+      "aria-label": `Offer ${l.name} in the SMS menu`,
+      title: l.code === "en" ? "English is always on: it's the fallback for every language." : null,
+      onchange: (e) => updateLanguage(l.code, { active: e.target.checked }),
+    });
+    const editing = l.code === state.lang;
+    return h("tr", { class: editing ? "current" : null },
+      h("td", {}, h("span", { class: "lang-name", lang: l.code, text: l.name }), h("span", { class: "code", text: l.code })),
+      h("td", {}, label),
+      h("td", {}, status),
+      h("td", {}, h("label", { class: "switch" }, toggle, h("span", { class: "track" }), h("span", { class: "switch-text", text: l.active ? "On" : "Off" }))),
+      h("td", { class: "right" }, h("button", {
+        type: "button",
+        class: editing ? "btn small current" : "btn small",
+        text: editing ? "Editing" : "Edit",
+        onclick: () => selectLang(l.code),
+      })),
+    );
+  });
+  $("lang-rows").replaceChildren(...rows);
+}
+
+async function updateLanguage(code, changes) {
+  try {
+    const { language } = await api("/api/admin/languages", { method: "PATCH", body: { code, ...changes } });
+    Object.assign(state.languages.find((l) => l.code === code), language);
+    toast(changes.active === undefined
+      ? `Menu label for ${language.name} saved.`
+      : `${language.name} is now ${language.active ? "in" : "out of"} the SMS menu.`);
+  } catch (err) {
+    if (!err.silent) {
+      if (err.data?.missing) {
+        selectLang(code);
+        setTodoOnly(true);
+        toast(`${err.message} They're listed below.`, "bad");
+      } else {
+        toast(err.message, "bad");
+      }
+    }
+  }
+  renderLanguages();
+  renderToolbar();
+}
+
+function selectLang(code) {
+  state.lang = code;
+  renderLanguages();
+  renderToolbar();
+  renderList();
+}
+
+// ---------- toolbar ----------
+
+function renderToolbar() {
+  $("lang-select").replaceChildren(...state.languages.map((l) =>
+    h("option", { value: l.code, selected: l.code === state.lang, text: `${l.name} (${l.code})${l.active ? "" : " - off"}` })
+  ));
+  $("tabs").replaceChildren(...SECTIONS.map(([id, label]) =>
+    h("button", {
+      type: "button",
+      class: "tab",
+      "aria-pressed": String(state.section === id),
+      text: label,
+      onclick: () => { state.section = id; renderToolbar(); renderList(); },
+    })
+  ));
+
+  const button = $("translate-missing");
+  const missing = missingKeys(state.lang);
+  button.hidden = state.lang === "en";
+  button.disabled = state.busy || missing.length === 0;
+  button.textContent = state.busy ? "Drafting..." : missing.length ? `Draft ${missing.length} missing with Google` : "Nothing to draft";
+}
+
+// Keys with no saved text and no unsaved edit in `lang`.
+function missingKeys(lang) {
+  if (lang === "en") return [];
+  return state.keys
+    .filter((k) => translatable(k.key) && !savedText(lang, k.key) && !editOf(lang, k.key))
+    .map((k) => k.key);
+}
+
+function setTodoOnly(on) {
+  state.todoOnly = on;
+  $("todo-only").checked = on;
+  renderList();
+}
+
+$("lang-select").addEventListener("change", (e) => selectLang(e.target.value));
+$("search").addEventListener("input", (e) => { state.search = e.target.value; renderList(); });
+$("todo-only").addEventListener("change", (e) => setTodoOnly(e.target.checked));
+$("translate-missing").addEventListener("click", () => draftWithGoogle(missingKeys(state.lang), true));
+
+// ---------- prompt list ----------
+
+function visibleKeys() {
+  const q = state.search.trim().toLowerCase();
+  return state.keys.filter((k) => {
+    if (state.section !== "all" && k.section !== state.section) return false;
+    if (state.todoOnly && !needsWork(state.lang, k.key)) return false;
+    if (!q) return true;
+    return [k.key, k.description, savedText("en", k.key), currentText(state.lang, k.key)]
+      .join(" ").toLowerCase().includes(q);
+  });
+}
+
+function renderList() {
+  const keys = visibleKeys();
+  const list = $("list");
+  if (!keys.length) {
+    const name = state.languages.find((l) => l.code === state.lang)?.name || "";
+    list.replaceChildren(h("p", {
+      class: "empty",
+      text: state.todoOnly ? `Nothing needs work in ${name}.` : "No prompts match.",
+    }));
+    return;
+  }
+
+  const items = [];
+  let section = null;
+  for (const k of keys) {
+    if (state.section === "all" && k.section !== section) {
+      section = k.section;
+      items.push(h("h3", { text: SECTIONS.find(([id]) => id === section)?.[1] || section }));
+    }
+    items.push(renderRow(k));
+  }
+  list.replaceChildren(...items);
+  for (const k of keys) {
+    const row = $(`row-${k.key}`);
+    const ta = row.querySelector("textarea");
+    if (ta) autosize(ta);
+    updateRow(k, row);
+  }
+}
+
+function renderRow(k) {
+  const lang = state.lang;
+  const row = h("article", { class: "prompt", id: `row-${k.key}` },
+    h("div", { class: "prompt-head" },
+      h("code", { class: "key", text: k.key }),
+      h("span", { class: "chips", "data-role": "chips" }),
+    ),
+    h("p", { class: "desc", text: k.description }),
+  );
+
+  if (lang !== "en") {
+    row.append(h("div", { class: "ref" },
+      h("span", { class: "ref-label", text: "English" }),
+      h("p", { class: "ref-text", text: savedText("en", k.key) }),
+    ));
+  }
+  if (lang !== "en" && !translatable(k.key)) {
+    row.append(h("p", { class: "note", text: "Sent before a language is chosen, so this message is English only." }));
+    return row;
+  }
+
+  const ta = h("textarea", {
+    id: `text-${k.key}`,
+    lang,
+    dir: RTL.has(lang) ? "rtl" : "auto",
+    rows: "2",
+    "aria-label": `Text for ${k.key}`,
+    placeholder: lang === "en" ? null : "No translation yet. The English text is sent instead.",
+  });
+  ta.value = currentText(lang, k.key);
+  ta.addEventListener("input", () => {
+    setEdit(lang, k.key, ta.value, "you");
+    autosize(ta);
+    updateRow(k);
+    renderSavebar();
+    renderLanguages();
+    renderToolbar();
+  });
+
+  row.append(
+    ta,
+    h("div", { class: "prompt-foot" },
+      h("span", { class: "meter", "data-role": "meter" }),
+      h("span", { class: "uni", "data-role": "uni" }),
+      h("span", { class: "chips", "data-role": "placeholders" }),
+      h("span", { class: "spacer" }),
+      lang !== "en" ? h("button", {
+        type: "button", class: "btn small ghost", "data-role": "draft", text: "Draft with Google",
+        onclick: () => draftWithGoogle([k.key], false),
+      }) : null,
+      h("button", {
+        type: "button", class: "btn small ghost", "data-role": "undo", text: "Undo",
+        onclick: () => {
+          setEdit(lang, k.key, savedText(lang, k.key));
+          ta.value = savedText(lang, k.key);
+          autosize(ta);
+          updateRow(k);
+          renderSavebar();
+          renderLanguages();
+          renderToolbar();
+        },
+      }),
+      h("button", {
+        type: "button", class: "btn small primary", "data-role": "save", text: "Save",
+        onclick: () => saveOne(lang, k.key),
+      }),
+    ),
+    h("p", { class: "row-error", role: "alert", "data-role": "error" }),
+  );
+  return row;
+}
+
+// Refreshes a row's chips, length counter and buttons without rebuilding it,
+// so typing doesn't lose focus.
+function updateRow(k, row = $(`row-${k.key}`)) {
+  if (!row) return;
+  const lang = state.lang;
+  const part = (role) => row.querySelector(`[data-role="${role}"]`);
+  const edit = editOf(lang, k.key);
+  const saved = savedText(lang, k.key);
+  const text = currentText(lang, k.key);
+
+  row.classList.toggle("dirty", !!edit);
+  const status = edit?.source === "google" ? chip("Google draft, not saved", "draft")
+    : edit ? chip("Unsaved", "warn")
+    : !saved && lang !== "en" && translatable(k.key) ? chip("Not translated", "muted")
+    : null;
+  part("chips").replaceChildren(...(status ? [status] : []));
+
+  const meter = part("meter");
+  if (!meter) return; // English-only row in another language
+
+  const placeholders = k.placeholders || [];
+  const missing = placeholders.filter((p) => !text.includes(`{${p}}`));
+
+  if (!text.trim()) {
+    meter.textContent = lang === "en" ? "English text can't be empty" : "Empty: English is sent instead";
+    meter.className = "meter";
+    part("uni").textContent = "";
+  } else {
+    const filled = text.replace(/\{(\w+)\}/g, (m, p) => SAMPLE[p] ?? m);
+    const info = smsInfo(filled);
+    meter.textContent = `${info.segments} SMS · ${info.encoding} · ${info.length} characters`;
+    meter.className = info.segments > 1 ? "meter over" : "meter";
+    meter.title = placeholders.length
+      ? `Counted with ${placeholders.map((p) => `{${p}} as "${SAMPLE[p] ?? p}"`).join(", ")}`
+      : "";
+    part("uni").textContent = LATIN.has(lang) && info.unicodeChars.length
+      ? `Unicode because of: ${info.unicodeChars.slice(0, 8).join(" ")}`
+      : "";
+  }
+
+  part("placeholders").replaceChildren(...placeholders.map((p) =>
+    missing.includes(p) ? chip(`{${p}} missing`, "bad") : chip(`{${p}}`, "ok")
+  ));
+
+  const error = state.errors[`${lang}:${k.key}`]
+    || (missing.length ? `Put ${missing.map((p) => `{${p}}`).join(", ")} back in. It's replaced with the real value when the message is sent.` : "");
+  part("error").textContent = error;
+
+  part("save").disabled = state.busy || !edit || missing.length > 0 || (lang === "en" && !text.trim());
+  part("undo").hidden = !edit;
+  const draft = part("draft");
+  if (draft) draft.disabled = state.busy;
+}
+
+function autosize(ta) {
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + 2 + "px";
+}
+
+// Text rewraps when the window changes width (or a phone rotates).
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => document.querySelectorAll(".prompt textarea").forEach(autosize), 150);
+});
+
+// ---------- saving ----------
+
+async function saveOne(lang, key, { quiet = false } = {}) {
+  const edit = editOf(lang, key);
+  if (!edit) return true;
+  try {
+    const { prompt } = await api("/api/admin/prompts", { method: "PUT", body: { key, lang, text: edit.text } });
+    (state.saved[lang] ||= {});
+    if (prompt) state.saved[lang][key] = prompt.text;
+    else delete state.saved[lang][key];
+    delete state.edits[lang][key];
+    delete state.errors[`${lang}:${key}`];
+    // The server may have straightened quotes, so show what was stored.
+    if (lang === state.lang) {
+      const ta = $(`text-${key}`);
+      if (ta) { ta.value = prompt?.text ?? ""; autosize(ta); }
+    }
+    if (!quiet) toast("Saved.");
+    return true;
+  } catch (err) {
+    state.errors[`${lang}:${key}`] = err.message;
+    if (!quiet && !err.silent) toast(err.message, "bad");
+    return false;
+  } finally {
+    if (lang === state.lang) updateRow(keyDef(key));
+    renderSavebar();
+    if (!quiet) { renderLanguages(); renderToolbar(); }
+  }
+}
+
+async function saveAll() {
+  const jobs = Object.entries(state.edits).flatMap(([lang, m]) => Object.keys(m).map((key) => [lang, key]));
+  const total = jobs.length;
+  let done = 0;
+  let failed = 0;
+  state.busy = true;
+  state.progress = `Saving 0 of ${total}...`;
+  renderSavebar();
+  refreshButtons();
+
+  const worker = async () => {
+    while (jobs.length) {
+      const [lang, key] = jobs.shift();
+      if (!(await saveOne(lang, key, { quiet: true }))) failed++;
+      done++;
+      state.progress = `Saving ${done} of ${total}...`;
+      renderSavebar();
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+
+  state.busy = false;
+  state.progress = "";
+  renderSavebar();
+  renderLanguages();
+  renderToolbar();
+  if (state.todoOnly) renderList(); // saved rows no longer need work
+  else refreshButtons();
+  if (failed) toast(`${done - failed} saved. ${failed} couldn't be saved; each one shows why.`, "bad");
+  else toast(`Saved ${done} change${done === 1 ? "" : "s"}.`);
+}
+
+function refreshButtons() {
+  for (const k of visibleKeys()) updateRow(k);
+}
+
+function renderSavebar() {
+  const n = editCount();
+  const langs = Object.values(state.edits).filter((m) => Object.keys(m).length).length;
+  $("savebar").hidden = (n === 0 && !state.busy) || $("editor").hidden;
+  $("savebar-text").textContent = state.progress
+    || `${n} unsaved change${n === 1 ? "" : "s"}${langs > 1 ? ` in ${langs} languages` : ""}`;
+  $("save-all").disabled = state.busy || n === 0;
+  $("discard-all").disabled = state.busy;
+}
+
+$("save-all").addEventListener("click", saveAll);
+
+$("discard-all").addEventListener("click", (e) => {
+  const button = e.currentTarget;
+  if (button.dataset.armed !== "1") {
+    button.dataset.armed = "1";
+    button.textContent = "Discard them all?";
+    setTimeout(() => { button.dataset.armed = ""; button.textContent = "Discard all"; }, 4000);
+    return;
+  }
+  button.dataset.armed = "";
+  button.textContent = "Discard all";
+  state.edits = {};
+  state.errors = {};
+  renderList();
+  renderSavebar();
+  renderLanguages();
+  renderToolbar();
+  toast("Unsaved changes discarded.");
+});
+
+// ---------- Google drafts ----------
+
+async function draftWithGoogle(keys, bulk) {
+  if (!keys.length) return;
+  const lang = state.lang;
+  state.busy = true;
+  renderToolbar();
+  refreshButtons();
+  try {
+    const { translations } = await api("/api/admin/translate", { method: "POST", body: { lang, keys } });
+    for (const t of translations) setEdit(lang, t.key, t.text, "google");
+    const broken = translations.filter((t) => t.missingPlaceholders.length).length;
+    if (bulk) setTodoOnly(true);
+    else renderList();
+    toast((bulk
+      ? `${translations.length} drafts from Google Translate. Check each one, then Save all.`
+      : "Draft added. Check it, then save.")
+      + (broken ? ` ${broken} lost a {placeholder}; those are marked.` : ""));
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    state.busy = false;
+    renderSavebar();
+    renderLanguages();
+    renderToolbar();
+    refreshButtons();
+  }
+}
+
+// ---------- toast ----------
+
+let toastTimer;
+function toast(message, kind = "ok") {
+  const el = $("toast");
+  el.textContent = message;
+  el.className = kind === "bad" ? "toast bad" : "toast";
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, kind === "bad" ? 9000 : 5000);
+}
+
+window.addEventListener("beforeunload", (e) => {
+  if (editCount()) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// ---------- start ----------
+
+api("/api/admin/session")
+  .then(({ loggedIn }) => (loggedIn ? load() : showLogin()))
+  .catch(() => showLogin("Couldn't reach the server. Reload to try again."));
+</script>
+</body>
+</html>
