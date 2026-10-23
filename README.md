@@ -7,7 +7,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
 | `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off. Needs `ADMIN_PASSWORD`. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
-| `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives |
+| `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
 | `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.

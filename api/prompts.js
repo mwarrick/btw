@@ -8,7 +8,7 @@
 // Cached at Vercel's edge for 15 seconds, so an edit at /admin shows up in
 // the demo within about that long.
 
-import { db } from "../lib/supabase.js";
+import { loadPrompts } from "../lib/prompts.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -18,13 +18,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const languages = await db("btw_languages?active=eq.true&select=code,name,menu_label&order=menu_order");
-    const codes = [...new Set(["en", ...languages.map((l) => l.code)])];
-    const rows = await db(`btw_prompts?lang=in.${encodeURIComponent(`(${codes.join(",")})`)}&select=key,lang,text`);
-
-    const prompts = {};
-    for (const row of rows) (prompts[row.lang] ||= {})[row.key] = row.text;
-
+    const { languages, prompts } = await loadPrompts();
     res.setHeader("Cache-Control", "public, s-maxage=15, stale-while-revalidate=60");
     res.status(200).json({ languages, prompts });
   } catch (err) {
