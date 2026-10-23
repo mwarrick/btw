@@ -36,6 +36,7 @@ globalThis.fetch = async (url, opts = {}) => {
     const p = new URLSearchParams(opts.body);
     if (failSend) return new Response(JSON.stringify({ status: "ip_not_enabled" }));
     if (p.get("method") === "sendSMS" && p.get("message").length > 70 && /[^\x00-\x7f]/.test(p.get("message"))) return new Response(JSON.stringify({ status: "sms_toolong" }));
+    if (p.get("method") === "getDIDsInfo") return new Response(JSON.stringify({ status: "success", dids: [{ did: p.get("did"), description: "Signups", sms_enabled: "1" }] }));
     sent.push({ to: p.get("dst"), method: p.get("method"), message: p.get("message") });
     return new Response(JSON.stringify({ status: "success", sms: 1 }));
   }

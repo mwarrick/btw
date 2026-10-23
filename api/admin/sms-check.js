@@ -3,11 +3,13 @@
 // admin session. Every call goes the same way a real text does: through
 // lib/voipms.js, so through the n8n relay when one is configured.
 //
-//   GET                  -> { relay, ip, account }
+//   GET                  -> { relay, ip, account, number }
 //     relay:   { configured, url, keySet }
 //     ip:      { ok, ip }      voip.ms's getIP: the address it sees calling
 //     account: { ok, balance } getBalance: works only with valid credentials
 //                              from a whitelisted IP
+//     number:  { ok, did, found, sms, description } the DID texts come from
+//                              (VOIPMS_DID), checked with getDIDsInfo
 //     A failed check has { ok: false, error } instead.
 //   POST { to, message } -> sends a test text: { ok, id, method } or { ok: false, error }
 
@@ -32,10 +34,23 @@ async function check(res) {
     testUrl: url.includes("/webhook-test/"),
   };
 
-  const [ip, account] = await Promise.all([
+  const did = (process.env.VOIPMS_DID || "").replace(/\D/g, "");
+  const [ip, account, number] = await Promise.all([
     call("getIP", (d) => ({ ip: d.ip })),
     call("getBalance", (d) => ({ balance: d.balance?.current_balance ?? null })),
+    did ? call("getDIDsInfo", (d) => didInfo(d, did), { did })
+      : { ok: false, error: "VOIPMS_DID isn't set in Vercel, so texts have no number to come from." },
   ]);
+  number.did = did || null;
+  if (number.ok && !number.found) {
+    number.ok = false;
+    number.error = "voip.ms doesn't list this number on the account.";
+  } else if (number.ok && number.sms === false) {
+    number.ok = false;
+    number.error = "SMS isn't enabled on this number in voip.ms.";
+  } else if (number.status === "invalid_did") {
+    number.error = "voip.ms doesn't list this number on the account.";
+  }
   // Name the account voip.ms rejected (never the password).
   if (account.status === "invalid_credentials") {
     const user = (process.env.VOIPMS_API_USERNAME || "").trim();
@@ -45,12 +60,21 @@ async function check(res) {
   if (account.status === "ip_not_enabled" && ip.ok) {
     account.error = `voip.ms refused ${ip.ip}. Add that IP in voip.ms under Main Menu, SOAP & REST/JSON API.`;
   }
-  res.status(200).json({ relay, ip, account });
+  res.status(200).json({ relay, ip, account, number });
 }
 
-async function call(method, pick) {
+// getDIDsInfo's entry for the DID: whether it's on the account, whether SMS
+// is on (unknown when voip.ms doesn't say), and its description.
+function didInfo(data, did) {
+  const entry = (data.dids || []).find((d) => String(d.did).replace(/\D/g, "").endsWith(did));
+  if (!entry) return { found: false };
+  const sms = entry.sms_enabled == null ? null : String(entry.sms_enabled) === "1";
+  return { found: true, sms, description: entry.description || null };
+}
+
+async function call(method, pick, params) {
   try {
-    const data = await voipms(method);
+    const data = await voipms(method, params);
     if (data.status === "success") return { ok: true, ...pick(data) };
     return { ok: false, status: data.status, error: explainStatus(data.status) };
   } catch (err) {

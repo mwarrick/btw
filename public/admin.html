@@ -1732,7 +1732,10 @@ function renderThread() {
 
   const answers = answerList(church);
   $("thread-answers").replaceChildren(...(answers.length
-    ? answers.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])
+    // Web addresses (the website, the pastor's page) open in a new tab.
+    ? answers.flatMap(([k, v]) => [h("dt", { text: k }), /^https?:\/\//i.test(v)
+      ? h("dd", {}, h("a", { href: v, target: "_blank", rel: "noopener noreferrer", text: v }))
+      : h("dd", { text: v })])
     : [h("dd", { text: "No answers yet." })]),
     church ? h("dd", {}, h("button", { class: "btn small", type: "button", onclick: () => editChurch(phone) }, "Edit answers")) : null);
 
@@ -2146,7 +2149,7 @@ $("check-sms").addEventListener("click", async (e) => {
   button.disabled = true;
   button.textContent = "Checking...";
   try {
-    const { relay, ip, account } = await api("/api/admin/sms-check");
+    const { relay, ip, account, number } = await api("/api/admin/sms-check");
     const row = (what, ok, label, detail) =>
       h("li", {}, h("span", { class: "what", text: what }), chip(label, ok ? "ok" : "bad"), h("span", { class: "detail", text: detail }));
 
@@ -2161,6 +2164,10 @@ $("check-sms").addEventListener("click", async (e) => {
       row("Account", account.ok, account.ok ? "OK" : "Failed", account.ok
         ? `Credentials accepted from a whitelisted IP.${account.balance != null ? ` Balance: $${Number(account.balance).toFixed(2)}` : ""}`
         : account.error),
+      row("Number", number.ok, number.ok ? "OK" : "Failed",
+        [number.did ? `Texts come from ${formatPhone(number.did)}` : null,
+          number.ok ? `${number.sms ? "SMS on" : ""}${number.description ? `${number.sms ? ", " : ""}${number.description}` : ""}` : number.error]
+          .filter(Boolean).join(". ") + "."),
     );
     $("checks").hidden = false;
     $("check-when").textContent = `Checked at ${new Date().toLocaleTimeString()}`;
