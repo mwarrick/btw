@@ -460,7 +460,7 @@
       <div class="panel sim-panel">
         <div class="panel-row">
           <strong>Simulations</strong>
-          <span class="meter">Ten made-up signups run through the real prompts, with follow-up messages and the edits they led to. Badged "Simulation"; nothing is texted.</span>
+          <span class="meter">Eleven made-up signups run through the real prompts, with follow-up messages and the edits they led to. Badged "Simulation"; nothing is texted.</span>
         </div>
         <div class="panel-row">
           <button class="btn" id="sim-add" type="button">Add simulations</button>
@@ -1517,7 +1517,7 @@ const STATUS = {
 const STATUS_TABS = [["all", "All"], ["unread", "Unread"], ["in_progress", "In progress"], ["complete", "Complete"], ["opted_out", "Opted out"]];
 // The engine's question ids, in words.
 const STEP_NAMES = {
-  name: "their name", email: "email", church: "church name", street: "street", city: "city",
+  name: "their name", email: "email", church: "church name", country: "country", street: "street", city: "city",
   state: "state", zip: "ZIP", denom: "denomination", website: "website", contact: "main contact",
   contact_phone: "contact's phone", baptism: "baptism location", b_street: "baptism street",
   b_city: "baptism city", b_state: "baptism state", b_zip: "baptism ZIP", map: "public map",
@@ -1530,6 +1530,8 @@ const formatPhone = (p) => {
   const d = String(p || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
   return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p || "";
 };
+// The country when it isn't the US (no country: a US signup from before the question).
+const abroad = (c) => (c.country && c.country !== "US" ? c.country : null);
 const yesNo = (v) => (v == null ? null : v ? "Yes" : "No");
 
 // Date and time, e.g. "Oct 23, 9:59 AM"; the year too when it isn't this one.
@@ -1643,7 +1645,7 @@ function renderChurches() {
         c.email ? h("span", { class: "sub" }, h("a", { href: `mailto:${c.email}`, text: c.email })) : null,
         contact ? h("span", { class: "sub", text: `Main contact: ${contact}` }) : null),
       h("td", {}, h("span", { text: c.street || "" }),
-        h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") })),
+        h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" "), abroad(c)].filter(Boolean).join(", ") })),
       h("td", {}, h("span", { class: "when", text: when(c.completed_at) }),
         c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)} by ${c.editor?.name || "the pastor"}` }) : null),
       h("td", {}, h("div", { class: "row-actions" },
@@ -1665,7 +1667,7 @@ function answerList(c) {
     : c.baptism_same === false ? address(c.baptism_street, c.baptism_city, c.baptism_state, c.baptism_zip) : null;
   return [
     ["Name", c.name], ["Email", c.email], ["Church", c.church_name],
-    ["Address", address(c.street, c.city, c.state, c.zip)], ["Denomination", c.denomination],
+    ["Address", [address(c.street, c.city, c.state, c.zip), abroad(c)].filter(Boolean).join(", ")], ["Denomination", c.denomination],
     ["Website", c.website], ["Main contact", contact], ["Baptisms at", baptism],
     ["On public map", yesNo(c.public_map)], ["Consent", c.consent_at ? when(c.consent_at) : null],
     ["Language", state.languages.find((l) => l.code === c.lang)?.name || c.lang],
@@ -1941,7 +1943,8 @@ const CHURCH_FIELDS = [
   ["group", "Church"],
   ["church_name", "Church name", "", "text"],
   ["street", "Street", "", "text"],
-  ["city", "City", "third-ish", "text"], ["state", "State", "third-ish", "state"], ["zip", "ZIP", "third-ish", "zip"],
+  ["city", "City", "third-ish", "text"], ["state", "State / region", "third-ish", "state"], ["zip", "ZIP / postal code", "third-ish", "zip"],
+  ["country", "Country (US, or the country's name)", "", "text"],
   ["denomination", "Denomination", "half", "text"], ["website", "Website", "half", "text"],
   ["group", "Person who signed up"],
   ["name", "Name", "half", "text"], ["email", "Email", "half", "email"],
@@ -1949,7 +1952,7 @@ const CHURCH_FIELDS = [
   ["group", "Baptisms"],
   ["baptism_same", "Baptisms at the church address?", "half", "yesno"], ["public_map", "Show on the public map?", "half", "yesno"],
   ["baptism_street", "Baptism street", "", "text"],
-  ["baptism_city", "Baptism city", "third-ish", "text"], ["baptism_state", "State", "third-ish", "state"], ["baptism_zip", "ZIP", "third-ish", "zip"],
+  ["baptism_city", "Baptism city", "third-ish", "text"], ["baptism_state", "State / region", "third-ish", "state"], ["baptism_zip", "ZIP / postal code", "third-ish", "zip"],
 ];
 const churchEdit = { phone: null };
 
@@ -1976,11 +1979,11 @@ async function editChurch(phone) {
       input = h("input", {
         name: key,
         type: kind === "email" ? "email" : kind === "tel" ? "tel" : "text",
-        maxlength: kind === "state" ? "20" : kind === "zip" ? "5" : "200",
-        inputmode: kind === "zip" ? "numeric" : null,
+        // Outside the US: any region, postal codes up to 10.
+        maxlength: kind === "state" ? "60" : kind === "zip" ? "10" : "200",
         autocomplete: "off",
       });
-      input.value = church[key] ?? "";
+      input.value = church[key] ?? (key === "country" ? "US" : "");
     }
     return h("label", { class: cls }, label, input);
   }));

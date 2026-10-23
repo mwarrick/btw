@@ -10,7 +10,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `/p/<key>` | A pastor's own signup page, linked from the DONE text: see and update their answers on a phone. The key in the link is the only login. |
 | `GET/PATCH /api/profile?key=` | That page's data and saves |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `simulations` (add or remove the ten made-up signups) |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `simulations` (add or remove the eleven made-up signups) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -80,4 +80,4 @@ Text that fits one SMS goes out through `sendSMS`: 160 characters, or 70 if any 
 
 ## Local testing
 
-`node dev/server.mjs` serves the site on http://localhost:8787 with every API handler running against an in-memory database (`dev/fake-db.mjs`), a fake voip.ms and a fake Google Translate. Nothing leaves the machine. Log in to `/admin` with the setup password `pw` and add a user. A few conversations are seeded through the real SMS handler, and **Add simulations** adds ten more.
+`node dev/server.mjs` serves the site on http://localhost:8787 with every API handler running against an in-memory database (`dev/fake-db.mjs`), a fake voip.ms and a fake Google Translate. Nothing leaves the machine. Log in to `/admin` with the setup password `pw` and add a user. A few conversations are seeded through the real SMS handler, and **Add simulations** adds eleven more.

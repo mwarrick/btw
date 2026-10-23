@@ -10,7 +10,8 @@
 //
 // State is plain JSON, so the server can keep it in btw_sessions:
 //   { phase, lang, queue, editing, data }
-// phase: "lang" | "collect" | "summary" | "done" | "stopped"
+// phase: "lang" | "collect" | "done" | "stopped" ("summary": a signup still
+//        waiting on DONE from before the summary was dropped)
 // queue: question ids still to ask; the first is the one awaiting an answer
 // data:  answers, named like the btw_churches columns
 
@@ -48,18 +49,43 @@ function usState(text) {
 
 const zip = (text) => (/^\d{5}$/.test(text) ? { value: text } : { error: true });
 
+// The US in names a pastor might type instead of YES; compared without
+// accents, dots or spaces.
+const US_NAMES = ["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA", "AMERICA", "EEUU", "ESTADOS UNIDOS",
+  "ETATS UNIS", "ESTADOS UNIDOS DA AMERICA", "美国", "美國", "الولايات المتحدة", "अमेरिका", "США", "যুক্তরাষ্ট্র", "امریکہ"];
+const squash = (t) => normalize(t).replace(/[.\s-]/g, "");
+const US_SET = new Set(US_NAMES.map(squash));
+
+// A country as stored: "US", or the name as typed (lowercase Latin
+// capitalized, "canada" -> "Canada"). Null for an empty answer.
+export function countryValue(text) {
+  const t = String(text ?? "").trim();
+  if (!t) return null;
+  if (US_SET.has(squash(t))) return "US";
+  return /^[a-z\s.'-]+$/.test(t) ? t.replace(/(^|[\s-])[a-z]/g, (c) => c.toUpperCase()) : t;
+}
+
+// Signups from before the country question have none: those are US.
+export const isUS = (data) => !data.country || data.country === "US";
+
+// Outside the US: any state, province or region, or SKIP; a postal code of
+// letters, digits, spaces and dashes, or SKIP (some countries have none).
+const region = (text, w) => (w.is(text, "kw_skip") ? { value: null } : required(text));
+function postal(text, w) {
+  if (w.is(text, "kw_skip")) return { value: null };
+  return /^[a-z0-9][a-z0-9 -]{1,9}$/i.test(text) ? { value: text.toUpperCase() } : { error: true };
+}
+const stateFor = (text, w) => (isUS(w.data) ? usState(text) : region(text, w));
+const zipFor = (text, w) => (isUS(w.data) ? zip(text) : postal(text, w));
+
 function phone(text) {
   let d = text.replace(/\D/g, "");
   if (d.length === 11 && d[0] === "1") d = d.slice(1);
   return d.length === 10 ? { value: d } : { error: true };
 }
 
-function formatPhone(d) {
-  return d ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : "";
-}
-
-// Each question has prompts ask_<id>, edit_<id> (when fixing it from the
-// summary) and err_<id> (when the answer doesn't pass `check`).
+// Each question has prompts ask_<id>, edit_<id> (when fixing it with
+// EDIT <n>) and err_<id> (when the answer doesn't pass `check`).
 const STEPS = {
   name: { check: required, save: (d, v) => { d.name = v; } },
   email: {
@@ -67,10 +93,15 @@ const STEPS = {
     save: (d, v) => { d.email = v; },
   },
   church: { check: required, save: (d, v) => { d.church_name = v; } },
+  country: {
+    // YES means the US; NO alone isn't a country.
+    check: (t, w) => (w.is(t, "kw_yes") ? { value: "US" } : w.is(t, "kw_no") || !t ? { error: true } : { value: countryValue(t) }),
+    save: (d, v) => { d.country = v; },
+  },
   street: { check: required, save: (d, v) => { d.street = v; } },
   city: { check: required, save: (d, v) => { d.city = v; } },
-  state: { check: usState, save: (d, v) => { d.state = v; } },
-  zip: { check: zip, save: (d, v) => { d.zip = v; } },
+  state: { check: stateFor, save: (d, v) => { d.state = v; } },
+  zip: { check: zipFor, save: (d, v) => { d.zip = v; } },
   denom: {
     check: (t, w) => ({ value: w.is(t, "kw_skip") ? null : t || null }),
     save: (d, v) => { d.denomination = v; },
@@ -103,8 +134,9 @@ const STEPS = {
   },
   b_street: { check: required, save: (d, v) => { d.baptism_street = v; } },
   b_city: { check: required, save: (d, v) => { d.baptism_city = v; } },
-  b_state: { check: usState, save: (d, v) => { d.baptism_state = v; } },
-  b_zip: { check: zip, save: (d, v) => { d.baptism_zip = v; } },
+  // Baptisms are in the church's country.
+  b_state: { check: stateFor, save: (d, v) => { d.baptism_state = v; } },
+  b_zip: { check: zipFor, save: (d, v) => { d.baptism_zip = v; } },
   map: {
     check: (t, w) => (w.is(t, "kw_yes") ? { value: true } : w.is(t, "kw_no") ? { value: false } : { error: true }),
     save: (d, v) => { d.public_map = v; },
@@ -116,32 +148,18 @@ const STEPS = {
 };
 
 export const QUESTIONS = [
-  "name", "email", "church", "street", "city", "state", "zip", "denom",
+  "name", "email", "church", "country", "street", "city", "state", "zip", "denom",
   "website", "contact", "baptism", "map", "consent",
 ];
 
-// The numbered summary. EDIT <n> re-asks the questions in `edit`.
-const SUMMARY = [
-  { label: "sum_name", edit: ["name"], value: (d) => d.name },
-  { label: "sum_email", edit: ["email"], value: (d) => d.email },
-  { label: "sum_church", edit: ["church"], value: (d) => d.church_name },
-  { label: "sum_street", edit: ["street"], value: (d) => d.street },
-  { label: "sum_city", edit: ["city"], value: (d) => d.city },
-  { label: "sum_state", edit: ["state"], value: (d) => d.state },
-  { label: "sum_zip", edit: ["zip"], value: (d) => d.zip },
-  { label: "sum_denom", edit: ["denom"], value: (d) => d.denomination },
-  { label: "sum_website", edit: ["website"], value: (d) => d.website },
-  {
-    label: "sum_contact", edit: ["contact"],
-    value: (d, t) => (d.contact_name ? `${d.contact_name} ${formatPhone(d.contact_phone)}` : t("val_you")),
-  },
-  {
-    label: "sum_baptism", edit: ["baptism"],
-    value: (d, t) => d.baptism_same === false
-      ? `${d.baptism_street}, ${d.baptism_city}, ${d.baptism_state} ${d.baptism_zip}`
-      : t("val_same"),
-  },
-  { label: "sum_map", edit: ["map"], value: (d, t) => t(d.public_map ? "val_yes" : "val_no") },
+// EDIT <n> re-asks the questions of item n. The numbers are those of the
+// summary signups used to get before finishing (no longer sent), so texts
+// like EDIT 4 keep meaning the same thing; the country, added later, is 13.
+const EDIT_ITEMS = [
+  ["name"], ["email"], ["church"], ["street"], ["city"], ["state"], ["zip"], ["denom"],
+  ["website"], ["contact"], ["baptism"], ["map"],
+  // A new country needs its state and postal code again.
+  ["country", "state", "zip"],
 ];
 
 export function newState() {
@@ -181,15 +199,26 @@ export function createEngine({ prompts, languages }) {
     return [text("en", "menu_intro"), menuList(), text("en", "menu_footer")].filter(Boolean).join("\n");
   }
 
-  function summary(state) {
-    const t = (key) => text(state.lang, key);
-    const lines = SUMMARY.map((item, i) => `${i + 1} ${t(item.label)}: ${item.value(state.data, t) || "-"}`);
-    return [t("sum_intro"), ...lines, "", t("sum_outro")].join("\n");
+  // The thank-you with the link to their own page, where they can see and
+  // change every answer.
+  function finished(state, extra, key = "done") {
+    const link = extra.link ? text(state.lang, "done_link", { link: extra.link }) : "";
+    // Without done_link in this language, the link alone.
+    const linkLine = link && link.includes(extra.link) ? link : extra.link;
+    return [text(state.lang, key), linkLine].filter(Boolean).join("\n");
+  }
+
+  // Outside the US, state and ZIP questions become region and postal code
+  // (for the church and the baptism site alike).
+  function intl(state, id) {
+    if (isUS(state.data)) return null;
+    return ["state", "b_state"].includes(id) ? "region" : ["zip", "b_zip"].includes(id) ? "postal" : null;
   }
 
   function question(state) {
     const id = state.queue[0];
-    const key = state.editing && en[`edit_${id}`] ? `edit_${id}` : `ask_${id}`;
+    const other = intl(state, id);
+    const key = other ? `ask_${other}` : state.editing && en[`edit_${id}`] ? `edit_${id}` : `ask_${id}`;
     return text(state.lang, key, { name: state.data.name, contact: state.data.contact_name });
   }
 
@@ -243,8 +272,8 @@ export function createEngine({ prompts, languages }) {
       // new language from where they were.
       if (Object.keys(state.data).length) {
         state.lang = picked.code;
-        state.phase = state.queue.length ? "collect" : "summary";
-        return send(state.queue.length ? question(state) : summary(state));
+        state.phase = state.queue.length ? "collect" : "done";
+        return send(state.queue.length ? question(state) : finished(state, extra));
       }
       Object.assign(state, { phase: "collect", lang: picked.code, queue: [...QUESTIONS], editing: false, data: {} });
       return send(text(state.lang, "welcome"), question(state));
@@ -253,34 +282,34 @@ export function createEngine({ prompts, languages }) {
     if (state.phase === "collect") {
       const id = state.queue[0];
       const step = STEPS[id];
-      const result = step.check(raw, { is });
-      if (result.error) return send(text(state.lang, `err_${id}`) || question(state));
+      const result = step.check(raw, { is, data: state.data });
+      if (result.error) return send(text(state.lang, `err_${intl(state, id) || id}`) || question(state));
 
       step.save(state.data, result.value);
       state.queue.shift();
       if (step.next) state.queue.unshift(...step.next(result.value));
       if (state.queue.length) return send(question(state));
 
-      const saved = state.editing ? text(state.lang, "edit_saved") : null;
+      // The last answer finishes the signup: no summary to confirm, just
+      // the thank-you and their page's link.
+      const edited = state.editing;
       state.editing = false;
-      state.phase = "summary";
-      return send(saved, summary(state));
+      state.phase = "done";
+      return send(finished(state, extra, edited ? "edit_saved" : "done"));
     }
 
-    // summary or done
+    // done, or "summary" for a signup still waiting on DONE from before the
+    // summary was dropped. DONE (again) sends the link again.
     if (is(word, "kw_done")) {
       state.phase = "done";
-      const link = extra.link ? text(state.lang, "done_link", { link: extra.link }) : "";
-      // Without done_link in this language, the link alone.
-      const linkLine = link && link.includes(extra.link) ? link : extra.link;
-      return send([text(state.lang, "done"), linkLine].filter(Boolean).join("\n"));
+      return send(finished(state, extra));
     }
     const editWords = [...words(lang, "kw_edit")].map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const edit = word.match(new RegExp(`^(?:${editWords.join("|")})\\s*(\\d+)$`));
     if (edit) {
-      const item = SUMMARY[Number(edit[1]) - 1];
+      const item = EDIT_ITEMS[Number(edit[1]) - 1];
       if (!item) return send(text(state.lang, "edit_invalid"));
-      Object.assign(state, { phase: "collect", queue: [...item.edit], editing: true });
+      Object.assign(state, { phase: "collect", queue: [...item], editing: true });
       return send(question(state));
     }
     // Not a command: `unhandled` lets the SMS handler pass a finished

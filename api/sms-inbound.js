@@ -38,7 +38,7 @@ const DETECT_MIN_LETTERS = 4;
 
 // btw_churches columns the engine keeps in state.data under the same name.
 const ANSWER_COLUMNS = [
-  "name", "email", "church_name", "street", "city", "state", "zip",
+  "name", "email", "church_name", "country", "street", "city", "state", "zip",
   "denomination", "website", "contact_name", "contact_phone", "baptism_same",
   "baptism_street", "baptism_city", "baptism_state", "baptism_zip", "public_map",
 ];
