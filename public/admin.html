@@ -150,6 +150,18 @@
   .switch input:disabled, .switch input:disabled + .track { cursor: not-allowed; opacity: .6; }
   .switch-text { font-size: 13px; color: var(--muted); }
 
+  /* first-message preview */
+  .preview {
+    margin-top: 12px; max-width: 420px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 14px;
+  }
+  .preview-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .preview-text {
+    margin: 8px 0 0; display: inline-block; white-space: pre-wrap; overflow-wrap: anywhere;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 16px 16px 16px 5px; padding: 8px 12px; line-height: 1.4;
+  }
+
   /* chips */
   .chip {
     display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px;
@@ -268,7 +280,7 @@
   <div id="editor" hidden>
     <section class="block">
       <h2>Languages</h2>
-      <p class="hint">A language appears in the SMS language menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is what churches see in that menu, so keep it to plain letters.</p>
+      <p class="hint">A language appears in the first message's menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is how it's listed there. Names in their own script, like Español or 中文, are easiest to recognise but make that message a Unicode SMS, which holds less text; the preview shows the count.</p>
       <div class="table-scroll">
         <table>
           <thead>
@@ -276,6 +288,13 @@
           </thead>
           <tbody id="lang-rows"></tbody>
         </table>
+      </div>
+      <div class="preview">
+        <div class="preview-head">
+          <span class="ref-label">First message</span>
+          <span class="meter" id="menu-meter"></span>
+        </div>
+        <p class="preview-text" id="menu-preview"></p>
       </div>
     </section>
 
@@ -305,6 +324,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script type="module">
+import { createEngine } from "/js/engine.js";
 import { smsInfo } from "/js/sms.js";
 
 // Typical values, so the length counter is close to what is really sent.
@@ -516,6 +536,20 @@ function renderLanguages() {
     );
   });
   $("lang-rows").replaceChildren(...rows);
+  renderMenuPreview();
+}
+
+// The first message, built by the same engine the SMS handler runs, from
+// the switched-on languages and the (possibly unsaved) English menu text.
+function renderMenuPreview() {
+  const en = {};
+  for (const key of ["menu_intro", "menu_footer"]) en[key] = currentText("en", key);
+  const languages = state.languages.filter((l) => l.active);
+  const text = createEngine({ prompts: { en }, languages }).menu();
+  const info = smsInfo(text);
+  $("menu-preview").textContent = text;
+  $("menu-meter").textContent = `${info.segments} SMS · ${info.encoding} · ${info.length} characters`;
+  $("menu-meter").className = info.segments > 1 ? "meter over" : "meter";
 }
 
 async function updateLanguage(code, changes) {

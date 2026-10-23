@@ -164,10 +164,11 @@ export function createEngine({ prompts, languages }) {
     return s.replace(/\{(\w+)\}/g, (m, p) => (vars[p] != null ? vars[p] : m));
   }
 
-  // Keyword lists are comma separated; English always works too.
+  // Keyword lists are comma separated (Chinese, Japanese and Arabic commas
+  // count too); English always works as well.
   function words(lang, key, builtIn = []) {
     const list = [en[key], prompts[lang]?.[key]].filter(Boolean).join(",");
-    return new Set([...builtIn, ...list.split(",")].map(normalize).filter(Boolean));
+    return new Set([...builtIn, ...list.split(/[,，、،]/)].map(normalize).filter(Boolean));
   }
 
   function menuList() {

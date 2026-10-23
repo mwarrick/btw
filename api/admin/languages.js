@@ -5,11 +5,12 @@
 //   PATCH { code, active?, menu_label? } -> { language }
 //
 // A language can only be switched on once every prompt has text in it.
+// Menu labels may use any script (Español, 中文); the editor shows what
+// that does to the first message's SMS count.
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { ENGLISH_ONLY_KEYS, straighten } from "../../lib/prompts.js";
 import { db, eq } from "../../lib/supabase.js";
-import { isGsm } from "../../public/js/sms.js";
 
 export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
@@ -58,12 +59,6 @@ async function update(req, res) {
     const label = straighten(String(menu_label)).trim();
     if (!label || label.length > 20) {
       res.status(400).json({ error: "The menu label needs 1 to 20 characters." });
-      return;
-    }
-    if (!isGsm(label)) {
-      res.status(400).json({
-        error: "Use plain letters in the menu label, without accents or other scripts. One such character turns the whole language menu into a Unicode SMS, which holds less than half as much text.",
-      });
       return;
     }
     changes.menu_label = label;

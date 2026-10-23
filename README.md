@@ -34,7 +34,7 @@ The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_
 
 | Table | Holds |
 | --- | --- |
-| `btw_languages` | Languages in the SMS menu, with an on/off switch and a GSM-safe menu label |
+| `btw_languages` | Languages in the SMS menu, with an on/off switch and the label shown there (each language's own name, e.g. Español, 中文) |
 | `btw_prompt_keys` | One row per message, with a description and the `{placeholders}` it must keep |
 | `btw_prompts` | The text of each message in each language |
 | `btw_churches` | One signup per phone number |
