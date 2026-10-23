@@ -157,7 +157,7 @@
   }
   .panel-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .checks li { display: grid; grid-template-columns: 9.5em auto 1fr; gap: 10px; align-items: baseline; }
+  .checks li { display: grid; grid-template-columns: 9.5em 6.5em 1fr; gap: 10px; align-items: baseline; }
   .checks .what { font-weight: 600; font-size: 14px; }
   .checks .chip { justify-self: start; }
   .checks .detail { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
@@ -1142,7 +1142,7 @@ $("check-sms").addEventListener("click", async (e) => {
       row("Relay", relayReady, relayReady ? "On" : "Not ready", relayDetail),
       row("Reaching voip.ms", ip.ok, ip.ok ? "OK" : "Failed", ip.ok ? `voip.ms sees this IP: ${ip.ip}` : ip.error),
       row("Account", account.ok, account.ok ? "OK" : "Failed", account.ok
-        ? `Credentials accepted from a whitelisted IP.${account.balance != null ? ` Balance: $${account.balance}` : ""}`
+        ? `Credentials accepted from a whitelisted IP.${account.balance != null ? ` Balance: $${Number(account.balance).toFixed(2)}` : ""}`
         : account.error),
     );
     $("checks").hidden = false;

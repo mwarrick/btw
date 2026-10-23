@@ -49,6 +49,11 @@ async function check(res) {
     call("getIP", (d) => ({ ip: d.ip })),
     call("getBalance", (d) => ({ balance: d.balance?.current_balance ?? null })),
   ]);
+  // Name the account voip.ms rejected (never the password).
+  if (account.status === "invalid_credentials") {
+    const user = (process.env.VOIPMS_API_USERNAME || "").trim();
+    account.error = `voip.ms didn't accept the API password for "${user}". The username must be the email you log in to voip.ms with, and the password the API password saved under Main Menu, SOAP & REST/JSON API (not your portal password).`;
+  }
   // When voip.ms rejects the IP, say which one it saw.
   if (account.status === "ip_not_enabled" && ip.ok) {
     account.error = `voip.ms refused ${ip.ip}. Add that IP in voip.ms under Main Menu, SOAP & REST/JSON API.`;
