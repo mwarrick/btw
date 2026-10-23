@@ -1633,7 +1633,7 @@ function renderChurches() {
       h("td", {}, h("span", { text: c.street || "" }),
         h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") })),
       h("td", {}, h("span", { class: "when", text: when(c.completed_at) }),
-        c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)}${c.editor?.name ? ` by ${c.editor.name}` : ""}` }) : null),
+        c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)} by ${c.editor?.name || "the pastor"}` }) : null),
       h("td", {}, h("div", { class: "row-actions" },
         h("button", { class: "btn small ghost", type: "button", onclick: () => editChurch(c.phone) }, "Edit"),
         h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversations"),
@@ -1659,7 +1659,8 @@ function answerList(c) {
     ["Language", state.languages.find((l) => l.code === c.lang)?.name || c.lang],
     ["Completed", c.completed_at ? when(c.completed_at) : null],
     ["First text", when(c.created_at)],
-    ["Last edited", c.edited_at ? `${when(c.edited_at)}${c.editor?.name ? ` by ${c.editor.name}` : ""}` : null],
+    ["Last edited", c.edited_at ? `${when(c.edited_at)} by ${c.editor?.name || "the pastor"}` : null],
+    ["Pastor's page", c.profile_key ? `${location.origin}/p/${c.profile_key}` : null],
   ].filter(([, v]) => v);
 }
 
