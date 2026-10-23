@@ -1,6 +1,6 @@
 # btw: project notes
 
-Goal: Baptize 2027 church signup, entirely by SMS through voip.ms, on Vercel serverless functions with Supabase. Churches pick a language, answer ~13 questions one text at a time, get a numbered summary, and can `EDIT <n>` any answer. Setup and usage are in `README.md`.
+Goal: Baptize 2027 church signup, entirely by SMS through voip.ms, on Vercel serverless functions with Supabase. Churches pick a language, answer ~13 questions one text at a time, get a numbered summary, and can `EDIT <n>` any answer. Reviewers work in `/admin` ("SMS Gateway"): see signups, text pastors, edit answers. Setup and usage are in `README.md`; the 2026-10-23 build session (what was built, the decisions behind it, what's left, tooling quirks) is in `docs/session-2026-10-23.md`.
 
 Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supabase project `supabase-cobalt-saddle` (ref `jrkhnieyramucpegntln`), which is **shared with other apps**: everything of ours is prefixed `btw_`, and nothing else in it should be touched.
 
@@ -13,6 +13,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - `api/`: serverless functions. `api/admin/*` needs a logged-in user (`await requireAdmin(req, res)` returns the user or answers 401).
 - `lib/`: server helpers. `voipms.js` (voip.ms API calls and `sendText`, direct or via the relay), `supabase.js` (PostgREST over fetch), `events.js` (`logEvent()` into `btw_events` for the Log panel; never throws), `admin-auth.js` (users in `btw_users`, scrypt passwords, HMAC cookie `id.session_version.exp.sig` keyed by `ADMIN_PASSWORD`, checked against the database on every request), `prompts.js` (English-only keys, quote straightening, placeholder checks, `loadPrompts()` for the engine), `translate.js` (Google v2 behind `translate()` and `detect()`).
 - `supabase/migrations/`: schema and seed, already applied to the shared project.
+- `dev/`: local testing, not deployed. `node dev/server.mjs` serves `public/` and every API handler on http://localhost:8787 against `dev/fake-db.mjs` (in-memory Supabase, fake voip.ms and Google Translate); setup password `pw`.
 - No package.json and no dependencies; everything relies on Node's built-in `fetch`.
 
 ## Status
@@ -25,10 +26,26 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - Editing answers (migration `20261023200000`: `btw_churches.edited_by`, `edited_at`; `api/admin/churches.js` GET/PATCH `?phone=`): Edit on the Churches screen or Edit answers in a conversation opens a form over every `btw_churches` answer, checked like the SMS signup (email, US state by name or code, 5-digit ZIP, 10-digit phone, website). Only the saved answers change; `btw_messages` is never touched. "Edited <date> by <name>" shows on the Churches row and in the answers panel. A pastor's later `EDIT <n>` by text starts from the edited values.
 - Simulations (migration `20261023210000`: `btw_churches.simulated`; `lib/simulations.js`, `api/admin/simulations.js` POST add / DELETE remove; panel at the bottom of Conversations): ten scripted pastors run through the real engine with the live prompts (bot replies are exactly what a pastor would get), then reviewer/pastor follow-ups in the Messages thread and the answer edits they led to. Covers English/Spanish/Chinese, detection and the menu, input mistakes, EDIT, MENU switching, STOP, an abandoned signup and an unread question. Fictional 555-01xx numbers, "Simulation" badge everywhere; a message sent to a simulated number is saved but never texted. Adding replaces earlier simulations; scenarios in a language that's switched off are skipped. Reviewer messages and edits are credited to whoever pressed Add.
 - Chinese keywords need fixing (found while scripting the simulations): `kw_done` is 完毕 but `sum_outro` tells people to reply 完成, `kw_no` is 非 (should include 不 / 否), and `kw_yes` (是的，Y) lacks plain 是. English words always work as a fallback.
+- The 10 simulations are loaded in the live database (added from the live site on 2026-10-23).
 - Log panel (`/admin`, `api/admin/events.js`): the latest 200 `btw_events` rows (errors and warnings from `sms-inbound` and `sms-send`), with a link from a phone number to its conversation. Checked in a browser against an in-memory database, not yet against production.
-- Each prompt is capped at 160 characters (`PROMPT_MAX` in `lib/prompts.js`, mirrored in `admin.html`): the box stops typing there, `PUT /api/admin/prompts` refuses longer text, and `translate-all` doesn't save a translation that runs over. As of 2026-10-23, 20 saved translations (none in English) were over the cap; the editor flags them as "too long" and lists them under "Only what needs work". Messages built from several prompts (menu, summary) can still run longer and go out as MMS.
+- Each prompt is capped at 160 characters (`PROMPT_MAX` in `lib/prompts.js`, mirrored in `admin.html`): the box stops typing there, `PUT /api/admin/prompts` refuses longer text, and `translate-all` doesn't save a translation that runs over. As of 2026-10-23, 20 saved translations (none in English) were over the cap; the editor flags them as "too long" and lists them under "Only what needs work" (all fixed since: 0 over the cap at the end of 2026-10-23). Messages built from several prompts (menu, summary) can still run longer and go out as MMS.
 - `lang_detected` and `kw_menu` (migration `20261023170000`) were translated by hand into all 10 languages; worth a native-speaker check.
 - Prompt text is data: 90 keys in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). All 10 languages were switched on as of 2026-10-23.
+
+## Decisions (the user's; details in docs/session-2026-10-23.md)
+- Any text starts or continues a signup; no keyword.
+- One church per phone number. Multi-church was proposed and declined. Known risk: RESTART after DONE wipes that phone's answers.
+- Every prompt at most 160 characters. Long translations are fixed by shortening the English and translating again.
+- Reviewers share the signup number. A finished signup's free text goes to the team thread; there's no open/close chat switch. Alerts: unread badges only.
+- All users have equal rights. Editing answers never changes the texts.
+- Simulations live in the real database, flagged and badged, and are never texted.
+- The public map exists elsewhere; this app only stores `public_map`.
+- Workflow: work on `claude/intelligent-brown-8znoxb` reset onto `main`, then a PR, merged only when the user says so. Migrations are applied through the Supabase MCP and also saved under `supabase/migrations/`.
+
+## Tooling quirks
+- Supabase MCP: reads and `apply_migration` work; DELETE via `execute_sql` times out (use `/admin`'s Delete button).
+- Vercel MCP: deployments and runtime logs work (project `prj_0mYe7r3u736ewePhPOnodWuQQSQ7`, team `team_lgFLmF4DFBT7H0DS0A1KcLNr`); listing env vars is forbidden.
+- The live site isn't reachable from the sandbox; test with `dev/server.mjs` and Playwright (`/opt/pw-browsers/chromium`).
 
 ## Open questions (verify against https://voip.ms/m/apidocs.php)
 1. ~~Format of the incoming callback~~: answered live. voip.ms sends GET with the placeholders filled in and `&` between them, e.g. `{"id":"113367333","from":"9498709493","to":"7147165116","message":"Hi 2","date":"2026-10-23 11:37:00"}` once normalized (`date` is local time, no zone). `flattenBody` / `parseQuery` could be simplified to match. One request took about 7 seconds end to end (incl. a relay send).
@@ -38,9 +55,13 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 5. ~~Placeholder names~~: `{TO}`, `{FROM}`, `{MESSAGE}`, `{ID}`, `{TIMESTAMP}` all fill in.
 
 ## Next steps
-- SMS URL Callback is set on the DID (7147165116) and receiving works. Confirm a whole signup end to end now that long Unicode replies go as MMS.
-- Maybe: a "finish on the web" link (signed, texted on request) that edits the same `btw_churches` row.
-- voip.ms IP whitelist: sending goes through an n8n relay at https://n8n.markwarrick.org (`relay/`; `lib/voipms.js` sends `X-Relay-Key`). Vercel Static IPs were rejected at $100/month. The site is behind Cloudflare, so the IP to whitelist is the server's own outbound IP, not what the hostname resolves to: **76.175.179.85** (Spectrum residential, unchanged for years per the user). If sending starts failing with `ip_not_enabled`, check `curl https://api.ipify.org` on the server first. `/admin` has a Text messaging panel (`api/admin/sms-check.js`) that checks the relay (`getIP`), credentials and whitelist (`getBalance`), and sends a test text. Working in production as of 2026-10-23: workflow published, IP whitelisted, `VOIPMS_API_URL` = `https://n8n.markwarrick.org/webhook/voipms-relay` (Production, not `/webhook-test/`), all three checks green, and a test text from /admin arrived on the user's phone.
+- Fix the Chinese keywords (above), then check every other language's `kw_*` the same way: each summary/help text must name a word its keyword list accepts.
+- Native-speaker check of `lang_detected` / `kw_menu`.
+- Confirm in production: the Log panel, a reviewer/pastor message round trip, language detection with a real non-English first text.
+- Decide whether to remove the simulations before real signups start (Conversations → Remove simulations).
+- Optional, offered and not chosen yet: email or text alerts to reviewers on a pastor's reply; a data-retention rule; stop RESTART from wiping a finished signup; a "finish on the web" link.
+- Simplify `flattenBody` / `parseQuery` in `sms-inbound.js` for the confirmed GET format. One live request took about 7 seconds; watch for voip.ms retries.
+- voip.ms IP whitelist: sending goes through an n8n relay at https://n8n.markwarrick.org (`relay/`; `lib/voipms.js` sends `X-Relay-Key`). Vercel Static IPs were rejected at $100/month. The site is behind Cloudflare, so the IP to whitelist is the server's own outbound IP, not what the hostname resolves to: **76.175.179.85** (Spectrum residential, unchanged for years per the user). If sending starts failing with `ip_not_enabled`, check `curl https://api.ipify.org` on the server first. `/admin` has a Connection screen (`api/admin/sms-check.js`) that checks the relay (`getIP`), credentials and whitelist (`getBalance`), and sends a test text. Working in production as of 2026-10-23.
 - Register 10DLC (brand about $4 + campaign about $15, plus carrier fees) for US numbers.
 
 ## Research sources

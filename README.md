@@ -8,7 +8,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove) |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `simulations` (add or remove the ten made-up signups) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -38,9 +38,11 @@ The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_
 | `btw_languages` | Languages in the SMS menu, with an on/off switch and the label shown there (each language's own name, e.g. Español, 中文) |
 | `btw_prompt_keys` | One row per message, with a description and the `{placeholders}` it must keep |
 | `btw_prompts` | The text of each message in each language |
-| `btw_churches` | One signup per phone number |
+| `btw_churches` | One signup per phone number, with who last edited it from `/admin` and whether it's a simulation |
 | `btw_sessions` | Where each phone number is in the conversation |
-| `btw_messages` | Every text in and out; the voip.ms id is unique so retries are handled once |
+| `btw_messages` | Every text in and out (the voip.ms id is unique so retries are handled once), split into the signup thread and the team thread (reviewers and the pastor), with who sent it, read state, an English translation and any send error |
+| `btw_events` | Problems shown on the Log screen (replies that weren't sent, errors, callbacks with the wrong key) |
+| `btw_users` | People who log in to `/admin` (scrypt password hashes); removed users stay with `active = false` |
 
 A language can only be switched on once every message has text in it. Editing happens in English: after an English message is saved, its Translate button translates it into every language that's switched on or started, saves the results and shows them. A translation that loses a `{placeholder}` is not saved. Drafts made per language with "Draft with Google" are only saved when someone clicks Save.
 
@@ -72,3 +74,7 @@ Text that fits one SMS goes out through `sendSMS`: 160 characters, or 70 if any 
 - **IP whitelist and Vercel:** voip.ms only accepts API calls from whitelisted IPs, and Vercel's outbound IPs aren't fixed. Sending therefore goes through an n8n workflow on a server with a fixed IP; setup is in `relay/README.md`. Receiving isn't affected.
 - **Incoming request format isn't confirmed:** sources disagree on whether voip.ms sends GET with placeholders (sometimes separated by `;`) or POST with JSON. `sms-inbound` accepts both. Log one real message to confirm.
 - These notes come from voip.ms wiki pages and third-party integrations. Check them against the official API docs at <https://voip.ms/m/apidocs.php>, which you can read when logged in to the portal.
+
+## Local testing
+
+`node dev/server.mjs` serves the site on http://localhost:8787 with every API handler running against an in-memory database (`dev/fake-db.mjs`), a fake voip.ms and a fake Google Translate. Nothing leaves the machine. Log in to `/admin` with the setup password `pw` and add a user. A few conversations are seeded through the real SMS handler, and **Add simulations** adds ten more.
