@@ -1626,7 +1626,11 @@ function renderChurches() {
       h("td", {}, h("span", { class: "who", text: c.church_name || "(no name)" }),
         c.simulated ? chip("Simulation", "draft") : null,
         c.status === "opted_out" ? chip("Opted out", "muted") : null,
-        h("span", { class: "sub", text: [c.denomination, c.website].filter(Boolean).join(" · ") })),
+        h("span", { class: "sub" }, c.denomination || null, c.denomination && c.website ? " · " : null,
+          // Opens in a new tab; only http(s) addresses become links.
+          /^https?:\/\//i.test(c.website || "")
+            ? h("a", { href: c.website, target: "_blank", rel: "noopener noreferrer", text: c.website })
+            : c.website || null)),
       h("td", {}, h("span", { text: c.name || "" }),
         h("span", { class: "sub", text: formatPhone(c.phone) }),
         c.email ? h("span", { class: "sub" }, h("a", { href: `mailto:${c.email}`, text: c.email })) : null,
