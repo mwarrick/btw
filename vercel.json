@@ -47,7 +47,7 @@
   "rewrites": [
     {
       "source": "/p/:key",
-      "destination": "/profile.html"
+      "destination": "/profile"
     }
   ]
 }
