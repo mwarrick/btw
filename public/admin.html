@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Prompt Editor &middot; Baptize 2027</title>
+<title>SMS Gateway &middot; Baptize 2027</title>
 <style>
   /* Layout: one centered working column; languages table, then a sticky
      toolbar over the prompt list, with a save bar pinned to the bottom. */
@@ -104,6 +104,17 @@
   .btn.small { padding: 4px 10px; font-size: 13px; }
   .btn.current { background: var(--ink); color: var(--surface); border-color: var(--ink); }
   .top .btn { background: transparent; color: var(--brand-ink); border-color: color-mix(in srgb, var(--brand-ink) 45%, transparent); }
+
+  /* screen tabs */
+  .screens { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .screens .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .screen-tab {
+    border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px;
+    padding: 11px 12px 9px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .screen-tab:hover { color: var(--ink); }
+  .screen-tab[aria-current="page"] { color: var(--ink); border-bottom-color: var(--brand); }
 
   /* login */
   .login {
@@ -313,7 +324,7 @@
   .convo-table tbody tr { cursor: pointer; }
   .convo-table tbody tr:hover td { background: var(--surface-2); }
   .convo-table td { font-size: 14px; }
-  .convo-table .who { font-weight: 600; }
+  .convo-table .who { font-weight: 600; margin-right: 6px; }
   .convo-table .sub { display: block; color: var(--muted); font-size: 13px; }
   .convo-table .when { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
   .thread-dialog { width: min(760px, calc(100% - 32px)); }
@@ -370,8 +381,8 @@
   <div class="wrap">
     <div class="mark" aria-hidden="true">B</div>
     <div>
-      <h1>Prompt editor</h1>
-      <p>Baptize 2027 SMS signup</p>
+      <h1>SMS Gateway</h1>
+      <p>Baptize 2027</p>
     </div>
     <div class="actions">
       <span class="whoami" id="whoami"></span>
@@ -380,6 +391,17 @@
     </div>
   </div>
 </header>
+
+<nav class="screens" id="screens" aria-label="Screens" hidden>
+  <div class="wrap">
+    <button class="screen-tab" type="button" data-screen="conversations">Conversations <span id="unread-total"></span></button>
+    <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
+    <button class="screen-tab" type="button" data-screen="languages">Languages</button>
+    <button class="screen-tab" type="button" data-screen="log">Log</button>
+    <button class="screen-tab" type="button" data-screen="users">Users</button>
+    <button class="screen-tab" type="button" data-screen="connection">Connection</button>
+  </div>
+</nav>
 
 <main class="wrap">
   <section class="login" id="login" hidden>
@@ -398,7 +420,7 @@
   </section>
 
   <div id="editor" hidden>
-    <section class="block">
+    <section class="block" data-screen="conversations">
       <h2>Conversations</h2>
       <p class="hint">Everyone who has texted the number, newest activity first. Open one to see every text in and out and the answers saved so far.</p>
       <div class="convo-bar">
@@ -416,7 +438,7 @@
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-screen="log">
       <h2>Log</h2>
       <p class="hint">Problems with texting: replies voip.ms refused, errors handling an incoming text, callbacks with the wrong key. Newest first.</p>
       <div class="convo-bar">
@@ -434,7 +456,7 @@
       </div>
     </section>
 
-    <section class="block" id="users-block">
+    <section class="block" id="users-block" data-screen="users">
       <h2>Users</h2>
       <p class="hint" id="users-hint">Everyone here can do everything, including adding and removing each other. Messages sent to pastors show who sent them.</p>
       <div class="table-scroll">
@@ -452,7 +474,7 @@
       <p class="test-result" id="add-user-result" role="status"></p>
     </section>
 
-    <section class="block">
+    <section class="block" data-screen="connection">
       <h2>Text messaging</h2>
       <p class="hint">Texts go out from Vercel through the n8n relay to voip.ms. Check connection tests each step the same way a real text travels; a test text goes out the same way too.</p>
       <div class="panel">
@@ -474,7 +496,7 @@
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-screen="languages">
       <h2>Languages</h2>
       <p class="hint">A language appears in the first message's menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is how it's listed there. Names in their own script, like Español or 中文, are easiest to recognise but make that message a Unicode SMS, which holds less text; the preview shows the count.</p>
       <div class="table-scroll">
@@ -494,7 +516,7 @@
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-screen="prompts">
       <h2>Prompts</h2>
       <p class="hint">Saved text goes straight to the database the SMS signup reads. Words in braces, like {name}, are replaced with the real value when the message is sent, so keep them. After you save a change in English, Translate updates every other language from it.</p>
       <div class="toolbar">
@@ -578,6 +600,7 @@ const LATIN = new Set(["en", "es", "fr", "pt"]);
 
 const state = {
   me: null,      // the logged-in user: { id, name, email, setup }
+  screen: "conversations",
   setup: false,  // no users exist yet
   languages: [],
   keys: [],
@@ -696,6 +719,7 @@ function showLogin(message = "", setup = state.setup) {
   $("savebar").hidden = true;
   $("logout").hidden = true;
   $("whoami").textContent = "";
+  $("screens").hidden = true;
   $("login").hidden = false;
   $("email-field").hidden = setup;
   $("email").required = !setup;
@@ -746,7 +770,8 @@ $("logout").addEventListener("click", async (e) => {
 async function start(user) {
   state.me = user;
   $("whoami").textContent = user.setup ? "" : user.name;
-  for (const section of $("editor").querySelectorAll(":scope > section")) section.hidden = user.setup && section.id !== "users-block";
+  $("screens").hidden = user.setup;
+  showScreen(user.setup ? "users" : screenFromHash());
   if (user.setup) {
     $("users-hint").textContent = "Add yourself first. You'll then log in with that email and password, and the setup password stops working for logging in.";
     $("login").hidden = true;
@@ -821,9 +846,13 @@ function renderLanguages() {
       h("td", {}, h("label", { class: "switch" }, toggle, h("span", { class: "track" }), h("span", { class: "switch-text", text: l.active ? "On" : "Off" }))),
       h("td", { class: "right" }, h("button", {
         type: "button",
-        class: editing ? "btn small current" : "btn small",
-        text: editing ? "Editing" : "Edit",
-        onclick: () => selectLang(l.code),
+        class: "btn small",
+        text: "Edit prompts",
+        onclick: () => {
+          selectLang(l.code);
+          history.replaceState(null, "", "#prompts");
+          showScreen("prompts");
+        },
       })),
     );
   });
@@ -1387,6 +1416,30 @@ $("result-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
 
+// ---------- screens ----------
+
+const SCREENS = ["conversations", "prompts", "languages", "log", "users", "connection"];
+const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
+
+function showScreen(name) {
+  state.screen = name;
+  for (const section of $("editor").querySelectorAll(":scope > section")) section.hidden = section.dataset.screen !== name;
+  for (const tab of $("screens").querySelectorAll(".screen-tab")) {
+    if (tab.dataset.screen === name) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
+  }
+  // Textareas measured while hidden have no height.
+  if (name === "prompts") document.querySelectorAll(".prompt textarea").forEach(autosize);
+}
+
+for (const tab of $("screens").querySelectorAll(".screen-tab")) {
+  tab.addEventListener("click", () => {
+    history.replaceState(null, "", `#${tab.dataset.screen}`);
+    showScreen(tab.dataset.screen);
+  });
+}
+window.addEventListener("hashchange", () => { if (!state.me?.setup) showScreen(screenFromHash()); });
+
 // ---------- conversations ----------
 
 const STATUS = {
@@ -1446,6 +1499,8 @@ async function loadConversations() {
 }
 
 function renderConversations() {
+  const unread = convos.list.reduce((n, c) => n + (c.unread || 0), 0);
+  $("unread-total").replaceChildren(...(unread ? [chip(String(unread), "bad")] : []));
   const count = (status) => convos.list.filter((c) => inStatus(c, status)).length;
   $("convo-tabs").replaceChildren(...STATUS_TABS.map(([id, label]) => h("button", {
     class: "tab", type: "button", "aria-pressed": String(convos.status === id),

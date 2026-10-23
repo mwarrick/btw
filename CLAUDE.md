@@ -7,7 +7,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 ## Layout
 - `public/`: the only folder Vercel publishes (`vercel.json` sets `outputDirectory`). Before that, the whole repo, `docs/` and `CLAUDE.md` included, was publicly downloadable. `cleanUrls` serves `admin.html` at `/admin`.
   - `index.html`: browser demo. Runs `js/engine.js` on the live prompts from `GET /api/prompts`, so edits at `/admin` show there (that endpoint is cached 15s at Vercel's edge).
-  - `admin.html`: prompt editor (vanilla JS module, no build step).
+  - `admin.html`: the "SMS Gateway" admin (vanilla JS module, no build step). A tab bar switches screens by `data-screen` on each section, kept in the URL hash: `#conversations` (default; unread count on the tab), `#prompts`, `#languages` (on/off, menu labels, first-message preview), `#log`, `#users`, `#connection` (voip.ms checks and test text). The setup login sees only Users, with no tab bar.
   - `js/engine.js`: the conversation as a pure function, `reply(state, text) -> { state, replies }`. Shared by the demo and the SMS handler. State is JSON for `btw_sessions`; `data` uses `btw_churches` column names. The first message is `menu_intro`, then `<n> <menu_label>` per switched-on language, then `menu_footer`. After an opt-out (STOP and the other carrier words) it sends nothing until START.
   - `js/sms.js`: GSM-7 / Unicode segment counting, imported by the pages and by the API.
 - `api/`: serverless functions. `api/admin/*` needs a logged-in user (`await requireAdmin(req, res)` returns the user or answers 401).
