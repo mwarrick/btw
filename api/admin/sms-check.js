@@ -37,7 +37,13 @@ export default async function handler(req, res) {
 
 async function check(res) {
   const url = process.env.VOIPMS_API_URL || "";
-  const relay = { configured: !!url, url: url || null, keySet: !!process.env.VOIPMS_RELAY_KEY };
+  const relay = {
+    configured: !!url,
+    url: url || null,
+    keySet: !!process.env.VOIPMS_RELAY_KEY,
+    // n8n's Test URL only answers while the editor is listening.
+    testUrl: url.includes("/webhook-test/"),
+  };
 
   const [ip, account] = await Promise.all([
     call("getIP", (d) => ({ ip: d.ip })),
