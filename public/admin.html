@@ -349,6 +349,11 @@
   .compose-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .compose .note { font-style: normal; }
   .unread-dot { margin-left: 6px; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; white-space: nowrap; }
+  .row-actions .btn { display: inline-flex; gap: 6px; align-items: center; }
+  .church-table th { white-space: nowrap; }
+  .church-table td { vertical-align: top; }
+  .church-table a { color: var(--brand); }
   .bubble.failed { border-color: var(--bad); border-style: dashed; opacity: .8; }
   .bubble-error { align-self: flex-end; font-size: 12.5px; color: var(--bad); max-width: 85%; text-align: right; }
   .log-table td { font-size: 14px; vertical-align: top; }
@@ -395,6 +400,7 @@
 <nav class="screens" id="screens" aria-label="Screens" hidden>
   <div class="wrap">
     <button class="screen-tab" type="button" data-screen="conversations">Conversations <span id="unread-total"></span></button>
+    <button class="screen-tab" type="button" data-screen="churches">Churches</button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
     <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
@@ -422,7 +428,7 @@
   <div id="editor" hidden>
     <section class="block" data-screen="conversations">
       <h2>Conversations</h2>
-      <p class="hint">Everyone who has texted the number, newest activity first. Open one to see every text in and out and the answers saved so far.</p>
+      <p class="hint">Everyone who has texted the number, newest activity first. Open one to see every text in and out and the answers saved so far, or press Message to text the person yourself.</p>
       <div class="convo-bar">
         <div class="tabs" id="convo-tabs"></div>
         <input id="convo-search" type="search" placeholder="Search name, church or number" aria-label="Search conversations">
@@ -431,9 +437,26 @@
       <div class="table-scroll">
         <table class="convo-table">
           <thead>
-            <tr><th>Church</th><th>Phone</th><th>Status</th><th>Where they are</th><th>Last text</th></tr>
+            <tr><th>Church</th><th>Phone</th><th>Status</th><th>Where they are</th><th>Last text</th><th></th></tr>
           </thead>
           <tbody id="convo-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block" data-screen="churches">
+      <h2>Churches</h2>
+      <p class="hint">Every church that finished signing up by text, most recent first. Conversation shows the signup texts and answers; Message lets you text the person yourself.</p>
+      <div class="convo-bar">
+        <input id="church-search" type="search" placeholder="Search church, contact, city or number" aria-label="Search churches">
+        <button class="btn" id="church-refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="convo-table church-table">
+          <thead>
+            <tr><th>Church</th><th>Contact</th><th>Address</th><th>Signed up</th><th></th></tr>
+          </thead>
+          <tbody id="church-rows"></tbody>
         </table>
       </div>
     </section>
@@ -1418,7 +1441,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "prompts", "languages", "log", "users", "connection"];
+const SCREENS = ["conversations", "churches", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
@@ -1499,6 +1522,7 @@ async function loadConversations() {
 }
 
 function renderConversations() {
+  renderChurches();
   const unread = convos.list.reduce((n, c) => n + (c.unread || 0), 0);
   $("unread-total").replaceChildren(...(unread ? [chip(String(unread), "bad")] : []));
   const count = (status) => convos.list.filter((c) => inStatus(c, status)).length;
@@ -1515,7 +1539,7 @@ function renderConversations() {
       || (digits && c.phone.includes(digits))));
 
   if (!rows.length) {
-    $("convo-rows").replaceChildren(h("tr", {}, h("td", { colspan: "5", class: "empty",
+    $("convo-rows").replaceChildren(h("tr", {}, h("td", { colspan: "6", class: "empty",
       text: convos.list.length ? "No conversations match." : "No one has texted yet." })));
     return;
   }
@@ -1531,9 +1555,53 @@ function renderConversations() {
       h("td", { class: "when", text: formatPhone(c.phone) }),
       h("td", {}, chip(label, kind)),
       h("td", { text: whereTheyAre(c) }),
-      h("td", { class: "when", text: when(c.last_at || c.updated_at) }));
+      h("td", { class: "when", text: when(c.last_at || c.updated_at) }),
+      h("td", {}, h("div", { class: "row-actions" }, messageButton(c))));
   }));
 }
+
+// Opens the conversation on its Messages tab, to text the person directly.
+function messageButton(c) {
+  return h("button", { class: "btn small", type: "button", onclick: (e) => { e.stopPropagation(); openThread(c.phone, "team"); } },
+    "Message", c.unread ? chip(`${c.unread} new`, "bad") : null);
+}
+
+function renderChurches() {
+  const q = $("church-search").value.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const done = convos.list
+    .filter((c) => c.completed_at)
+    .sort((a, b) => Date.parse(b.completed_at) - Date.parse(a.completed_at));
+  const rows = done.filter((c) => !q
+    || [c.church_name, c.name, c.contact_name, c.city, c.email, c.denomination].some((v) => v?.toLowerCase().includes(q))
+    || (digits && [c.phone, c.contact_phone].some((v) => v?.includes(digits))));
+
+  if (!rows.length) {
+    $("church-rows").replaceChildren(h("tr", {}, h("td", { colspan: "5", class: "empty",
+      text: done.length ? "No churches match." : "No church has finished signing up yet." })));
+    return;
+  }
+  $("church-rows").replaceChildren(...rows.map((c) => {
+    const contact = c.contact_name ? `${c.contact_name}${c.contact_phone ? ` · ${formatPhone(c.contact_phone)}` : ""}` : null;
+    return h("tr", {},
+      h("td", {}, h("span", { class: "who", text: c.church_name || "(no name)" }),
+        c.status === "opted_out" ? chip("Opted out", "muted") : null,
+        h("span", { class: "sub", text: [c.denomination, c.website].filter(Boolean).join(" · ") })),
+      h("td", {}, h("span", { text: c.name || "" }),
+        h("span", { class: "sub", text: formatPhone(c.phone) }),
+        c.email ? h("span", { class: "sub" }, h("a", { href: `mailto:${c.email}`, text: c.email })) : null,
+        contact ? h("span", { class: "sub", text: `Main contact: ${contact}` }) : null),
+      h("td", {}, h("span", { text: c.street || "" }),
+        h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") })),
+      h("td", { class: "when", text: when(c.completed_at) }),
+      h("td", {}, h("div", { class: "row-actions" },
+        h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversation"),
+        messageButton(c))));
+  }));
+}
+
+$("church-search").addEventListener("input", renderChurches);
+$("church-refresh").addEventListener("click", () => loadConversations());
 
 function answerList(c) {
   if (!c) return [];

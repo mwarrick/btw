@@ -51,7 +51,7 @@ async function list(res) {
   // the time of the last text.
   // Team texts don't touch btw_churches, so they count separately.
   const [churches, sessions, team] = await Promise.all([
-    db(`btw_churches?select=phone,name,church_name,city,state,status,lang,created_at,updated_at,completed_at&order=updated_at.desc&limit=${LIST_LIMIT}`),
+    db(`btw_churches?select=phone,name,email,church_name,street,city,state,zip,denomination,website,contact_name,contact_phone,status,lang,created_at,updated_at,completed_at&order=updated_at.desc&limit=${LIST_LIMIT}`),
     db(`btw_sessions?select=phone,phase,queue,editing&order=updated_at.desc&limit=${LIST_LIMIT}`),
     db(`btw_messages?thread=eq.team&select=phone,direction,read_at,created_at&order=id.desc&limit=5000`),
   ]);
