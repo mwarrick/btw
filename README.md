@@ -5,10 +5,10 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | Path | Purpose |
 | --- | --- |
 | `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
-| `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off. Needs `ADMIN_PASSWORD`. |
+| `/admin` | Prompt editor: edit the messages in English, then Translate saves Google translations into every other language. Also switches languages on and off, shows the conversations (and lets you text pastors), the problem log and the users. Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log) |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -25,7 +25,7 @@ Only `public/` is published as the website (see `vercel.json`). Everything else 
 | `VOIPMS_RELAY_KEY` | The relay's shared secret, sent as the `X-Relay-Key` header |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | The service role (secret) key. Server-side only. |
-| `ADMIN_PASSWORD` | Password for `/admin`. Changing it logs everyone out. |
+| `ADMIN_PASSWORD` | Signs the `/admin` session cookies, so changing it logs everyone out. Before any user exists it's also the setup password that logs in to add the first one. |
 | `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
 | `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
 
