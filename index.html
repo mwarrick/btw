@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Baptize 2027 &middot; SMS Signup Demo</title>
+<meta name="description" content="A preview of the Baptize 2027 church signup conversation, entirely over text message.">
+<style>
+  /* Layout: a single phone-sized chat column, sticky header + composer, scrolling thread between. */
+  :root {
+    --bg: #e9eef3;
+    --phone: #f6f7f9;
+    --header: #0b6ea8;
+    --header-fg: #ffffff;
+    --thread: #f6f7f9;
+    --in-bubble: #e7ebf0;
+    --in-fg: #0d1b26;
+    --out-bubble: #0a84ff;
+    --out-fg: #ffffff;
+    --muted: #6b7a88;
+    --line: #d4dbe2;
+    --accent: #0b6ea8;
+    --field: #ffffff;
+    --field-fg: #0d1b26;
+    --ribbon: #fff4d6;
+    --ribbon-fg: #6b531a;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a0f14; --phone: #10161c; --header: #0b4a6e; --header-fg: #eaf4fb;
+      --thread: #10161c; --in-bubble: #1d262f; --in-fg: #e7edf3; --out-bubble: #0a74e0;
+      --out-fg: #ffffff; --muted: #8798a6; --line: #222c35; --accent: #4bb3e6;
+      --field: #0b1218; --field-fg: #e7edf3; --ribbon: #2a2410; --ribbon-fg: #e3c878;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0f14; --phone: #10161c; --header: #0b4a6e; --header-fg: #eaf4fb;
+    --thread: #10161c; --in-bubble: #1d262f; --in-fg: #e7edf3; --out-bubble: #0a74e0;
+    --out-fg: #ffffff; --muted: #8798a6; --line: #222c35; --accent: #4bb3e6;
+    --field: #0b1218; --field-fg: #e7edf3; --ribbon: #2a2410; --ribbon-fg: #e3c878;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; padding: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+  body {
+    background: var(--bg); color: var(--in-fg); font-family: var(--font);
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  .wrap {
+    width: 100%; max-width: 430px; height: 100%;
+    display: flex; flex-direction: column; background: var(--phone);
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  }
+
+  header.bar {
+    position: sticky; top: env(safe-area-inset-top, 0px);
+    background: var(--header); color: var(--header-fg);
+    padding-block: 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; align-items: center; gap: 10px; z-index: 10;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px); background: var(--header); z-index: 10;
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.18); display: grid; place-items: center;
+    font-weight: 700; font-size: 15px; flex: 0 0 auto;
+  }
+  .bar .who { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+  .bar .who b { font-size: 15px; font-weight: 600; }
+  .bar .who span { font-size: 11px; opacity: 0.85; }
+  .bar .reset {
+    margin-left: auto; background: rgba(255,255,255,0.16); color: var(--header-fg);
+    border: none; border-radius: 7px; padding: 6px 10px; font-size: 12px;
+    font-weight: 600; cursor: pointer;
+  }
+  .bar .reset:hover { background: rgba(255,255,255,0.28); }
+
+  .ribbon {
+    background: var(--ribbon); color: var(--ribbon-fg);
+    font-size: 11.5px; text-align: center; line-height: 1.3;
+    padding: 6px max(16px, env(safe-area-inset-left, 0px));
+    border-bottom: 1px solid var(--line);
+  }
+
+  .thread {
+    flex: 1 1 auto; overflow-y: auto; padding: 14px 12px 6px;
+    display: flex; flex-direction: column; gap: 3px; background: var(--thread);
+  }
+  .row { display: flex; margin-top: 7px; }
+  .row.in { justify-content: flex-start; }
+  .row.out { justify-content: flex-end; }
+  .bubble {
+    max-width: 78%; padding: 8px 12px; border-radius: 18px;
+    font-size: 15px; line-height: 1.35; white-space: pre-wrap;
+    word-wrap: break-word; min-width: 0;
+  }
+  .in .bubble { background: var(--in-bubble); color: var(--in-fg); border-bottom-left-radius: 5px; }
+  .out .bubble { background: var(--out-bubble); color: var(--out-fg); border-bottom-right-radius: 5px; }
+  .meta { font-size: 10.5px; color: var(--muted); margin: 1px 4px 0; display: flex; }
+  .meta.in { justify-content: flex-start; }
+  .meta.out { justify-content: flex-end; }
+
+  .typing .bubble { padding: 11px 14px; }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+    display: inline-block; animation: blink 1.3s infinite both;
+  }
+  .dots i:nth-child(2){ animation-delay: .2s; }
+  .dots i:nth-child(3){ animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100%{ opacity:.3 } 40%{ opacity:1 } }
+  @media (prefers-reduced-motion: reduce) { .dots i { animation: none; opacity:.6 } }
+
+  .composer {
+    position: sticky; bottom: 0; background: var(--phone);
+    border-top: 1px solid var(--line); padding-block: 9px;
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(9px, env(safe-area-inset-bottom, 0px));
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .composer textarea {
+    flex: 1 1 auto; resize: none; border: 1px solid var(--line);
+    border-radius: 18px; padding: 9px 13px; font: inherit; font-size: 15px;
+    background: var(--field); color: var(--field-fg);
+    max-height: 110px; min-height: 20px; line-height: 1.3;
+  }
+  .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .composer button {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+    border: none; background: var(--out-bubble); color: #fff; font-size: 18px;
+    cursor: pointer; display: grid; place-items: center;
+  }
+  .composer button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .hintbar { text-align: center; font-size: 11px; color: var(--muted); padding: 4px 10px 0; }
+  .hintbar code { background: var(--in-bubble); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <div class="avatar">B</div>
+    <div class="who">
+      <b>Baptize 2027</b>
+      <span>Church signup by text</span>
+    </div>
+    <button class="reset" id="reset" type="button">Restart</button>
+  </header>
+
+  <div class="ribbon">Demo &mdash; a preview of the text-message signup. Nothing is saved or sent.</div>
+
+  <div class="thread" id="thread" aria-live="polite"></div>
+
+  <div class="hintbar">
+    Try <code>HELP</code>, <code>EDIT&nbsp;6</code>, <code>RESTART</code> or <code>STOP</code> anytime
+  </div>
+
+  <div class="composer">
+    <textarea id="input" rows="1" placeholder="Text message" autocomplete="off"></textarea>
+    <button id="send" type="button" aria-label="Send">&#8593;</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STATES = {
+    AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",
+    CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",
+    HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",
+    LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",
+    MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",
+    NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",
+    OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",
+    SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",
+    WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"
+  };
+  function normalizeState(raw) {
+    var s = raw.trim().toUpperCase();
+    if (STATES[s]) return s;
+    for (var abbr in STATES) { if (STATES[abbr].toUpperCase() === s) return abbr; }
+    return null;
+  }
+
+  function vEmail(t){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.trim()); }
+  function vZip(t){ return /^\d{5}$/.test(t.trim()); }
+  function cleanPhone(t){
+    var d = t.replace(/[^\d]/g, "");
+    if (d.length === 11 && d[0] === "1") d = d.slice(1);
+    return d.length === 10 ? d : null;
+  }
+  function fmtPhone(d){ return "(" + d.slice(0,3) + ") " + d.slice(3,6) + "-" + d.slice(6); }
+  function isSkip(t){ return t.trim().toUpperCase() === "SKIP"; }
+  function isYes(t){ var u=t.trim().toUpperCase(); return u==="YES"||u==="Y"; }
+  function isNo(t){ var u=t.trim().toUpperCase(); return u==="NO"||u==="N"; }
+
+  var GSM = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+  var GSM_EXT = "^{}\\[~]|€";
+  function segInfo(text) {
+    var gsm = true, len = 0;
+    for (var i=0;i<text.length;i++){
+      var c = text[i];
+      if (GSM.indexOf(c) !== -1) len += 1;
+      else if (GSM_EXT.indexOf(c) !== -1) len += 2;
+      else { gsm = false; break; }
+    }
+    if (!gsm) {
+      var u = text.length;
+      var seg = u <= 70 ? 1 : Math.ceil(u / 67);
+      return seg + " SMS · Unicode";
+    }
+    var s = len <= 160 ? 1 : Math.ceil(len / 153);
+    return s + " SMS · GSM-7";
+  }
+
+  var P = {
+    lang:
+      "Baptize 2027 signup.\nReply with a number for your language:\n" +
+      "1 English   2 Espanol   3 Francais\n4 Portugues   5 Chinese   6 Arabic\n" +
+      "7 Hindi   8 Russian\n(reply STOP to opt out)",
+    welcome:
+      "Welcome, and thank you for hosting! I'll ask a few quick questions to sign up " +
+      "your church. Just reply one answer at a time - text HELP anytime.",
+    help:
+      "Happy to help! Reply with your answer to the last question, EDIT and a number to " +
+      "change something (like EDIT 6), or DONE when the summary looks right.",
+    stop:
+      "You're opted out and won't get more messages. Reply START anytime to sign up again.",
+    done:
+      "You're all set - thank you for hosting a Baptize 2027 location! We'll be in touch " +
+      "soon. Text EDIT anytime to make changes.",
+    langPicked:
+      "That language is coming soon - for this demo we'll continue in English."
+  };
+
+  var STEP = {
+    name: {
+      prompt: "First, what's your name?",
+      edit: function(){ return "Sure - what's the correct name?"; },
+      validate: function(t){ return t.trim() ? {value:t.trim()} : {error:"I didn't catch that - what's your name?"}; },
+      apply: function(v,d){ d.name = v; }
+    },
+    email: {
+      prompt: function(d){ return "Thanks, " + d.name + "! What's your email?"; },
+      edit: function(){ return "What's the correct email?"; },
+      validate: function(t){ return vEmail(t) ? {value:t.trim()} : {error:"That doesn't look like an email. Try again, like name@church.org"}; },
+      apply: function(v,d){ d.email = v; }
+    },
+    church: {
+      prompt: "Great. What's the name of your church?",
+      edit: function(){ return "What's the correct church name?"; },
+      validate: function(t){ return t.trim() ? {value:t.trim()} : {error:"Please send your church's name."}; },
+      apply: function(v,d){ d.church = v; }
+    },
+    street: {
+      prompt: "What's your church's street address?",
+      edit: function(){ return "What's the correct street address?"; },
+      validate: function(t){ return t.trim() ? {value:t.trim()} : {error:"Please send the street address."}; },
+      apply: function(v,d){ d.street = v; }
+    },
+    city: {
+      prompt: "And the city?",
+      edit: function(){ return "What's the correct city?"; },
+      validate: function(t){ return t.trim() ? {value:t.trim()} : {error:"Please send the city."}; },
+      apply: function(v,d){ d.city = v; }
+    },
+    state: {
+      prompt: "Which state? (e.g. TX)",
+      edit: function(){ return "What's the correct state? (e.g. TX)"; },
+      validate: function(t){ var s=normalizeState(t); return s ? {value:s} : {error:"I didn't recognize that state. Send a 2-letter code like TX or the full name."}; },
+      apply: function(v,d){ d.state = v; }
+    },
+    zip: {
+      prompt: "ZIP code?",
+      edit: function(){ return "What's the correct ZIP code?"; },
+      validate: function(t){ return vZip(t) ? {value:t.trim()} : {error:"A ZIP is 5 digits, like 78701."}; },
+      apply: function(v,d){ d.zip = v; }
+    },
+    denom: {
+      prompt: "What's your denomination? (or reply SKIP)",
+      edit: function(){ return "What's the correct denomination? (or SKIP)"; },
+      validate: function(t){ return {value: isSkip(t) ? "" : t.trim()}; },
+      apply: function(v,d){ d.denom = v; }
+    },
+    website: {
+      prompt: "Have a church website? Send the link, or SKIP.",
+      edit: function(){ return "What's the correct website? (or SKIP)"; },
+      validate: function(t){
+        if (isSkip(t)) return {value:""};
+        var v=t.trim();
+        if (/\.[a-z]{2,}/i.test(v)) return {value: /^https?:\/\//i.test(v) ? v : "https://"+v};
+        return {error:"That doesn't look like a web address. Send a link or SKIP."};
+      },
+      apply: function(v,d){ d.website = v; }
+    },
+    contact: {
+      prompt: "Are you the main contact for baptisms at your church? Reply YES - or send the name of the person who is.",
+      edit: function(){ return "Who's the main contact? Reply YES if it's you, or send their name."; },
+      validate: function(t){ return t.trim() ? {value:t.trim()} : {error:"Reply YES, or send the contact's name."}; },
+      apply: function(v,d){
+        if (isYes(v)) { d.contactName = ""; d.contactPhone = ""; }
+        else { d.contactName = v; }
+      },
+      branch: function(v,d){ return isYes(v) ? [] : ["contactPhone"]; }
+    },
+    contactPhone: {
+      prompt: function(d){ return "Thanks! What's " + d.contactName + "'s mobile number?"; },
+      edit: function(d){ return "What's " + (d.contactName||"their") + " mobile number?"; },
+      validate: function(t){ var p=cleanPhone(t); return p ? {value:p} : {error:"That doesn't look like a 10-digit US mobile number."}; },
+      apply: function(v,d){ d.contactPhone = v; }
+    },
+    baptism: {
+      prompt: "Will baptisms take place at your church's address? Reply YES, or NO for a different place.",
+      edit: function(){ return "Baptisms at your church address? Reply YES, or NO for a different place."; },
+      validate: function(t){ return (isYes(t)||isNo(t)) ? {value: isYes(t)} : {error:"Please reply YES or NO."}; },
+      apply: function(v,d){ d.baptismSame = v; if (v){ d.bStreet=d.bCity=d.bState=d.bZip=""; } },
+      branch: function(v){ return v ? [] : ["bStreet","bCity","bState","bZip"]; }
+    },
+    bStreet: {
+      prompt: "No problem - what's the baptism street address?",
+      validate: function(t){ return t.trim()?{value:t.trim()}:{error:"Please send the baptism street address."}; },
+      apply: function(v,d){ d.bStreet=v; }
+    },
+    bCity: {
+      prompt: "City for the baptism location?",
+      validate: function(t){ return t.trim()?{value:t.trim()}:{error:"Please send the city."}; },
+      apply: function(v,d){ d.bCity=v; }
+    },
+    bState: {
+      prompt: "State? (e.g. TX)",
+      validate: function(t){ var s=normalizeState(t); return s?{value:s}:{error:"Send a 2-letter code like TX or the full name."}; },
+      apply: function(v,d){ d.bState=v; }
+    },
+    bZip: {
+      prompt: "ZIP code?",
+      validate: function(t){ return vZip(t)?{value:t.trim()}:{error:"A ZIP is 5 digits, like 78701."}; },
+      apply: function(v,d){ d.bZip=v; }
+    },
+    map: {
+      prompt: "Would you like your church on the public Baptize map so people can find you? Reply YES or NO.",
+      edit: function(){ return "Show your church on the public map? Reply YES or NO."; },
+      validate: function(t){ return (isYes(t)||isNo(t)) ? {value:isYes(t)} : {error:"Please reply YES or NO."}; },
+      apply: function(v,d){ d.publicMap = v; }
+    },
+    consent: {
+      prompt: "Last thing: can you confirm your church is taking part in Baptize 2027 and agree to be contacted about it? Reply YES.",
+      validate: function(t){ return isYes(t) ? {value:true} : {error:"Reply YES to confirm and finish your signup."}; },
+      apply: function(v,d){ d.consent = true; }
+    }
+  };
+
+  var MAIN_ORDER = ["name","email","church","street","city","state","zip","denom",
+                    "website","contact","baptism","map","consent"];
+
+  var EDITORS = {
+    1:["name"],2:["email"],3:["church"],4:["street"],5:["city"],6:["state"],
+    7:["zip"],8:["denom"],9:["website"],10:["contact"],11:["baptism"],12:["map"]
+  };
+
+  function summaryText(d) {
+    function or(x){ return x ? x : "—"; }
+    var contact = d.contactName ? (d.contactName + " " + fmtPhone(d.contactPhone)) : "You";
+    var baptism = d.baptismSame === false
+      ? (d.bStreet + ", " + d.bCity + ", " + d.bState + " " + d.bZip)
+      : "Same as church";
+    return "Here's your signup - thank you!\n" +
+      "1 Name: " + or(d.name) + "\n" +
+      "2 Email: " + or(d.email) + "\n" +
+      "3 Church: " + or(d.church) + "\n" +
+      "4 Address: " + or(d.street) + "\n" +
+      "5 City: " + or(d.city) + "\n" +
+      "6 State: " + or(d.state) + "\n" +
+      "7 ZIP: " + or(d.zip) + "\n" +
+      "8 Denomination: " + or(d.denom) + "\n" +
+      "9 Website: " + or(d.website) + "\n" +
+      "10 Main contact: " + contact + "\n" +
+      "11 Baptism site: " + baptism + "\n" +
+      "12 Public map: " + (d.publicMap ? "Yes" : "No") + "\n\n" +
+      "Reply DONE if it all looks right, or EDIT and a number to fix anything (like EDIT 6).";
+  }
+
+  var data = {};
+  var queue = [];
+  var phase = "lang";
+  var editing = false;
+
+  var thread = document.getElementById("thread");
+  var input = document.getElementById("input");
+  var sendBtn = document.getElementById("send");
+  var resetBtn = document.getElementById("reset");
+  var outbox = [];
+  var sending = false;
+
+  function scroll(){ thread.scrollTop = thread.scrollHeight; }
+
+  function addBubble(side, text, meta) {
+    var row = document.createElement("div");
+    row.className = "row " + side;
+    var b = document.createElement("div");
+    b.className = "bubble";
+    b.textContent = text;
+    row.appendChild(b);
+    thread.appendChild(row);
+    if (meta) {
+      var m = document.createElement("div");
+      m.className = "meta " + side;
+      m.textContent = meta;
+      thread.appendChild(m);
+    }
+    scroll();
+  }
+
+  function setEnabled(on) {
+    input.disabled = !on;
+    sendBtn.disabled = !on;
+    if (on) input.focus();
+  }
+
+  function botSay(text) { outbox.push(text); pump(); }
+
+  function pump() {
+    if (sending) return;
+    if (!outbox.length) { setEnabled(phase !== "done" && phase !== "stopped"); return; }
+    sending = true;
+    setEnabled(false);
+    var text = outbox.shift();
+    var row = document.createElement("div");
+    row.className = "row in typing";
+    row.innerHTML = '<div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>';
+    thread.appendChild(row); scroll();
+    var delay = Math.min(900, 320 + text.length * 7);
+    setTimeout(function () {
+      thread.removeChild(row);
+      addBubble("in", text, segInfo(text));
+      sending = false;
+      pump();
+    }, delay);
+  }
+
+  function promptFor(key) {
+    var s = STEP[key];
+    var p = (editing && s.edit) ? s.edit(data) : s.prompt;
+    return (typeof p === "function") ? p(data) : p;
+  }
+
+  function askNext() {
+    if (queue.length) { botSay(promptFor(queue[0])); return; }
+    if (editing) { editing = false; botSay("Got it, updated!"); }
+    phase = "summary";
+    botSay(summaryText(data));
+  }
+
+  function startCollect() {
+    data = {};
+    queue = MAIN_ORDER.slice();
+    phase = "collect";
+    editing = false;
+    botSay(P.welcome);
+    askNext();
+  }
+
+  function restart() {
+    outbox = [];
+    data = {}; queue = []; editing = false;
+    thread.innerHTML = "";
+    phase = "lang";
+    botSay(P.lang);
+  }
+
+  function handleStep(text) {
+    var key = queue[0];
+    var s = STEP[key];
+    var r = s.validate(text, data);
+    if (r.error) { botSay(r.error); return; }
+    s.apply(r.value, data);
+    queue.shift();
+    if (s.branch) {
+      var extra = s.branch(r.value, data);
+      if (extra && extra.length) queue = extra.concat(queue);
+    }
+    askNext();
+  }
+
+  function handleSummary(text) {
+    var u = text.trim().toUpperCase();
+    if (u === "DONE") { phase = "done"; botSay(P.done); return; }
+    var m = u.match(/^EDIT\s*(\d+)$/);
+    if (m) {
+      var n = parseInt(m[1], 10);
+      if (EDITORS[n]) {
+        editing = true;
+        queue = EDITORS[n].slice();
+        phase = "collect";
+        botSay(promptFor(queue[0]));
+      } else {
+        botSay("I can edit items 1-12. Reply EDIT and a number, like EDIT 6.");
+      }
+      return;
+    }
+    botSay("Reply DONE to finish, or EDIT and a number to fix something (like EDIT 6).");
+  }
+
+  function handleLang(text) {
+    var t = text.trim();
+    if (t === "1") { startCollect(); return; }
+    if (/^[2-8]$/.test(t)) { botSay(P.langPicked); startCollect(); return; }
+    botSay("Please reply with a number from 1 to 8 to pick your language.");
+  }
+
+  function globalCommand(text) {
+    var u = text.trim().toUpperCase();
+    if (u === "STOP") { phase = "stopped"; botSay(P.stop); return true; }
+    if (u === "START" && phase === "stopped") { restart(); return true; }
+    if (u === "RESTART") { botSay("Starting over - your previous answers are cleared."); restart(); return true; }
+    if (u === "HELP" && (phase === "collect" || phase === "summary")) { botSay(P.help); return true; }
+    return false;
+  }
+
+  function onSend() {
+    var text = input.value.replace(/\s+$/,"");
+    if (!text.trim()) return;
+    addBubble("out", text, segInfo(text));
+    input.value = "";
+    input.style.height = "auto";
+    if (globalCommand(text)) return;
+    if (phase === "lang") handleLang(text);
+    else if (phase === "collect") handleStep(text);
+    else if (phase === "summary") handleSummary(text);
+    else if (phase === "done") botSay("You're all signed up. Text EDIT and a number to change something, or RESTART to start fresh.");
+    else if (phase === "stopped") botSay("You're opted out. Reply START to sign up again.");
+  }
+
+  sendBtn.addEventListener("click", onSend);
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+  });
+  input.addEventListener("input", function () {
+    input.style.height = "auto";
+    input.style.height = Math.min(110, input.scrollHeight) + "px";
+  });
+  resetBtn.addEventListener("click", restart);
+
+  botSay(P.lang);
+})();
+</script>
+</body>
+</html>
