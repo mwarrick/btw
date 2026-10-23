@@ -32,6 +32,8 @@ const US_STATES = {
 const CARRIER_STOP = ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"];
 const CARRIER_START = ["START", "UNSTOP"];
 const CARRIER_HELP = ["HELP", "INFO"];
+// Brings back the language menu. Built in because lang_detected promises it.
+const MENU_WORDS = ["MENU"];
 
 // ---------- answer checks ----------
 
@@ -195,6 +197,14 @@ export function createEngine({ prompts, languages }) {
     return { state: newState(), replies: [menu()] };
   }
 
+  // Starts in a language guessed from the first text, skipping the menu.
+  // lang_detected says how to get the menu instead.
+  function startIn(code) {
+    if (!languages.some((l) => l.code === code)) return start();
+    const state = { ...newState(), phase: "collect", lang: code, queue: [...QUESTIONS] };
+    return { state, replies: [text(code, "lang_detected"), text(code, "welcome"), question(state)].filter(Boolean) };
+  }
+
   function reply(previous, input) {
     const state = JSON.parse(JSON.stringify(previous || newState()));
     const raw = String(input ?? "").trim();
@@ -218,11 +228,23 @@ export function createEngine({ prompts, languages }) {
     if (state.phase !== "lang" && is(word, "kw_help", CARRIER_HELP)) {
       return send(text(lang, "help"));
     }
+    // A change of language keeps the answers and the open question.
+    if (is(word, "kw_menu", MENU_WORDS)) {
+      state.phase = "lang";
+      return send(menu());
+    }
 
     if (state.phase === "lang") {
       const n = /^\d+$/.test(word) ? Number(word) : 0;
       const picked = languages[n - 1];
       if (!picked) return send([text("en", "menu_invalid"), menuList()].filter(Boolean).join("\n"));
+      // Back here through MENU with answers already given: carry on in the
+      // new language from where they were.
+      if (Object.keys(state.data).length) {
+        state.lang = picked.code;
+        state.phase = state.queue.length ? "collect" : "summary";
+        return send(state.queue.length ? question(state) : summary(state));
+      }
       Object.assign(state, { phase: "collect", lang: picked.code, queue: [...QUESTIONS], editing: false, data: {} });
       return send(text(state.lang, "welcome"), question(state));
     }
@@ -260,5 +282,5 @@ export function createEngine({ prompts, languages }) {
     return send(text(state.lang, state.phase === "done" ? "done_reply" : "summary_hint"));
   }
 
-  return { start, reply, menu };
+  return { start, startIn, reply, menu };
 }

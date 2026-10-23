@@ -1,7 +1,8 @@
 // /api/sms-inbound.js
 // Receives incoming texts from voip.ms (the DID's "SMS URL Callback") and
 // runs the signup conversation: every text to the number starts or carries
-// on that number's signup, with no keyword needed.
+// on that number's signup, with no keyword needed. A new number's first
+// text picks the language when Google can tell what it's written in.
 //
 // Set the callback on the DID in the voip.ms portal to:
 //   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}
@@ -24,7 +25,13 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
+import { detect } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
+
+// A first text is only trusted to name a language when Google is at least
+// this sure and it has this many letters; "hi" or "ok" gets the menu.
+const DETECT_CONFIDENCE = 0.8;
+const DETECT_MIN_LETTERS = 4;
 
 // btw_churches columns the engine keeps in state.data under the same name.
 const ANSWER_COLUMNS = [
@@ -90,10 +97,14 @@ async function converse(sms) {
     ]);
     const engine = createEngine({ prompts, languages });
     const before = toState(session, church);
-    // A new number's first text, whatever it says, gets the language menu;
+    // A new number's first text starts the signup in the language it's
+    // written in when that's clear, or with the language menu otherwise;
     // only an opt-out word is taken at its word.
     let result = engine.reply(before, sms.message);
-    if (!session && result.state.phase !== "stopped") result = engine.start();
+    if (!session && result.state.phase !== "stopped") {
+      const lang = await guessLanguage(sms.message, languages, phone);
+      result = lang ? engine.startIn(lang) : engine.start();
+    }
     await save(phone, before, result.state, church);
     replies = result.replies;
   } catch (err) {
@@ -122,6 +133,21 @@ async function converse(sms) {
   }
 }
 
+// The switched-on language a first text is written in, or null when it's
+// unclear, not switched on, or detection fails (the menu then decides).
+async function guessLanguage(message, languages, phone) {
+  if ((message.match(/\p{L}/gu) || []).length < DETECT_MIN_LETTERS) return null;
+  try {
+    const { lang, confidence } = await detect(message);
+    console.log("Detected language", JSON.stringify({ lang, confidence }));
+    if (confidence < DETECT_CONFIDENCE) return null;
+    return languages.some((l) => l.code === lang) ? lang : null;
+  } catch (err) {
+    await logEvent("warning", "sms-inbound", `Couldn't detect the language of a first text, so it got the menu: ${err.message}`, { phone });
+    return null;
+  }
+}
+
 // The engine's state from the two rows; a number with no session is new.
 function toState(session, church) {
   if (!session) return newState();
@@ -140,10 +166,10 @@ function toState(session, church) {
 async function save(phone, before, state, church) {
   const now = new Date().toISOString();
   // Complete from the first DONE until a restart, even while an answer is
-  // being edited afterwards.
+  // being edited or the language changed afterwards.
   let completed = church?.completed_at || null;
   if (state.phase === "done" && before.phase !== "done") completed = now;
-  if (state.phase === "lang") completed = null;
+  if (state.phase === "lang" && !Object.keys(state.data).length) completed = null;
 
   const row = { phone, lang: state.lang };
   for (const col of ANSWER_COLUMNS) row[col] = state.data[col] ?? null;
