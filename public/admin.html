@@ -358,9 +358,11 @@
   #church-error { padding: 0 16px 14px; margin: 0; }
   .church-note { margin: 12px 16px 0; color: var(--muted); font-size: 14px; }
   @media (max-width: 560px) { .church-fields .field-stack.half, .church-fields .field-stack.third { grid-column: span 6; } }
+  .sim-panel { margin-top: 16px; }
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; white-space: nowrap; }
   .row-actions .btn { display: inline-flex; gap: 6px; align-items: center; }
   .church-table th { white-space: nowrap; }
+  .church-table .row-actions { flex-direction: column; align-items: stretch; }
   .church-table td { vertical-align: top; }
   .church-table a { color: var(--brand); }
   .bubble.failed { border-color: var(--bad); border-style: dashed; opacity: .8; }
@@ -450,6 +452,16 @@
           </thead>
           <tbody id="convo-rows"></tbody>
         </table>
+      </div>
+      <div class="panel sim-panel">
+        <div class="panel-row">
+          <strong>Simulations</strong>
+          <span class="meter">Ten made-up signups run through the real prompts, with follow-up messages and the edits they led to. Badged "Simulation"; nothing is texted.</span>
+        </div>
+        <div class="panel-row">
+          <button class="btn" id="sim-add" type="button">Add simulations</button>
+          <button class="btn ghost" id="sim-remove" type="button">Remove simulations</button>
+        </div>
       </div>
     </section>
 
@@ -1575,6 +1587,7 @@ function renderConversations() {
     return h("tr", { tabindex: "0", onclick: open,
       onkeydown: (e) => { if (e.key === "Enter") open(); } },
       h("td", {}, h("span", { class: "who", text: c.church_name || "Not given yet" }),
+        c.simulated ? chip("Simulation", "draft") : null,
         c.unread ? chip(`${c.unread} new`, "bad") : null,
         h("span", { class: "sub", text: [c.name, place].filter(Boolean).join(" · ") })),
       h("td", { class: "when", text: formatPhone(c.phone) }),
@@ -1610,6 +1623,7 @@ function renderChurches() {
     const contact = c.contact_name ? `${c.contact_name}${c.contact_phone ? ` · ${formatPhone(c.contact_phone)}` : ""}` : null;
     return h("tr", {},
       h("td", {}, h("span", { class: "who", text: c.church_name || "(no name)" }),
+        c.simulated ? chip("Simulation", "draft") : null,
         c.status === "opted_out" ? chip("Opted out", "muted") : null,
         h("span", { class: "sub", text: [c.denomination, c.website].filter(Boolean).join(" · ") })),
       h("td", {}, h("span", { text: c.name || "" }),
@@ -1685,7 +1699,7 @@ async function openThread(phone, tab) {
 function renderThread() {
   const { church, session, messages } = convos.data;
   const phone = convos.open;
-  $("thread-title").textContent = [church?.church_name, formatPhone(phone)].filter(Boolean).join(" · ");
+  $("thread-title").textContent = [church?.church_name, formatPhone(phone), church?.simulated ? "Simulation" : null].filter(Boolean).join(" · ");
 
   const team = messages.filter((m) => m.thread === "team");
   const unseen = team.filter((m) => m.direction === "in" && !m.read_at).length;
@@ -1731,7 +1745,8 @@ function renderCompose(session, church) {
 
   const note = $("compose-note");
   note.hidden = false;
-  note.textContent = stopped ? "They texted STOP, so nothing can be sent until they text START."
+  note.textContent = church?.simulated ? "This is a simulation: messages you send are saved here but not texted."
+    : stopped ? "They texted STOP, so nothing can be sent until they text START."
     : !session ? "This number has no signup in progress."
     : !church?.completed_at ? "They haven't finished signing up, so their replies go to the signup questions until they text DONE. Messages you send still reach them."
     : "Their replies show up here.";
@@ -1793,7 +1808,7 @@ $("compose-send").addEventListener("click", async (e) => {
         $("compose-text").value = "";
         convos.english = "";
         $("compose-error").textContent = "";
-        toast("Sent.");
+        toast(convos.data.church?.simulated ? "Saved. Simulations aren't texted." : "Sent.");
       }
       renderThread();
     }
@@ -1803,6 +1818,32 @@ $("compose-send").addEventListener("click", async (e) => {
   } finally {
     button.textContent = "Send";
     composeChanged();
+  }
+});
+
+$("sim-add").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  button.textContent = "Adding...";
+  try {
+    const { added } = await api("/api/admin/simulations", { method: "POST" });
+    toast(`Added ${added} simulations.`);
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Add simulations";
+  }
+});
+$("sim-remove").addEventListener("click", async () => {
+  if (!confirm("Remove every simulated signup, with its texts and messages? Real signups aren't touched.")) return;
+  try {
+    const { removed } = await api("/api/admin/simulations", { method: "DELETE" });
+    toast(`Removed ${removed} simulations.`);
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
   }
 });
 
