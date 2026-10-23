@@ -6,6 +6,7 @@
 //   DELETE  -> { removed }
 
 import { requireAdmin } from "../../lib/admin-auth.js";
+import { siteUrl } from "../../lib/profile-link.js";
 import { addSimulations, removeSimulations } from "../../lib/simulations.js";
 
 export default async function handler(req, res) {
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
   if (!user) return;
   try {
     if (req.method === "POST") {
-      res.status(200).json({ added: await addSimulations(user.id) });
+      res.status(200).json({ added: await addSimulations(user.id, siteUrl(req)) });
       return;
     }
     if (req.method === "DELETE") {

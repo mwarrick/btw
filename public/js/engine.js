@@ -205,7 +205,8 @@ export function createEngine({ prompts, languages }) {
     return { state, replies: [text(code, "lang_detected"), text(code, "welcome"), question(state)].filter(Boolean) };
   }
 
-  function reply(previous, input) {
+  // extra.link: the pastor's own page (/p/<key>), added to the DONE message.
+  function reply(previous, input, extra = {}) {
     const state = JSON.parse(JSON.stringify(previous || newState()));
     const raw = String(input ?? "").trim();
     const word = normalize(raw);
@@ -269,7 +270,10 @@ export function createEngine({ prompts, languages }) {
     // summary or done
     if (is(word, "kw_done")) {
       state.phase = "done";
-      return send(text(state.lang, "done"));
+      const link = extra.link ? text(state.lang, "done_link", { link: extra.link }) : "";
+      // Without done_link in this language, the link alone.
+      const linkLine = link && link.includes(extra.link) ? link : extra.link;
+      return send([text(state.lang, "done"), linkLine].filter(Boolean).join("\n"));
     }
     const editWords = [...words(lang, "kw_edit")].map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     const edit = word.match(new RegExp(`^(?:${editWords.join("|")})\\s*(\\d+)$`));

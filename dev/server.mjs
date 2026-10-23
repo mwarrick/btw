@@ -41,7 +41,7 @@ const handlers = {};
 for (const file of fs.readdirSync(path.join(ROOT, "api/admin")).filter((f) => f.endsWith(".js"))) {
   handlers[`/api/admin/${file.slice(0, -3)}`] = (await import(path.join(ROOT, "api/admin", file))).default;
 }
-for (const name of ["sms-inbound", "sms-send", "prompts"]) {
+for (const name of ["sms-inbound", "sms-send", "prompts", "profile"]) {
   handlers[`/api/${name}`] = (await import(path.join(ROOT, "api", `${name}.js`))).default;
 }
 
@@ -69,7 +69,10 @@ http.createServer(async (req, res) => {
     res.send = (data) => res.end(String(data));
     return handler(req, res);
   }
-  const file = path.join(ROOT, "public", url.pathname === "/admin" ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname);
+  // vercel.json's rewrites and cleanUrls, by hand.
+  const page = url.pathname === "/admin" ? "admin.html" : url.pathname === "/" ? "index.html"
+    : url.pathname.startsWith("/p/") ? "profile.html" : url.pathname;
+  const file = path.join(ROOT, "public", page);
   if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.statusCode = 404;
     return res.end();

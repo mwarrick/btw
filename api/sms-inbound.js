@@ -27,6 +27,7 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
+import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    await converse(sms);
+    await converse(sms, siteUrl(req));
     res.status(200).send("ok");
   } catch (err) {
     // Anything but "ok" makes voip.ms retry later.
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function converse(sms) {
+async function converse(sms, site) {
   const phone = "+1" + sms.from;
 
   const [logged] = await db("btw_messages?on_conflict=provider_id", {
@@ -102,7 +103,10 @@ async function converse(sms) {
     // A new number's first text starts the signup in the language it's
     // written in when that's clear, or with the language menu otherwise;
     // only an opt-out word is taken at its word.
-    let result = engine.reply(before, sms.message);
+    // The pastor's own page, linked from the DONE message; the key is kept
+    // once the signup is complete.
+    const key = church?.profile_key || newProfileKey();
+    let result = engine.reply(before, sms.message, { link: profileUrl(site, key) });
     if (!session && result.state.phase !== "stopped") {
       const lang = await guessLanguage(sms.message, languages, phone);
       result = lang ? engine.startIn(lang) : engine.start();
@@ -114,7 +118,7 @@ async function converse(sms) {
       await toTeam(logged, phone);
       return;
     }
-    await save(phone, before, result.state, church);
+    await save(phone, before, result.state, church, key);
     replies = result.replies;
   } catch (err) {
     // Forget the text so voip.ms's retry runs it again.
@@ -186,7 +190,7 @@ function toState(session, church) {
   };
 }
 
-async function save(phone, before, state, church) {
+async function save(phone, before, state, church, key) {
   const now = new Date().toISOString();
   // Complete from the first DONE until a restart, even while an answer is
   // being edited or the language changed afterwards.
@@ -199,6 +203,7 @@ async function save(phone, before, state, church) {
   row.consent_at = state.data.consent ? church?.consent_at || now : null;
   row.completed_at = completed;
   row.status = state.phase === "stopped" ? "opted_out" : completed ? "complete" : "in_progress";
+  if (completed) row.profile_key = key;
 
   await Promise.all([
     db("btw_sessions?on_conflict=phone", {

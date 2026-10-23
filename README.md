@@ -7,6 +7,8 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
 | `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
+| `/p/<key>` | A pastor's own signup page, linked from the DONE text: see and update their answers on a phone. The key in the link is the only login. |
+| `GET/PATCH /api/profile?key=` | That page's data and saves |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
 | `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `simulations` (add or remove the ten made-up signups) |
 
@@ -28,6 +30,7 @@ Only `public/` is published as the website (see `vercel.json`). Everything else 
 | `ADMIN_PASSWORD` | Signs the `/admin` session cookies, so changing it logs everyone out. Before any user exists it's also the setup password that logs in to add the first one. |
 | `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
 | `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
+| `PUBLIC_SITE_URL` | Optional: the address used in pastors' page links, e.g. `https://btw-dusky.vercel.app`. Unset: the address the request came in on. |
 
 ## Database
 
