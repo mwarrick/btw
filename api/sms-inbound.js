@@ -7,8 +7,16 @@
 // thread in /admin instead of the bot.
 //
 // Set the callback on the DID in the voip.ms portal to:
-//   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}
+//   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}&media={MEDIA}
 // and enable "URL callback retry" so voip.ms resends until it gets "ok".
+// {MEDIA} is an MMS's attachments, a comma-separated list of links; keep it
+// last, since everything after media= is read as the list (a link may
+// itself contain & or ;).
+//
+// Pictures are kept with the text (btw_messages.media) and shown in /admin.
+// Once a signup is finished they go to the team thread like any text;
+// before that, a picture with no words gets the open question again rather
+// than counting as a wrong answer.
 //
 // Sources disagree on whether voip.ms sends GET with placeholders (sometimes
 // separated by ";" instead of "&") or POST with a JSON body, so this accepts both.
@@ -86,7 +94,7 @@ async function converse(sms, site) {
 
   const [logged] = await db("btw_messages?on_conflict=provider_id", {
     method: "POST",
-    body: { provider_id: sms.id, phone, direction: "in", body: sms.message },
+    body: { provider_id: sms.id, phone, direction: "in", body: sms.message, media: sms.media.length ? sms.media : null },
     prefer: "resolution=ignore-duplicates,return=representation",
   });
   if (!logged) return; // a retry of a text already handled
@@ -100,26 +108,33 @@ async function converse(sms, site) {
     ]);
     const engine = createEngine({ prompts, languages });
     const before = toState(session, church);
-    // A new number's first text starts the signup in the language it's
-    // written in when that's clear, or with the language menu otherwise;
-    // only an opt-out word is taken at its word.
-    // The pastor's own page, linked from the DONE message; the key is kept
-    // once the signup is complete.
-    const key = church?.profile_key || newProfileKey();
-    let result = engine.reply(before, sms.message, { link: profileUrl(site, key) });
-    if (!session && result.state.phase !== "stopped") {
-      const lang = await guessLanguage(sms.message, languages, phone);
-      result = lang ? engine.startIn(lang) : engine.start();
+    const pictureOnly = !sms.message.trim() && sms.media.length > 0;
+    if (pictureOnly && ["collect", "lang", "summary"].includes(before.phase) && session) {
+      // Just a picture while a question is open (signing up, or changing an
+      // answer): keep it, and ask the question again.
+      replies = engine.again(before);
+    } else {
+      // A new number's first text starts the signup in the language it's
+      // written in when that's clear, or with the language menu otherwise;
+      // only an opt-out word is taken at its word.
+      // The pastor's own page, linked from the DONE message; the key is kept
+      // once the signup is complete.
+      const key = church?.profile_key || newProfileKey();
+      let result = engine.reply(before, sms.message, { link: profileUrl(site, key) });
+      if (!session && result.state.phase !== "stopped") {
+        const lang = await guessLanguage(sms.message, languages, phone);
+        result = lang ? engine.startIn(lang) : engine.start();
+      }
+      // Once the signup has been finished (even if an answer is being changed
+      // since), anything that isn't a command is for the reviewers: it joins
+      // the team thread in /admin, and the bot stays quiet.
+      if (church?.completed_at && result.unhandled) {
+        await toTeam(logged, phone);
+        return;
+      }
+      await save(phone, before, result.state, church, key);
+      replies = result.replies;
     }
-    // Once the signup has been finished (even if an answer is being changed
-    // since), anything that isn't a command is for the reviewers: it joins
-    // the team thread in /admin, and the bot stays quiet.
-    if (church?.completed_at && result.unhandled) {
-      await toTeam(logged, phone);
-      return;
-    }
-    await save(phone, before, result.state, church, key);
-    replies = result.replies;
   } catch (err) {
     // Forget the text so voip.ms's retry runs it again.
     await db(`btw_messages?id=eq.${logged.id}`, { method: "DELETE" }).catch(() => {});
@@ -151,7 +166,8 @@ async function converse(sms, site) {
 // the translation.
 async function toTeam(message, phone) {
   let translation = null;
-  try {
+  // A picture with no words has nothing to translate.
+  if (message.body.trim()) try {
     const [english] = await translate([message.body], "en", null);
     // Google's copy has straight quotes (see lib/translate.js), so compare
     // that way: "that’s right" typed on a phone isn't a translation.
@@ -219,9 +235,16 @@ async function save(phone, before, state, church, key) {
 }
 
 // Vercel's req.query only splits on "&"; voip.ms callbacks may use ";".
+// media= is last in the callback URL and taken whole, since its links may
+// contain & or ; themselves.
 function parseQuery(url = "") {
-  const qs = url.split("?")[1] || "";
+  let qs = url.slice(url.indexOf("?") + 1 || url.length);
   const out = {};
+  const m = qs.match(/(^|[&;])media=/);
+  if (m) {
+    out.media = decodeURIComponent(qs.slice(m.index + m[0].length).replace(/\+/g, " "));
+    qs = qs.slice(0, m.index);
+  }
   for (const pair of qs.split(/[&;]/)) {
     if (!pair) continue;
     const [k, ...rest] = pair.split("=");
@@ -254,6 +277,8 @@ function normalize(raw) {
     to: digits(raw.to),
     message: raw.message || "",
     date: raw.date || null,
-    media: Array.isArray(raw.media) ? raw.media.map((m) => m.url || m) : [],
+    // A JSON body's list, or the callback's comma-separated links.
+    media: (Array.isArray(raw.media) ? raw.media.map((m) => m.url || m) : String(raw.media || "").split(","))
+      .map((u) => String(u).trim()).filter((u) => /^https?:\/\//i.test(u)).slice(0, 10),
   };
 }

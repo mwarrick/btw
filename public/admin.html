@@ -374,6 +374,12 @@
   .log-table td { font-size: 14px; vertical-align: top; }
   .log-table .msg { overflow-wrap: anywhere; min-width: 16rem; }
   .log-table .phone-link { background: none; border: 0; padding: 0; color: var(--brand); text-decoration: underline; cursor: pointer; white-space: nowrap; }
+  .attachments { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-width: 85%; }
+  .attachments.in { align-self: flex-start; }
+  .attachments.out { align-self: flex-end; justify-content: flex-end; }
+  .attachments a { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+  .attachments img { display: block; max-width: 220px; max-height: 220px; object-fit: cover; }
+  .attachments a.file { padding: 7px 12px; font-size: 14px; }
   .bubble-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .bubble-time.in { align-self: flex-start; }
   .bubble-time.out { align-self: flex-end; }
@@ -1729,7 +1735,8 @@ function renderThread() {
   const shown = messages.filter((m) => (m.thread || "signup") === convos.tab);
   $("thread-messages").replaceChildren(...(shown.length
     ? shown.flatMap((m) => [
-      h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }),
+      m.body || !m.media?.length ? h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }) : null,
+      m.media?.length ? attachments(m) : null,
       m.translation ? h("span", { class: `bubble-note ${m.direction}`, text: `In English: ${m.translation}` }) : null,
       m.sender ? h("span", { class: "bubble-note out", text: `Sent by ${m.sender.name}` }) : null,
       m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
@@ -1753,6 +1760,18 @@ function renderThread() {
   renderCompose(session, church);
   const last = $("thread-messages").lastElementChild;
   if (last) last.scrollIntoView({ block: "end" });
+}
+
+// An MMS's pictures as thumbnails that open full size in a new tab; a file
+// that isn't an image (or no longer loads) shows as a link instead.
+function attachments(m) {
+  return h("div", { class: `attachments ${m.direction}` }, m.media.map((url, i) => {
+    const link = h("a", { href: url, target: "_blank", rel: "noopener noreferrer", title: "Open full size" });
+    const img = h("img", { src: url, alt: `Attachment ${i + 1}`, loading: "lazy", referrerpolicy: "no-referrer" });
+    img.addEventListener("error", () => { link.classList.add("file"); link.replaceChildren(`Attachment ${i + 1}`); });
+    link.append(img);
+    return link;
+  }));
 }
 
 function renderCompose(session, church) {
