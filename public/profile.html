@@ -57,7 +57,7 @@ button:disabled{opacity:.5}
   var GROUPS = [
     [null, [["church_name", "sum_church"], ["street", "sum_street"], ["city", "sum_city"],
       ["state", "sum_state", "text", "", "", 1], ["zip", "sum_zip", "text", "numeric", "", 1],
-      ["denomination", "sum_denom"], ["website", "sum_website", "url", "url"]]],
+      ["country", "sum_country"], ["denomination", "sum_denom"], ["website", "sum_website", "url", "url"]]],
     [null, [["name", "sum_name"], ["email", "sum_email", "email", "email"], ["phone", "web_phone", "fixed", "", "web_phone_hint"]]],
     [null, [["contact_name", "sum_contact", "text", "", "web_contact_hint"], ["contact_phone", "web_contact_phone", "tel", "tel"]]],
     ["sum_baptism", [["baptism_same", "web_baptism_same", "yn"], ["baptism_street", "sum_street"], ["baptism_city", "sum_city"],
@@ -86,7 +86,7 @@ button:disabled{opacity:.5}
       };
       return el("div", { id: "f-" + name }, [el("label", {}, [label]), el("div", { class: "yn" }, [opt("true", T.val_yes || "Yes"), opt("false", T.val_no || "No")])]);
     }
-    var input = el("input", { name: name, type: type, inputmode: f[3] || null, autocomplete: "off", maxlength: "200" });
+    var input = el("input", { name: name, type: type, inputmode: f[3] || null, autocomplete: "off", maxlength: f[3] === "numeric" ? "10" : "200" });
     input.value = data[name] == null ? "" : data[name];
     return el("label", { id: "f-" + name, class: f[5] ? "s" : null }, [label, f[4] && T[f[4]] ? el("span", { class: "hint" }, [T[f[4]]]) : null, input]);
   }
@@ -112,6 +112,9 @@ button:disabled{opacity:.5}
     var f = $("form");
     $("f-contact_phone").hidden = !f.contact_name.value.trim();
     var away = (f.querySelector("[name=baptism_same]:checked") || {}).value === "false";
+    // A number pad for US ZIPs; letters too for postal codes elsewhere.
+    var us = /^(|US|USA|U\.?S\.?A?\.?|UNITED STATES)$/i.test(f.country.value.trim());
+    f.zip.inputMode = f.baptism_zip.inputMode = us ? "numeric" : "text";
     ["baptism_street", "baptism_city", "baptism_state", "baptism_zip"].forEach(function (n) { $("f-" + n).hidden = !away; });
   }
   // Shows the answers as saved (e.g. "Texas" comes back as TX).
@@ -136,7 +139,8 @@ button:disabled{opacity:.5}
     document.title = $("title").textContent = T.web_title || "Baptize 2027";
     $("intro").textContent = T.web_intro || "";
     $("save").textContent = T.web_save || "Save";
-    render(Object.assign({}, x[1].church, { phone: x[1].phone }));
+    // No country: a US signup from before the country question.
+    render(Object.assign({}, x[1].church, { phone: x[1].phone, country: x[1].church.country || "US" }));
     $("msg").hidden = true; $("form").hidden = false; $("bar").hidden = false;
   }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
 

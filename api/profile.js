@@ -21,7 +21,7 @@ const FIELDS = ["phone", "lang", "church_name", ...EDITABLE.filter((f) => f !== 
 // and its own wording.
 const TEXT_KEYS = [
   "sum_name", "sum_email", "sum_church", "sum_street", "sum_city", "sum_state", "sum_zip", "sum_denom",
-  "sum_website", "sum_contact", "sum_baptism", "sum_map", "val_yes", "val_no",
+  "sum_website", "sum_contact", "sum_baptism", "sum_map", "sum_country", "val_yes", "val_no", "err_postal",
   ...Object.values(ERROR_PROMPTS),
   "web_title", "web_intro", "web_save", "web_saved", "web_contact_hint", "web_contact_phone", "web_baptism_same", "web_bad_link",
   "web_phone", "web_phone_hint",
@@ -51,10 +51,10 @@ export default async function handler(req, res) {
     }
 
     const body = Object.fromEntries(EDITABLE.filter((f) => req.body && f in req.body).map((f) => [f, req.body[f]]));
-    const { fields, error, field } = cleanChurchFields(body);
+    const { fields, error, field, prompt } = cleanChurchFields(body);
     if (error) {
       const words = await wording(lang);
-      res.status(400).json({ error, field, message: words[ERROR_PROMPTS[field]] || error });
+      res.status(400).json({ error, field, message: words[prompt || ERROR_PROMPTS[field]] || error });
       return;
     }
     const [saved] = await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`, {

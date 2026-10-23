@@ -52,8 +52,8 @@ const text = (from, message) => new Promise((done) => handlers["/api/sms-inbound
   { url: `/api/sms-inbound?key=k&to=5559990000&from=${from}&message=${encodeURIComponent(message)}&id=${id++}` },
   { status() { return this; }, send: done },
 ));
-for (const m of ["Hi! Saw the flyer", "Maria Lopez", "maria@gracechurch.org", "Grace Community Church", "100 Main St",
-  "Austin", "TX", "78701", "Baptist", "gracechurch.org", "Pastor James", "512-555-0100", "yes", "Y", "yes", "DONE",
+for (const m of ["Hi! Saw the flyer", "Maria Lopez", "maria@gracechurch.org", "Grace Community Church", "yes", "100 Main St",
+  "Austin", "TX", "78701", "Baptist", "gracechurch.org", "Pastor James", "512-555-0100", "yes", "Y", "yes",
   "Can someone call me about the location?"]) await text("5125550111", m);
 for (const m of ["hello", "1", "Tom", "tom@x"]) await text("5125550122", m);
 

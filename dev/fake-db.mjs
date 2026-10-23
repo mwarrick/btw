@@ -11,9 +11,9 @@ const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", k
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
 const keys = ["menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
   "summary_hint","edit_saved","edit_invalid","sum_intro","sum_outro","val_you","val_same","val_yes","val_no"];
-for (const q of ["name","email","church","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
+for (const q of ["name","email","church","country","region","postal","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
   keys.push("ask_"+q, "err_"+q, "edit_"+q);
-for (const s of ["name","email","church","street","city","state","zip","denom","website","contact","baptism","map"]) keys.push("sum_"+s);
+for (const s of ["name","email","church","country","street","city","state","zip","denom","website","contact","baptism","map"]) keys.push("sum_"+s);
 
 export const tables = { btw_languages: [{ code: "en", name: "English", menu_label: "English", active: true, menu_order: 1 }],
   btw_prompts: [...keys.map((k) => ({ key: k, lang: "en", text: `<${k}>` })),
