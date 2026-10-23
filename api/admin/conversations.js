@@ -11,6 +11,9 @@
 //   POST ?phone=+1... { body }  -> { message }: texts the pastor from the
 //                        team thread as the logged-in user (refused after STOP;
 //                        a simulated signup's message is saved but not sent)
+//   POST ?phone=+1... { sendLink: true } -> { message }: the same, with the
+//                        pastor's page link (done_link in their language); makes
+//                        the link's key first if the signup has none
 //   POST ?phone=+1... { translate } -> { text }: that English in the
 //                        pastor's signup language, to check before sending
 //   DELETE ?phone=+1...  -> { deleted: true }: the number's texts, answers,
@@ -20,6 +23,7 @@
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { logEvent } from "../../lib/events.js";
 import { db, eq } from "../../lib/supabase.js";
+import { newProfileKey, profileUrl, siteUrl } from "../../lib/profile-link.js";
 import { translate } from "../../lib/translate.js";
 import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
 
@@ -39,7 +43,7 @@ export default async function handler(req, res) {
   try {
     const phone = new URL(req.url, "http://x").searchParams.get("phone");
     if (req.method === "DELETE") return await remove(phone, res);
-    if (req.method === "POST") return await post(phone, req.body || {}, user, res);
+    if (req.method === "POST") return await post(phone, req.body || {}, user, res, siteUrl(req));
     if (phone) return await thread(phone, res);
     return await list(res);
   } catch (err) {
@@ -94,14 +98,14 @@ async function thread(phone, res) {
   res.status(200).json({ church: church || null, session: session || null, messages });
 }
 
-async function post(phone, body, user, res) {
+async function post(phone, body, user, res, site) {
   if (!/^\+1\d{10}$/.test(phone || "")) {
     res.status(400).json({ error: "Send the number as ?phone=+1XXXXXXXXXX." });
     return;
   }
   const [[session], [church]] = await Promise.all([
     db(`btw_sessions?phone=${eq(phone)}&select=phase,lang`),
-    db(`btw_churches?phone=${eq(phone)}&select=lang,simulated`),
+    db(`btw_churches?phone=${eq(phone)}&select=lang,simulated,profile_key`),
   ]);
   const lang = session?.lang || church?.lang || "en";
 
@@ -116,7 +120,14 @@ async function post(phone, body, user, res) {
     return;
   }
 
-  const text = String(body.body ?? "").trim();
+  let text = String(body.body ?? "").trim();
+  if (body.sendLink) {
+    if (!church) {
+      res.status(404).json({ error: "This number hasn't started a signup, so there's no page to link to." });
+      return;
+    }
+    text = await linkMessage(phone, church, lang, site);
+  }
   if (!text) {
     res.status(400).json({ error: "Write a message first." });
     return;
@@ -148,6 +159,21 @@ async function post(phone, body, user, res) {
     prefer: "return=representation",
   });
   res.status(200).json({ message });
+}
+
+// done_link ("See or update your signup anytime: {link}") in the pastor's
+// language, with their link; makes and saves the key if there isn't one.
+async function linkMessage(phone, church, lang, site) {
+  let key = church.profile_key;
+  if (!key) {
+    key = newProfileKey();
+    await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: { profile_key: key } });
+  }
+  const link = profileUrl(site, key);
+  const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
+  const rows = await db(`btw_prompts?key=eq.done_link&lang=in.${langs}&select=lang,text`);
+  const template = (rows.find((r) => r.lang === lang) || rows.find((r) => r.lang === "en"))?.text || "{link}";
+  return template.includes("{link}") ? template.replace("{link}", link) : `${template}\n${link}`;
 }
 
 async function remove(phone, res) {

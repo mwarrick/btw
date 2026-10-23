@@ -24,7 +24,7 @@
 //   plus those of lib/supabase.js and lib/voipms.js
 
 import { createEngine, newState } from "../public/js/engine.js";
-import { loadPrompts } from "../lib/prompts.js";
+import { loadPrompts, straighten } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
@@ -153,7 +153,10 @@ async function toTeam(message, phone) {
   let translation = null;
   try {
     const [english] = await translate([message.body], "en", null);
-    if (english.trim().toLowerCase() !== message.body.trim().toLowerCase()) translation = english;
+    // Google's copy has straight quotes (see lib/translate.js), so compare
+    // that way: "that’s right" typed on a phone isn't a translation.
+    const same = (t) => straighten(t).replace(/\s+/g, " ").trim().toLowerCase();
+    if (same(english) !== same(message.body)) translation = english;
   } catch (err) {
     await logEvent("warning", "sms-inbound", `Couldn't translate a message for the team: ${err.message}`, { phone });
   }

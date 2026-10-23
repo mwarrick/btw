@@ -630,6 +630,7 @@
           <span class="meter" id="compose-meter"></span>
           <span class="spacer"></span>
           <button class="btn small" id="compose-translate" type="button" hidden></button>
+          <button class="btn small" id="compose-link" type="button" title="Texts them the link to their own signup page">Send login link</button>
           <button class="btn small primary" id="compose-send" type="button">Send</button>
         </div>
         <p class="row-error" id="compose-error" role="alert"></p>
@@ -1753,6 +1754,7 @@ function renderCompose(session, church) {
     : "Their replies show up here.";
 
   $("compose-text").disabled = stopped || !session;
+  $("compose-link").disabled = stopped || !session || !church;
   const tr = $("compose-translate");
   tr.hidden = lang === "en" || stopped || !session;
   tr.textContent = `Translate to ${langName}`;
@@ -1819,6 +1821,34 @@ $("compose-send").addEventListener("click", async (e) => {
   } finally {
     button.textContent = "Send";
     composeChanged();
+  }
+});
+
+// Texts the pastor the link to their own page (/p/<key>), in their language.
+$("compose-link").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  const phone = convos.open;
+  const who = convos.data?.church?.name || formatPhone(phone);
+  if (!confirm(`Text ${who} the link to their signup page, where they can see and update their answers?`)) return;
+  button.disabled = true;
+  button.textContent = "Sending...";
+  try {
+    const { message } = await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`, { method: "POST", body: { sendLink: true } });
+    if (convos.open === phone && convos.data) {
+      convos.data.messages.push(message);
+      // The answers panel shows the link, which may be new.
+      const key = message.body.match(/\/p\/([A-Za-z0-9_-]+)/)?.[1];
+      if (key && convos.data.church) convos.data.church.profile_key = key;
+      if (message.error) $("compose-error").textContent = `Not sent: ${message.error}`;
+      else toast(convos.data.church?.simulated ? "Saved. Simulations aren't texted." : "Login link sent.");
+      renderThread();
+    }
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) $("compose-error").textContent = err.message;
+  } finally {
+    button.textContent = "Send login link";
+    button.disabled = false;
   }
 });
 
