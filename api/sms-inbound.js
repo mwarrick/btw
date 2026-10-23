@@ -2,7 +2,9 @@
 // Receives incoming texts from voip.ms (the DID's "SMS URL Callback") and
 // runs the signup conversation: every text to the number starts or carries
 // on that number's signup, with no keyword needed. A new number's first
-// text picks the language when Google can tell what it's written in.
+// text picks the language when Google can tell what it's written in. Once a
+// signup is finished, texts that aren't commands go to the reviewers' team
+// thread in /admin instead of the bot.
 //
 // Set the callback on the DID in the voip.ms portal to:
 //   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}
@@ -25,7 +27,7 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
-import { detect } from "../lib/translate.js";
+import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 
 // A first text is only trusted to name a language when Google is at least
@@ -105,6 +107,13 @@ async function converse(sms) {
       const lang = await guessLanguage(sms.message, languages, phone);
       result = lang ? engine.startIn(lang) : engine.start();
     }
+    // Once the signup has been finished (even if an answer is being changed
+    // since), anything that isn't a command is for the reviewers: it joins
+    // the team thread in /admin, and the bot stays quiet.
+    if (church?.completed_at && result.unhandled) {
+      await toTeam(logged, phone);
+      return;
+    }
     await save(phone, before, result.state, church);
     replies = result.replies;
   } catch (err) {
@@ -131,6 +140,20 @@ async function converse(sms) {
       .catch((err) => console.error("sms-inbound: couldn't record a reply:", err.message));
     if (error) break;
   }
+}
+
+// Moves an incoming text to the team thread, unread, with an English
+// translation when it isn't in English. A failed translation only costs
+// the translation.
+async function toTeam(message, phone) {
+  let translation = null;
+  try {
+    const [english] = await translate([message.body], "en", null);
+    if (english.trim().toLowerCase() !== message.body.trim().toLowerCase()) translation = english;
+  } catch (err) {
+    await logEvent("warning", "sms-inbound", `Couldn't translate a message for the team: ${err.message}`, { phone });
+  }
+  await db(`btw_messages?id=eq.${message.id}`, { method: "PATCH", body: { thread: "team", translation } });
 }
 
 // The switched-on language a first text is written in, or null when it's

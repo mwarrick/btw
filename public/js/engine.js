@@ -279,7 +279,9 @@ export function createEngine({ prompts, languages }) {
       Object.assign(state, { phase: "collect", queue: [...item.edit], editing: true });
       return send(question(state));
     }
-    return send(text(state.lang, state.phase === "done" ? "done_reply" : "summary_hint"));
+    // Not a command: `unhandled` lets the SMS handler pass a finished
+    // signup's text to the reviewers instead of sending this.
+    return { ...send(text(state.lang, state.phase === "done" ? "done_reply" : "summary_hint")), unhandled: true };
   }
 
   return { start, startIn, reply, menu };
