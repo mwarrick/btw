@@ -1,5 +1,7 @@
 // /api/sms-inbound.js
-// Receives incoming texts from voip.ms (the DID's "SMS URL Callback").
+// Receives incoming texts from voip.ms (the DID's "SMS URL Callback") and
+// runs the signup conversation: every text to the number starts or carries
+// on that number's signup, with no keyword needed.
 //
 // Set the callback on the DID in the voip.ms portal to:
 //   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}
@@ -8,8 +10,27 @@
 // Sources disagree on whether voip.ms sends GET with placeholders (sometimes
 // separated by ";" instead of "&") or POST with a JSON body, so this accepts both.
 //
+// For each text:
+//   1. record it in btw_messages; a voip.ms id seen before is a retry and stops here
+//   2. load the number's btw_sessions and btw_churches rows (none: a new signup)
+//   3. run public/js/engine.js on it with the prompts from btw_prompts
+//   4. save the new state and answers, then send the replies and record them
+//
 // Env vars:
 //   SMS_INBOUND_KEY  shared secret in the callback URL; voip.ms doesn't sign requests
+//   plus those of lib/supabase.js and lib/voipms.js
+
+import { createEngine, newState } from "../public/js/engine.js";
+import { loadPrompts } from "../lib/prompts.js";
+import { db, eq } from "../lib/supabase.js";
+import { sendText } from "../lib/voipms.js";
+
+// btw_churches columns the engine keeps in state.data under the same name.
+const ANSWER_COLUMNS = [
+  "name", "email", "church_name", "street", "city", "state", "zip",
+  "denomination", "website", "contact_name", "contact_phone", "baptism_same",
+  "baptism_street", "baptism_city", "baptism_state", "baptism_zip", "public_map",
+];
 
 export default async function handler(req, res) {
   const query = parseQuery(req.url);
@@ -26,12 +47,106 @@ export default async function handler(req, res) {
     return;
   }
 
-  // TODO: do something with the message (store it, forward it, auto-reply).
-  // Keep it fast: voip.ms treats anything other than "ok" as a failure and retries,
-  // so use sms.id to ignore duplicates once messages are stored.
+  // Kept until the callback format is confirmed (CLAUDE.md, open question 1).
   console.log("Inbound SMS", JSON.stringify(sms));
 
-  res.status(200).send("ok");
+  // Short codes and other non-US/Canada senders can't be replied to.
+  if (sms.from.length !== 10) {
+    res.status(200).send("ok");
+    return;
+  }
+
+  try {
+    await converse(sms);
+    res.status(200).send("ok");
+  } catch (err) {
+    // Anything but "ok" makes voip.ms retry later.
+    console.error("sms-inbound:", err.message);
+    res.status(500).send("error");
+  }
+}
+
+async function converse(sms) {
+  const phone = "+1" + sms.from;
+
+  const [logged] = await db("btw_messages?on_conflict=provider_id", {
+    method: "POST",
+    body: { provider_id: sms.id, phone, direction: "in", body: sms.message },
+    prefer: "resolution=ignore-duplicates,return=representation",
+  });
+  if (!logged) return; // a retry of a text already handled
+
+  let replies;
+  try {
+    const [[session], [church], { languages, prompts }] = await Promise.all([
+      db(`btw_sessions?phone=${eq(phone)}&select=*`),
+      db(`btw_churches?phone=${eq(phone)}&select=*`),
+      loadPrompts(),
+    ]);
+    const engine = createEngine({ prompts, languages });
+    const before = toState(session, church);
+    // A new number's first text, whatever it says, gets the language menu;
+    // only an opt-out word is taken at its word.
+    let result = engine.reply(before, sms.message);
+    if (!session && result.state.phase !== "stopped") result = engine.start();
+    await save(phone, before, result.state, church);
+    replies = result.replies;
+  } catch (err) {
+    // Forget the text so voip.ms's retry runs it again.
+    await db(`btw_messages?id=eq.${logged.id}`, { method: "DELETE" }).catch(() => {});
+    throw err;
+  }
+
+  // The state is already saved, so a failed send isn't retried: that would
+  // run the same answer through the engine twice.
+  for (const body of replies) {
+    try {
+      await sendText(sms.from, body);
+      await db("btw_messages", { method: "POST", body: { phone, direction: "out", body } });
+    } catch (err) {
+      console.error("sms-inbound: reply to", phone, "failed:", err.status || err.message);
+      break;
+    }
+  }
+}
+
+// The engine's state from the two rows; a number with no session is new.
+function toState(session, church) {
+  if (!session) return newState();
+  const data = {};
+  for (const col of ANSWER_COLUMNS) if (church?.[col] != null) data[col] = church[col];
+  if (church?.consent_at) data.consent = true;
+  return {
+    phase: session.phase,
+    lang: session.lang,
+    queue: session.queue || [],
+    editing: session.editing,
+    data,
+  };
+}
+
+async function save(phone, before, state, church) {
+  const now = new Date().toISOString();
+  // Complete from the first DONE until a restart, even while an answer is
+  // being edited afterwards.
+  let completed = church?.completed_at || null;
+  if (state.phase === "done" && before.phase !== "done") completed = now;
+  if (state.phase === "lang") completed = null;
+
+  const row = { phone, lang: state.lang };
+  for (const col of ANSWER_COLUMNS) row[col] = state.data[col] ?? null;
+  row.consent_at = state.data.consent ? church?.consent_at || now : null;
+  row.completed_at = completed;
+  row.status = state.phase === "stopped" ? "opted_out" : completed ? "complete" : "in_progress";
+
+  await Promise.all([
+    db("btw_sessions?on_conflict=phone", {
+      method: "POST",
+      body: { phone, lang: state.lang, phase: state.phase, queue: state.queue, editing: state.editing },
+      prefer: "resolution=merge-duplicates",
+    }),
+    db("btw_churches?on_conflict=phone", { method: "POST", body: row, prefer: "resolution=merge-duplicates" }),
+  ]);
 }
 
 // Vercel's req.query only splits on "&"; voip.ms callbacks may use ";".
