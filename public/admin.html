@@ -318,6 +318,19 @@
   }
   .bubble.in { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 5px; }
   .bubble.out { align-self: flex-end; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-bottom-right-radius: 5px; }
+  .thread-tabs { display: flex; gap: 4px; padding: 10px 16px 0; }
+  .thread-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .bubble-note { font-size: 13px; color: var(--muted); max-width: 85%; font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bubble-note.in { align-self: flex-start; }
+  .bubble-note.out { align-self: flex-end; text-align: right; }
+  .compose { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .compose textarea {
+    width: 100%; resize: vertical; min-height: 60px; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; background: var(--surface-2); line-height: 1.4;
+  }
+  .compose-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .compose .note { font-style: normal; }
+  .unread-dot { margin-left: 6px; }
   .bubble.failed { border-color: var(--bad); border-style: dashed; opacity: .8; }
   .bubble-error { align-self: flex-end; font-size: 12.5px; color: var(--bad); max-width: 85%; text-align: right; }
   .log-table td { font-size: 14px; vertical-align: top; }
@@ -495,8 +508,23 @@
       <button class="btn small" id="thread-close" type="button">Close</button>
     </span>
   </div>
+  <div class="thread-tabs" id="thread-tabs"></div>
   <div class="thread-body">
-    <div class="bubbles" id="thread-messages"></div>
+    <div class="thread-main">
+      <div class="bubbles" id="thread-messages"></div>
+      <div class="compose" id="compose" hidden>
+        <p class="note" id="compose-note" hidden></p>
+        <p class="note" id="compose-english" hidden></p>
+        <textarea id="compose-text" maxlength="1000" aria-label="Message to the pastor" placeholder="Write a message. It's sent as a text from the signup number."></textarea>
+        <div class="compose-foot">
+          <span class="meter" id="compose-meter"></span>
+          <span class="spacer"></span>
+          <button class="btn small" id="compose-translate" type="button" hidden></button>
+          <button class="btn small primary" id="compose-send" type="button">Send</button>
+        </div>
+        <p class="row-error" id="compose-error" role="alert"></p>
+      </div>
+    </div>
     <dl class="answers" id="thread-answers"></dl>
   </div>
 </dialog>
@@ -1309,7 +1337,7 @@ const STATUS = {
   complete: ["Complete", "ok"],
   opted_out: ["Opted out", "muted"],
 };
-const STATUS_TABS = [["all", "All"], ["in_progress", "In progress"], ["complete", "Complete"], ["opted_out", "Opted out"]];
+const STATUS_TABS = [["all", "All"], ["unread", "Unread"], ["in_progress", "In progress"], ["complete", "Complete"], ["opted_out", "Opted out"]];
 // The engine's question ids, in words.
 const STEP_NAMES = {
   name: "their name", email: "email", church: "church name", street: "street", city: "city",
@@ -1318,7 +1346,8 @@ const STEP_NAMES = {
   b_city: "baptism city", b_state: "baptism state", b_zip: "baptism ZIP", map: "public map",
   consent: "consent",
 };
-const convos = { list: [], status: "all", search: "", open: null };
+const convos = { list: [], status: "all", search: "", open: null, tab: "signup", data: null, english: "" };
+const inStatus = (c, status) => status === "all" || (status === "unread" ? c.unread > 0 : c.status === status);
 
 const formatPhone = (p) => {
   const d = String(p || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
@@ -1360,7 +1389,7 @@ async function loadConversations() {
 }
 
 function renderConversations() {
-  const count = (status) => convos.list.filter((c) => status === "all" || c.status === status).length;
+  const count = (status) => convos.list.filter((c) => inStatus(c, status)).length;
   $("convo-tabs").replaceChildren(...STATUS_TABS.map(([id, label]) => h("button", {
     class: "tab", type: "button", "aria-pressed": String(convos.status === id),
     onclick: () => { convos.status = id; renderConversations(); },
@@ -1369,7 +1398,7 @@ function renderConversations() {
   const q = convos.search.trim().toLowerCase();
   const digits = q.replace(/\D/g, "");
   const rows = convos.list.filter((c) =>
-    (convos.status === "all" || c.status === convos.status)
+    inStatus(c, convos.status)
     && (!q || [c.church_name, c.name, c.city].some((v) => v?.toLowerCase().includes(q))
       || (digits && c.phone.includes(digits))));
 
@@ -1381,14 +1410,16 @@ function renderConversations() {
   $("convo-rows").replaceChildren(...rows.map((c) => {
     const [label, kind] = STATUS[c.status] || [c.status, "muted"];
     const place = [c.city, c.state].filter(Boolean).join(", ");
-    return h("tr", { tabindex: "0", onclick: () => openThread(c.phone),
-      onkeydown: (e) => { if (e.key === "Enter") openThread(c.phone); } },
+    const open = () => openThread(c.phone, c.unread ? "team" : "signup");
+    return h("tr", { tabindex: "0", onclick: open,
+      onkeydown: (e) => { if (e.key === "Enter") open(); } },
       h("td", {}, h("span", { class: "who", text: c.church_name || "Not given yet" }),
+        c.unread ? chip(`${c.unread} new`, "bad") : null,
         h("span", { class: "sub", text: [c.name, place].filter(Boolean).join(" · ") })),
       h("td", { class: "when", text: formatPhone(c.phone) }),
       h("td", {}, chip(label, kind)),
       h("td", { text: whereTheyAre(c) }),
-      h("td", { class: "when", text: when(c.updated_at) }));
+      h("td", { class: "when", text: when(c.last_at || c.updated_at) }));
   }));
 }
 
@@ -1410,36 +1441,160 @@ function answerList(c) {
   ].filter(([, v]) => v);
 }
 
-async function openThread(phone) {
+async function openThread(phone, tab) {
+  if (convos.open !== phone) {
+    convos.english = "";
+    $("compose-text").value = "";
+    $("compose-error").textContent = "";
+  }
   convos.open = phone;
+  if (tab) convos.tab = tab;
   const dialog = $("thread-dialog");
   $("thread-title").textContent = formatPhone(phone);
   if (!dialog.open) {
+    convos.data = null;
+    $("thread-tabs").replaceChildren();
+    $("compose").hidden = true;
     $("thread-messages").replaceChildren(h("p", { class: "empty", text: "Loading..." }));
     $("thread-answers").replaceChildren();
     dialog.showModal();
   }
   try {
-    const { church, messages } = await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`);
+    const data = await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`);
     if (convos.open !== phone) return;
-    $("thread-title").textContent = [church?.church_name, formatPhone(phone)].filter(Boolean).join(" · ");
-    $("thread-messages").replaceChildren(...(messages.length
-      ? messages.flatMap((m) => [
-        h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }),
-        m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
-        h("span", { class: `bubble-time ${m.direction}`, text: when(m.created_at) }),
-      ].filter(Boolean))
-      : [h("p", { class: "empty", text: "No texts recorded." })]));
-    const answers = answerList(church);
-    $("thread-answers").replaceChildren(...(answers.length
-      ? answers.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])
-      : [h("dd", { text: "No answers yet." })]));
-    const last = $("thread-messages").lastElementChild;
-    if (last) last.scrollIntoView({ block: "end" });
+    convos.data = data;
+    // Opening it marked the team texts read.
+    const now = new Date().toISOString();
+    for (const m of data.messages) if (m.thread === "team" && m.direction === "in" && !m.read_at) m.read_at = now;
+    const row = convos.list.find((c) => c.phone === phone);
+    if (row && row.unread) { row.unread = 0; renderConversations(); }
+    renderThread();
   } catch (err) {
     if (!err.silent) $("thread-messages").replaceChildren(h("p", { class: "row-error", text: err.message }));
   }
 }
+
+function renderThread() {
+  const { church, session, messages } = convos.data;
+  const phone = convos.open;
+  $("thread-title").textContent = [church?.church_name, formatPhone(phone)].filter(Boolean).join(" · ");
+
+  const team = messages.filter((m) => m.thread === "team");
+  const unseen = team.filter((m) => m.direction === "in" && !m.read_at).length;
+  $("thread-tabs").replaceChildren(
+    h("button", { class: "tab", type: "button", "aria-pressed": String(convos.tab === "signup"),
+      onclick: () => { convos.tab = "signup"; renderThread(); } }, "Signup"),
+    h("button", { class: "tab", type: "button", "aria-pressed": String(convos.tab === "team"),
+      onclick: () => { convos.tab = "team"; renderThread(); } },
+      `Messages${team.length ? ` ${team.length}` : ""}`, unseen ? chip(`${unseen} new`, "bad") : null),
+  );
+
+  const shown = messages.filter((m) => (m.thread || "signup") === convos.tab);
+  $("thread-messages").replaceChildren(...(shown.length
+    ? shown.flatMap((m) => [
+      h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }),
+      m.translation ? h("span", { class: `bubble-note ${m.direction}`, text: `In English: ${m.translation}` }) : null,
+      m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
+      h("span", { class: `bubble-time ${m.direction}`, text: when(m.created_at) }),
+    ].filter(Boolean))
+    : [h("p", { class: "empty", text: convos.tab === "team"
+      ? "No messages yet. Write below to text this pastor from the signup number."
+      : "No texts recorded." })]));
+
+  const answers = answerList(church);
+  $("thread-answers").replaceChildren(...(answers.length
+    ? answers.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])
+    : [h("dd", { text: "No answers yet." })]));
+
+  renderCompose(session, church);
+  const last = $("thread-messages").lastElementChild;
+  if (last) last.scrollIntoView({ block: "end" });
+}
+
+function renderCompose(session, church) {
+  const box = $("compose");
+  box.hidden = convos.tab !== "team";
+  if (box.hidden) return;
+  const stopped = session?.phase === "stopped";
+  const lang = session?.lang || church?.lang || "en";
+  const langName = state.languages.find((l) => l.code === lang)?.name || lang;
+
+  const note = $("compose-note");
+  note.hidden = false;
+  note.textContent = stopped ? "They texted STOP, so nothing can be sent until they text START."
+    : !session ? "This number has no signup in progress."
+    : !church?.completed_at ? "They haven't finished signing up, so their replies go to the signup questions until they text DONE. Messages you send still reach them."
+    : "Their replies show up here.";
+
+  $("compose-text").disabled = stopped || !session;
+  const tr = $("compose-translate");
+  tr.hidden = lang === "en" || stopped || !session;
+  tr.textContent = `Translate to ${langName}`;
+  composeChanged();
+}
+
+function composeChanged() {
+  const text = $("compose-text").value;
+  const info = smsInfo(text);
+  $("compose-meter").textContent = text ? `${text.length} characters · ${info.segments > 1 ? "sent as MMS" : "1 SMS"}` : "";
+  $("compose-send").disabled = !text.trim() || $("compose-text").disabled;
+  $("compose-translate").disabled = !text.trim();
+  const english = $("compose-english");
+  english.hidden = !convos.english;
+  english.textContent = convos.english ? `Your English: ${convos.english}` : "";
+}
+
+$("compose-text").addEventListener("input", () => {
+  // Typing over a translation means the English shown is no longer what's sent.
+  if (convos.english) convos.english = "";
+  autosize($("compose-text"));
+  composeChanged();
+});
+
+$("compose-translate").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  const english = $("compose-text").value.trim();
+  button.disabled = true;
+  try {
+    const { text } = await api(`/api/admin/conversations?phone=${encodeURIComponent(convos.open)}`, { method: "POST", body: { translate: english } });
+    $("compose-text").value = text;
+    convos.english = english;
+    autosize($("compose-text"));
+    $("compose-error").textContent = "";
+  } catch (err) {
+    if (!err.silent) $("compose-error").textContent = err.message;
+  } finally {
+    composeChanged();
+  }
+});
+
+$("compose-send").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  const phone = convos.open;
+  button.disabled = true;
+  button.textContent = "Sending...";
+  try {
+    const { message } = await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`, { method: "POST", body: { body: $("compose-text").value } });
+    if (convos.open === phone && convos.data) {
+      convos.data.messages.push(message);
+      if (message.error) {
+        $("compose-error").textContent = `Not sent: ${message.error}`;
+      } else {
+        $("compose-text").value = "";
+        convos.english = "";
+        $("compose-error").textContent = "";
+        toast("Sent.");
+      }
+      renderThread();
+    }
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) $("compose-error").textContent = err.message;
+  } finally {
+    button.textContent = "Send";
+    composeChanged();
+  }
+});
 
 $("convo-refresh").addEventListener("click", () => { loadConversations(); loadLog(); });
 $("convo-search").addEventListener("input", (e) => { convos.search = e.target.value; renderConversations(); });
@@ -1461,7 +1616,7 @@ $("thread-delete").addEventListener("click", async () => {
 $("thread-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
-$("thread-dialog").addEventListener("close", () => { convos.open = null; });
+$("thread-dialog").addEventListener("close", () => { convos.open = null; convos.data = null; });
 
 // ---------- log ----------
 
@@ -1501,7 +1656,7 @@ function renderLog() {
       h("td", { class: "when", text: when(e.created_at) }),
       h("td", {}, chip(label, kind)),
       h("td", {}, e.phone
-        ? h("button", { class: "phone-link", type: "button", onclick: () => openThread(e.phone) }, formatPhone(e.phone))
+        ? h("button", { class: "phone-link", type: "button", onclick: () => openThread(e.phone, "signup") }, formatPhone(e.phone))
         : ""),
       h("td", { class: "msg", text: e.message }));
   }));
