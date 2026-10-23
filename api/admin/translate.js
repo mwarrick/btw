@@ -14,7 +14,7 @@ import { translate } from "../../lib/translate.js";
 const MAX_KEYS = 200;
 
 export default async function handler(req, res) {
-  if (!requireAdmin(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     res.status(405).json({ error: "Use POST." });

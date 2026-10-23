@@ -83,6 +83,13 @@
   .top p { margin: 0; font-size: 12.5px; opacity: .85; }
   .top .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .top a { color: inherit; font-size: 13px; }
+  .whoami { font-size: 13px; opacity: .9; }
+  .user-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+  .user-actions input { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; background: var(--surface-2); min-width: 0; width: 12em; }
+  .add-user { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 12px; max-width: 720px; }
+  .users-table { min-width: 560px; }
+  .users-table .who { font-weight: 600; margin-right: 6px; }
+  @media (max-width: 560px) { .whoami { display: none; } }
 
   /* buttons */
   .btn {
@@ -367,6 +374,7 @@
       <p>Baptize 2027 SMS signup</p>
     </div>
     <div class="actions">
+      <span class="whoami" id="whoami"></span>
       <a href="/">Demo</a>
       <button class="btn small" id="logout" type="button" hidden>Log out</button>
     </div>
@@ -376,8 +384,11 @@
 <main class="wrap">
   <section class="login" id="login" hidden>
     <h2>Log in</h2>
-    <p>Enter the admin password to edit the text messages.</p>
+    <p id="login-intro">Log in with your email and password.</p>
     <form id="login-form">
+      <label id="email-field">Email
+        <input id="email" type="email" autocomplete="username">
+      </label>
       <label>Password
         <input id="password" type="password" autocomplete="current-password" required>
       </label>
@@ -421,6 +432,24 @@
           <tbody id="log-rows"></tbody>
         </table>
       </div>
+    </section>
+
+    <section class="block" id="users-block">
+      <h2>Users</h2>
+      <p class="hint" id="users-hint">Everyone here can do everything, including adding and removing each other. Messages sent to pastors show who sent them.</p>
+      <div class="table-scroll">
+        <table class="users-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Last login</th><th></th></tr></thead>
+          <tbody id="user-rows"></tbody>
+        </table>
+      </div>
+      <form class="add-user" id="add-user">
+        <label class="field-stack">Name <input id="new-name" autocomplete="off" required></label>
+        <label class="field-stack">Email <input id="new-email" type="email" autocomplete="off" required></label>
+        <label class="field-stack">Password <input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="btn primary" id="add-user-button" type="submit">Add user</button>
+      </form>
+      <p class="test-result" id="add-user-result" role="status"></p>
     </section>
 
     <section class="block">
@@ -548,6 +577,8 @@ const PROMPT_MAX = 160;
 const LATIN = new Set(["en", "es", "fr", "pt"]);
 
 const state = {
+  me: null,      // the logged-in user: { id, name, email, setup }
+  setup: false,  // no users exist yet
   languages: [],
   keys: [],
   englishOnly: new Set(),
@@ -658,14 +689,22 @@ function needsWork(lang, key) {
 
 // ---------- login ----------
 
-function showLogin(message = "") {
+// setup: no users exist yet, so ADMIN_PASSWORD logs in to add the first.
+function showLogin(message = "", setup = state.setup) {
+  state.setup = setup;
   $("editor").hidden = true;
   $("savebar").hidden = true;
   $("logout").hidden = true;
+  $("whoami").textContent = "";
   $("login").hidden = false;
+  $("email-field").hidden = setup;
+  $("email").required = !setup;
+  $("login-intro").textContent = setup
+    ? "No users yet. Enter the setup password (ADMIN_PASSWORD in Vercel) to add the first one."
+    : "Log in with your email and password.";
   $("login-error").textContent = message;
   $("password").value = "";
-  $("password").focus();
+  (setup || $("email").value ? $("password") : $("email")).focus();
 }
 
 $("login-form").addEventListener("submit", async (e) => {
@@ -674,8 +713,8 @@ $("login-form").addEventListener("submit", async (e) => {
   button.disabled = true;
   button.textContent = "Checking...";
   try {
-    await api("/api/admin/session", { method: "POST", body: { password: $("password").value } });
-    await load();
+    const { user } = await api("/api/admin/session", { method: "POST", body: { email: $("email").value, password: $("password").value } });
+    await start(user);
   } catch (err) {
     $("login-error").textContent = err.message;
     $("password").select();
@@ -702,6 +741,24 @@ $("logout").addEventListener("click", async (e) => {
 });
 
 // ---------- loading ----------
+
+// Shows the page for `user`. The setup login only gets the Users section.
+async function start(user) {
+  state.me = user;
+  $("whoami").textContent = user.setup ? "" : user.name;
+  for (const section of $("editor").querySelectorAll(":scope > section")) section.hidden = user.setup && section.id !== "users-block";
+  if (user.setup) {
+    $("users-hint").textContent = "Add yourself first. You'll then log in with that email and password, and the setup password stops working for logging in.";
+    $("login").hidden = true;
+    $("editor").hidden = false;
+    $("logout").hidden = false;
+    await loadUsers();
+    return;
+  }
+  $("users-hint").textContent = "Everyone here can do everything, including adding and removing each other. Messages sent to pastors show who sent them.";
+  await load();
+  loadUsers();
+}
 
 async function load() {
   const data = await api("/api/admin/prompts");
@@ -1494,6 +1551,7 @@ function renderThread() {
     ? shown.flatMap((m) => [
       h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }),
       m.translation ? h("span", { class: `bubble-note ${m.direction}`, text: `In English: ${m.translation}` }) : null,
+      m.sender ? h("span", { class: "bubble-note out", text: `Sent by ${m.sender.name}` }) : null,
       m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
       h("span", { class: `bubble-time ${m.direction}`, text: when(m.created_at) }),
     ].filter(Boolean))
@@ -1617,6 +1675,110 @@ $("thread-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
 $("thread-dialog").addEventListener("close", () => { convos.open = null; convos.data = null; });
+
+// ---------- users ----------
+
+const users = { list: [], editing: null }; // editing: { id, field: "password" | "name" }
+
+async function loadUsers() {
+  try {
+    const data = await api("/api/admin/users");
+    users.list = data.users;
+    renderUsers();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+
+function renderUsers() {
+  const me = state.me || {};
+  if (!users.list.length) {
+    $("user-rows").replaceChildren(h("tr", {}, h("td", { colspan: "4", class: "empty", text: "No users yet." })));
+    return;
+  }
+  $("user-rows").replaceChildren(...users.list.map((u) => {
+    const editing = users.editing?.id === u.id ? users.editing.field : null;
+    let actions;
+    if (editing) {
+      const input = h("input", {
+        type: editing === "password" ? "password" : "text",
+        autocomplete: editing === "password" ? "new-password" : "off",
+        "aria-label": editing === "password" ? `New password for ${u.name}` : `New name for ${u.name}`,
+        placeholder: editing === "password" ? "New password" : "Name",
+      });
+      if (editing === "name") input.value = u.name;
+      const save = async () => {
+        try {
+          await api("/api/admin/users", { method: "PATCH", body: { id: u.id, [editing]: input.value } });
+          users.editing = null;
+          toast(editing === "password"
+            ? (u.id === me.id ? "Your password is changed." : `${u.name}'s password is changed, and they're signed out everywhere.`)
+            : "Saved.");
+          if (editing === "name" && u.id === me.id) { me.name = input.value.trim(); $("whoami").textContent = me.name; }
+          loadUsers();
+        } catch (err) {
+          if (!err.silent) toast(err.message, "bad");
+        }
+      };
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { users.editing = null; renderUsers(); } });
+      actions = [input,
+        h("button", { class: "btn small primary", type: "button", onclick: save }, "Save"),
+        h("button", { class: "btn small ghost", type: "button", onclick: () => { users.editing = null; renderUsers(); } }, "Cancel")];
+      setTimeout(() => input.focus());
+    } else if (!me.setup) {
+      const edit = (field) => () => { users.editing = { id: u.id, field }; renderUsers(); };
+      actions = [
+        h("button", { class: "btn small ghost", type: "button", onclick: edit("name") }, "Rename"),
+        h("button", { class: "btn small ghost", type: "button", onclick: edit("password") }, u.id === me.id ? "Change my password" : "New password"),
+        u.id === me.id ? null : h("button", { class: "btn small ghost", type: "button", onclick: async () => {
+          if (!confirm(`Remove ${u.name}? They're signed out and can't log in again. Messages they sent keep their name.`)) return;
+          try {
+            await api(`/api/admin/users?id=${encodeURIComponent(u.id)}`, { method: "DELETE" });
+            toast(`${u.name} is removed.`);
+            loadUsers();
+          } catch (err) {
+            if (!err.silent) toast(err.message, "bad");
+          }
+        } }, "Remove"),
+      ];
+    }
+    return h("tr", {},
+      h("td", {}, h("span", { class: "who", text: u.name }), u.id === me.id ? chip("You", "muted") : null),
+      h("td", { text: u.email }),
+      h("td", { class: "when", text: u.last_login_at ? when(u.last_login_at) : "Never" }),
+      h("td", {}, h("div", { class: "user-actions" }, ...(actions || []))));
+  }));
+}
+
+$("add-user").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = $("add-user-button");
+  const out = $("add-user-result");
+  button.disabled = true;
+  out.className = "test-result";
+  out.textContent = "";
+  try {
+    const { user } = await api("/api/admin/users", {
+      method: "POST",
+      body: { name: $("new-name").value, email: $("new-email").value, password: $("new-password").value },
+    });
+    $("add-user").reset();
+    if (state.me?.setup) {
+      // The setup login stops working now; log in as the new user.
+      await api("/api/admin/session", { method: "DELETE" }).catch(() => {});
+      $("email").value = user.email;
+      showLogin(`Added ${user.name}. Now log in with that email and password.`, false);
+      return;
+    }
+    out.className = "test-result ok";
+    out.textContent = `Added ${user.name}. Give them their email and password; they can change the password after logging in.`;
+    loadUsers();
+  } catch (err) {
+    if (!err.silent) { out.className = "test-result bad"; out.textContent = err.message; }
+  } finally {
+    button.disabled = false;
+  }
+});
 
 // ---------- log ----------
 
@@ -1744,7 +1906,7 @@ window.addEventListener("beforeunload", (e) => {
 // ---------- start ----------
 
 api("/api/admin/session")
-  .then(({ loggedIn }) => (loggedIn ? load() : showLogin()))
+  .then(({ loggedIn, user, setup }) => (loggedIn ? start(user) : showLogin("", setup)))
   .catch(() => showLogin("Couldn't reach the server. Reload to try again."));
 </script>
 </body>

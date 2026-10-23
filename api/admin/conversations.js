@@ -5,10 +5,11 @@
 //   GET               -> { conversations: [{ phone, church_name, name, status, lang, phase, step,
 //                        last_at, unread, ... }] } newest activity first; one per phone number;
 //                        unread counts the pastor's team texts nobody has opened
-//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, translation, error, created_at }] }
+//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, translation, error,
+//                        created_at, sender: { name } }] }
 //                        the latest messages, oldest first; marks the team texts read
 //   POST ?phone=+1... { body }  -> { message }: texts the pastor from the
-//                        team thread (refused after STOP)
+//                        team thread as the logged-in user (refused after STOP)
 //   POST ?phone=+1... { translate } -> { text }: that English in the
 //                        pastor's signup language, to check before sending
 //   DELETE ?phone=+1...  -> { deleted: true }: the number's texts, answers,
@@ -23,9 +24,12 @@ import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
 
 const LIST_LIMIT = 500;
 const THREAD_LIMIT = 1000;
+// sender: who sent a team message, through btw_messages.sent_by.
+const MESSAGE_FIELDS = "id,thread,direction,body,translation,error,read_at,created_at,sender:btw_users(name)";
 
 export default async function handler(req, res) {
-  if (!requireAdmin(req, res)) return;
+  const user = await requireAdmin(req, res);
+  if (!user) return;
   if (!["GET", "POST", "DELETE"].includes(req.method)) {
     res.setHeader("Allow", "GET, POST, DELETE");
     res.status(405).json({ error: "Use GET, POST or DELETE." });
@@ -34,7 +38,7 @@ export default async function handler(req, res) {
   try {
     const phone = new URL(req.url, "http://x").searchParams.get("phone");
     if (req.method === "DELETE") return await remove(phone, res);
-    if (req.method === "POST") return await post(phone, req.body || {}, res);
+    if (req.method === "POST") return await post(phone, req.body || {}, user, res);
     if (phone) return await thread(phone, res);
     return await list(res);
   } catch (err) {
@@ -72,7 +76,7 @@ async function thread(phone, res) {
   const [[church], [session], messages] = await Promise.all([
     db(`btw_churches?phone=${eq(phone)}&select=*`),
     db(`btw_sessions?phone=${eq(phone)}&select=*`),
-    db(`btw_messages?phone=${eq(phone)}&select=id,thread,direction,body,translation,error,read_at,created_at&order=id.desc&limit=${THREAD_LIMIT}`),
+    db(`btw_messages?phone=${eq(phone)}&select=${MESSAGE_FIELDS}&order=id.desc&limit=${THREAD_LIMIT}`),
   ]);
   if (!church && !session && messages.length === 0) {
     res.status(404).json({ error: "No conversation with that number." });
@@ -89,7 +93,7 @@ async function thread(phone, res) {
   res.status(200).json({ church: church || null, session: session || null, messages });
 }
 
-async function post(phone, body, res) {
+async function post(phone, body, user, res) {
   if (!/^\+1\d{10}$/.test(phone || "")) {
     res.status(400).json({ error: "Send the number as ?phone=+1XXXXXXXXXX." });
     return;
@@ -136,9 +140,9 @@ async function post(phone, body, res) {
     error = err.status ? explainStatus(err.status) : `Couldn't reach ${process.env.VOIPMS_API_URL ? "the relay" : "voip.ms"}: ${err.message}`;
     await logEvent("error", "admin", `A message from the team wasn't sent: ${error}`, { phone, detail: { status: err.status || null } });
   }
-  const [message] = await db("btw_messages?select=id,thread,direction,body,translation,error,read_at,created_at", {
+  const [message] = await db(`btw_messages?select=${MESSAGE_FIELDS}`, {
     method: "POST",
-    body: { phone, direction: "out", thread: "team", body: text, error },
+    body: { phone, direction: "out", thread: "team", body: text, error, sent_by: user.id },
     prefer: "return=representation",
   });
   res.status(200).json({ message });

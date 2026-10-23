@@ -15,7 +15,7 @@ import { requireAdmin } from "../../lib/admin-auth.js";
 import { explainStatus, sendText, voipms } from "../../lib/voipms.js";
 
 export default async function handler(req, res) {
-  if (!requireAdmin(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
   if (req.method === "GET") return check(res);
   if (req.method === "POST") return sendTest(req, res);
   res.setHeader("Allow", "GET, POST");

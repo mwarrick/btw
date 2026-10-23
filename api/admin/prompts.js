@@ -13,7 +13,7 @@ import { ENGLISH_ONLY_KEYS, PROMPT_MAX, missingPlaceholders, straighten } from "
 import { db, eq } from "../../lib/supabase.js";
 
 export default async function handler(req, res) {
-  if (!requireAdmin(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
   try {
     if (req.method === "GET") return await list(res);
     if (req.method === "PUT") return await save(req, res);
