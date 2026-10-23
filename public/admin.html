@@ -349,6 +349,15 @@
   .compose-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .compose .note { font-style: normal; }
   .unread-dot { margin-left: 6px; }
+  .church-fields { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 14px 16px 6px; }
+  .church-fields .field-stack { grid-column: span 6; }
+  .church-fields .field-stack.half { grid-column: span 3; }
+  .church-fields .field-stack.third { grid-column: span 2; }
+  .church-fields select, .church-fields input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--surface-2); font-weight: 400; min-width: 0; }
+  .church-fields .group { grid-column: span 6; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin: 6px 0 -4px; }
+  #church-error { padding: 0 16px 14px; margin: 0; }
+  .church-note { margin: 12px 16px 0; color: var(--muted); font-size: 14px; }
+  @media (max-width: 560px) { .church-fields .field-stack.half, .church-fields .field-stack.third { grid-column: span 6; } }
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; white-space: nowrap; }
   .row-actions .btn { display: inline-flex; gap: 6px; align-items: center; }
   .church-table th { white-space: nowrap; }
@@ -571,6 +580,21 @@
   </div>
   <p class="dialog-key" id="result-key"></p>
   <ul class="result-list" id="result-list"></ul>
+</dialog>
+
+<dialog class="dialog church-dialog" id="church-dialog" aria-labelledby="church-title">
+  <form id="church-form" method="dialog">
+    <div class="dialog-head">
+      <h2 id="church-title">Edit signup</h2>
+      <span class="chips">
+        <button class="btn small ghost" id="church-cancel" type="button">Cancel</button>
+        <button class="btn small primary" id="church-save" type="submit">Save</button>
+      </span>
+    </div>
+    <p class="church-note">Changes the saved answers only. The texts stay as they were sent.</p>
+    <div class="church-fields" id="church-fields"></div>
+    <p class="row-error" id="church-error" role="alert"></p>
+  </form>
 </dialog>
 
 <dialog class="dialog thread-dialog" id="thread-dialog" aria-labelledby="thread-title">
@@ -1594,8 +1618,10 @@ function renderChurches() {
         contact ? h("span", { class: "sub", text: `Main contact: ${contact}` }) : null),
       h("td", {}, h("span", { text: c.street || "" }),
         h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") })),
-      h("td", { class: "when", text: when(c.completed_at) }),
+      h("td", {}, h("span", { class: "when", text: when(c.completed_at) }),
+        c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)}${c.editor?.name ? ` by ${c.editor.name}` : ""}` }) : null),
       h("td", {}, h("div", { class: "row-actions" },
+        h("button", { class: "btn small ghost", type: "button", onclick: () => editChurch(c.phone) }, "Edit"),
         h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversation"),
         messageButton(c))));
   }));
@@ -1619,6 +1645,7 @@ function answerList(c) {
     ["Language", state.languages.find((l) => l.code === c.lang)?.name || c.lang],
     ["Completed", c.completed_at ? when(c.completed_at) : null],
     ["First text", when(c.created_at)],
+    ["Last edited", c.edited_at ? `${when(c.edited_at)}${c.editor?.name ? ` by ${c.editor.name}` : ""}` : null],
   ].filter(([, v]) => v);
 }
 
@@ -1686,7 +1713,8 @@ function renderThread() {
   const answers = answerList(church);
   $("thread-answers").replaceChildren(...(answers.length
     ? answers.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])
-    : [h("dd", { text: "No answers yet." })]));
+    : [h("dd", { text: "No answers yet." })]),
+    church ? h("dd", {}, h("button", { class: "btn small", type: "button", onclick: () => editChurch(phone) }, "Edit answers")) : null);
 
   renderCompose(session, church);
   const last = $("thread-messages").lastElementChild;
@@ -1799,6 +1827,91 @@ $("thread-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
 $("thread-dialog").addEventListener("close", () => { convos.open = null; convos.data = null; });
+
+// ---------- editing a signup's answers ----------
+
+// [column, label, width, kind]; kind: text | email | state | zip | tel | yesno
+const CHURCH_FIELDS = [
+  ["group", "Church"],
+  ["church_name", "Church name", "", "text"],
+  ["street", "Street", "", "text"],
+  ["city", "City", "third-ish", "text"], ["state", "State", "third-ish", "state"], ["zip", "ZIP", "third-ish", "zip"],
+  ["denomination", "Denomination", "half", "text"], ["website", "Website", "half", "text"],
+  ["group", "Person who signed up"],
+  ["name", "Name", "half", "text"], ["email", "Email", "half", "email"],
+  ["contact_name", "Main contact, if someone else", "half", "text"], ["contact_phone", "Main contact's phone", "half", "tel"],
+  ["group", "Baptisms"],
+  ["baptism_same", "Baptisms at the church address?", "half", "yesno"], ["public_map", "Show on the public map?", "half", "yesno"],
+  ["baptism_street", "Baptism street", "", "text"],
+  ["baptism_city", "Baptism city", "third-ish", "text"], ["baptism_state", "State", "third-ish", "state"], ["baptism_zip", "ZIP", "third-ish", "zip"],
+];
+const churchEdit = { phone: null };
+
+async function editChurch(phone) {
+  churchEdit.phone = phone;
+  $("church-error").textContent = "";
+  let church;
+  try {
+    ({ church } = await api(`/api/admin/churches?phone=${encodeURIComponent(phone)}`));
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+    return;
+  }
+  $("church-title").textContent = `Edit ${church.church_name || formatPhone(phone)}`;
+  $("church-fields").replaceChildren(...CHURCH_FIELDS.map(([key, label, width, kind]) => {
+    if (key === "group") return h("div", { class: "group", text: label });
+    const cls = `field-stack${width === "half" ? " half" : width === "third-ish" ? " third" : ""}`;
+    let input;
+    if (kind === "yesno") {
+      input = h("select", { name: key },
+        h("option", { value: "", text: "Not answered" }), h("option", { value: "yes", text: "Yes" }), h("option", { value: "no", text: "No" }));
+      input.value = church[key] === true ? "yes" : church[key] === false ? "no" : "";
+    } else {
+      input = h("input", {
+        name: key,
+        type: kind === "email" ? "email" : kind === "tel" ? "tel" : "text",
+        maxlength: kind === "state" ? "20" : kind === "zip" ? "5" : "200",
+        inputmode: kind === "zip" ? "numeric" : null,
+        autocomplete: "off",
+      });
+      input.value = church[key] ?? "";
+    }
+    return h("label", { class: cls }, label, input);
+  }));
+  const form = $("church-form");
+  const sameSync = () => {
+    const different = form.elements.baptism_same.value === "no";
+    for (const k of ["baptism_street", "baptism_city", "baptism_state", "baptism_zip"]) form.elements[k].closest("label").hidden = !different;
+  };
+  form.elements.baptism_same.addEventListener("change", sameSync);
+  sameSync();
+  $("church-dialog").showModal();
+}
+
+$("church-cancel").addEventListener("click", () => $("church-dialog").close());
+$("church-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const body = {};
+  for (const [key, , , kind] of CHURCH_FIELDS) {
+    if (key === "group") continue;
+    const v = form.elements[key].value;
+    body[key] = kind === "yesno" ? (v === "yes" ? true : v === "no" ? false : null) : v;
+  }
+  const button = $("church-save");
+  button.disabled = true;
+  try {
+    const { church } = await api(`/api/admin/churches?phone=${encodeURIComponent(churchEdit.phone)}`, { method: "PATCH", body });
+    $("church-dialog").close();
+    toast("Saved.");
+    if (convos.open === church.phone && convos.data) { convos.data.church = church; renderThread(); }
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) $("church-error").textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 
 // ---------- users ----------
 

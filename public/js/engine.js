@@ -14,7 +14,7 @@
 // queue: question ids still to ask; the first is the one awaiting an answer
 // data:  answers, named like the btw_churches columns
 
-const US_STATES = {
+export const US_STATES = {
   AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
   CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
   FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
