@@ -336,7 +336,11 @@
   }
   .bubble.in { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 5px; }
   .bubble.out { align-self: flex-end; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-bottom-right-radius: 5px; }
-  .thread-tabs { display: flex; gap: 4px; padding: 10px 16px 0; }
+  /* The title and the tabs stay in view while the thread scrolls. */
+  .thread-top { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .thread-top .dialog-head { position: static; border-bottom: 0; padding-bottom: 6px; }
+  .thread-tabs { display: flex; gap: 4px; align-items: center; padding: 0 16px 10px; }
+  .thread-tabs .spacer { flex: 1; }
   .thread-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .bubble-note { font-size: 13px; color: var(--muted); max-width: 85%; font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere; }
   .bubble-note.in { align-self: flex-start; }
@@ -610,6 +614,7 @@
 </dialog>
 
 <dialog class="dialog thread-dialog" id="thread-dialog" aria-labelledby="thread-title">
+  <div class="thread-top">
   <div class="dialog-head">
     <h2 id="thread-title"></h2>
     <span class="chips">
@@ -618,7 +623,9 @@
       <button class="btn small" id="thread-close" type="button">Close</button>
     </span>
   </div>
-  <div class="thread-tabs" id="thread-tabs"></div>
+  <div class="thread-tabs"><span id="thread-tabs" class="chips"></span><span class="spacer"></span>
+    <button class="btn small" id="thread-finish" type="button" hidden title="Stop the signup questions; their replies come to Messages">Finish signup</button></div>
+  </div>
   <div class="thread-body">
     <div class="thread-main">
       <div class="bubbles" id="thread-messages"></div>
@@ -1739,6 +1746,8 @@ function renderThread() {
     : [h("dd", { text: "No answers yet." })]),
     church ? h("dd", {}, h("button", { class: "btn small", type: "button", onclick: () => editChurch(phone) }, "Edit answers")) : null);
 
+  // An unfinished signup can be closed from here (not after STOP).
+  $("thread-finish").hidden = !session || !church || !!church.completed_at || session.phase === "stopped";
   renderCompose(session, church);
   const last = $("thread-messages").lastElementChild;
   if (last) last.scrollIntoView({ block: "end" });
@@ -1757,7 +1766,7 @@ function renderCompose(session, church) {
   note.textContent = church?.simulated ? "This is a simulation: messages you send are saved here but not texted."
     : stopped ? "They texted STOP, so nothing can be sent until they text START."
     : !session ? "This number has no signup in progress."
-    : !church?.completed_at ? "They haven't finished signing up, so their replies go to the signup questions until they text DONE. Messages you send still reach them."
+    : !church?.completed_at ? "They haven't finished signing up, so their replies are taken as answers to the signup questions. To talk with them instead, press Finish signup: the questions stop and their replies come here."
     : "Their replies show up here.";
 
   $("compose-text").disabled = stopped || !session;
@@ -1889,6 +1898,24 @@ $("convo-refresh").addEventListener("click", () => { loadConversations(); loadLo
 $("convo-search").addEventListener("input", (e) => { convos.search = e.target.value; renderConversations(); });
 $("thread-refresh").addEventListener("click", () => { openThread(convos.open); loadConversations(); });
 $("thread-close").addEventListener("click", () => $("thread-dialog").close());
+
+$("thread-finish").addEventListener("click", async (e) => {
+  const phone = convos.open;
+  if (!phone || !confirm("Finish this signup now? The bot stops asking questions and their replies come to Messages. Missing answers stay blank (use Edit answers to fill them in). They can still text EDIT and a number to change an answer.")) return;
+  const button = e.currentTarget;
+  button.disabled = true;
+  try {
+    await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`, { method: "POST", body: { finish: true } });
+    convos.tab = "team";
+    toast("Signup finished. Their replies now come to Messages.");
+    await openThread(phone);
+    loadConversations();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    button.disabled = false;
+  }
+});
 $("thread-delete").addEventListener("click", async () => {
   const phone = convos.open;
   if (!phone || !confirm(`Delete everything for ${formatPhone(phone)}: the texts, the answers and where they are in the signup? Their next text starts a new signup.`)) return;
