@@ -291,6 +291,39 @@
   .result-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .result-error { margin: 0; color: var(--bad); font-size: 13.5px; }
 
+  /* conversations */
+  .convo-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .convo-bar input[type="search"] {
+    flex: 1 1 180px; min-width: 0; border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; background: var(--surface);
+  }
+  .convo-table tbody tr { cursor: pointer; }
+  .convo-table tbody tr:hover td { background: var(--surface-2); }
+  .convo-table td { font-size: 14px; }
+  .convo-table .who { font-weight: 600; }
+  .convo-table .sub { display: block; color: var(--muted); font-size: 13px; }
+  .convo-table .when { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .thread-dialog { width: min(760px, calc(100% - 32px)); }
+  .thread-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem); gap: 16px; padding: 14px 16px 16px; }
+  .bubbles { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .bubble {
+    max-width: 85%; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4;
+    padding: 7px 12px; border-radius: 16px; border: 1px solid var(--line);
+  }
+  .bubble.in { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 5px; }
+  .bubble.out { align-self: flex-end; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-bottom-right-radius: 5px; }
+  .bubble-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bubble-time.in { align-self: flex-start; }
+  .bubble-time.out { align-self: flex-end; }
+  .answers { margin: 0; display: grid; gap: 2px; align-content: start; font-size: 14px; position: sticky; top: 72px; align-self: start; }
+  .answers dt:not(:first-child) { margin-top: 8px; }
+  .answers dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .answers dd { margin: 0; overflow-wrap: anywhere; }
+  @media (max-width: 640px) {
+    .thread-body { grid-template-columns: 1fr; }
+    .answers { order: -1; position: static; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  }
+
   @media (max-width: 560px) {
     .top p { display: none; }
     .toolbar { position: static; }
@@ -330,6 +363,24 @@
   </section>
 
   <div id="editor" hidden>
+    <section class="block">
+      <h2>Conversations</h2>
+      <p class="hint">Everyone who has texted the number, newest activity first. Open one to see every text in and out and the answers saved so far.</p>
+      <div class="convo-bar">
+        <div class="tabs" id="convo-tabs"></div>
+        <input id="convo-search" type="search" placeholder="Search name, church or number" aria-label="Search conversations">
+        <button class="btn" id="convo-refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="convo-table">
+          <thead>
+            <tr><th>Church</th><th>Phone</th><th>Status</th><th>Where they are</th><th>Last text</th></tr>
+          </thead>
+          <tbody id="convo-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="block">
       <h2>Text messaging</h2>
       <p class="hint">Texts go out from Vercel through the n8n relay to voip.ms. Check connection tests each step the same way a real text travels; a test text goes out the same way too.</p>
@@ -404,6 +455,20 @@
   </div>
   <p class="dialog-key" id="result-key"></p>
   <ul class="result-list" id="result-list"></ul>
+</dialog>
+
+<dialog class="dialog thread-dialog" id="thread-dialog" aria-labelledby="thread-title">
+  <div class="dialog-head">
+    <h2 id="thread-title"></h2>
+    <span class="chips">
+      <button class="btn small" id="thread-refresh" type="button">Refresh</button>
+      <button class="btn small" id="thread-close" type="button">Close</button>
+    </span>
+  </div>
+  <div class="thread-body">
+    <div class="bubbles" id="thread-messages"></div>
+    <dl class="answers" id="thread-answers"></dl>
+  </div>
 </dialog>
 
 <script type="module">
@@ -595,6 +660,7 @@ async function load() {
   renderToolbar();
   renderList();
   renderSavebar();
+  loadConversations();
 }
 
 // ---------- languages ----------
@@ -1121,6 +1187,153 @@ $("result-close").addEventListener("click", () => $("result-dialog").close());
 $("result-dialog").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
+
+// ---------- conversations ----------
+
+const STATUS = {
+  in_progress: ["In progress", "warn"],
+  complete: ["Complete", "ok"],
+  opted_out: ["Opted out", "muted"],
+};
+const STATUS_TABS = [["all", "All"], ["in_progress", "In progress"], ["complete", "Complete"], ["opted_out", "Opted out"]];
+// The engine's question ids, in words.
+const STEP_NAMES = {
+  name: "their name", email: "email", church: "church name", street: "street", city: "city",
+  state: "state", zip: "ZIP", denom: "denomination", website: "website", contact: "main contact",
+  contact_phone: "contact's phone", baptism: "baptism location", b_street: "baptism street",
+  b_city: "baptism city", b_state: "baptism state", b_zip: "baptism ZIP", map: "public map",
+  consent: "consent",
+};
+const convos = { list: [], status: "all", search: "", open: null };
+
+const formatPhone = (p) => {
+  const d = String(p || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p || "";
+};
+const yesNo = (v) => (v == null ? null : v ? "Yes" : "No");
+
+function when(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function whereTheyAre(c) {
+  switch (c.phase) {
+    case "lang": return "Choosing a language";
+    case "collect": return `${c.editing ? "Changing" : "Asked for"} ${STEP_NAMES[c.step] || c.step || "an answer"}`;
+    case "summary": return "Checking the summary";
+    case "done": return "Finished";
+    case "stopped": return "Texted STOP";
+    default: return "";
+  }
+}
+
+async function loadConversations() {
+  const button = $("convo-refresh");
+  button.disabled = true;
+  try {
+    convos.list = (await api("/api/admin/conversations")).conversations;
+    renderConversations();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderConversations() {
+  const count = (status) => convos.list.filter((c) => status === "all" || c.status === status).length;
+  $("convo-tabs").replaceChildren(...STATUS_TABS.map(([id, label]) => h("button", {
+    class: "tab", type: "button", "aria-pressed": String(convos.status === id),
+    onclick: () => { convos.status = id; renderConversations(); },
+  }, `${label} ${count(id)}`)));
+
+  const q = convos.search.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const rows = convos.list.filter((c) =>
+    (convos.status === "all" || c.status === convos.status)
+    && (!q || [c.church_name, c.name, c.city].some((v) => v?.toLowerCase().includes(q))
+      || (digits && c.phone.includes(digits))));
+
+  if (!rows.length) {
+    $("convo-rows").replaceChildren(h("tr", {}, h("td", { colspan: "5", class: "empty",
+      text: convos.list.length ? "No conversations match." : "No one has texted yet." })));
+    return;
+  }
+  $("convo-rows").replaceChildren(...rows.map((c) => {
+    const [label, kind] = STATUS[c.status] || [c.status, "muted"];
+    const place = [c.city, c.state].filter(Boolean).join(", ");
+    return h("tr", { tabindex: "0", onclick: () => openThread(c.phone),
+      onkeydown: (e) => { if (e.key === "Enter") openThread(c.phone); } },
+      h("td", {}, h("span", { class: "who", text: c.church_name || "Not given yet" }),
+        h("span", { class: "sub", text: [c.name, place].filter(Boolean).join(" · ") })),
+      h("td", { class: "when", text: formatPhone(c.phone) }),
+      h("td", {}, chip(label, kind)),
+      h("td", { text: whereTheyAre(c) }),
+      h("td", { class: "when", text: when(c.updated_at) }));
+  }));
+}
+
+function answerList(c) {
+  if (!c) return [];
+  const address = (s, ci, st, z) => [s, [ci, [st, z].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(", ");
+  const contact = c.contact_name ? `${c.contact_name} ${formatPhone(c.contact_phone)}`.trim()
+    : c.contact_name === null && c.baptism_same != null ? "The texter" : null;
+  const baptism = c.baptism_same === true ? "Same as church"
+    : c.baptism_same === false ? address(c.baptism_street, c.baptism_city, c.baptism_state, c.baptism_zip) : null;
+  return [
+    ["Name", c.name], ["Email", c.email], ["Church", c.church_name],
+    ["Address", address(c.street, c.city, c.state, c.zip)], ["Denomination", c.denomination],
+    ["Website", c.website], ["Main contact", contact], ["Baptisms at", baptism],
+    ["On public map", yesNo(c.public_map)], ["Consent", c.consent_at ? when(c.consent_at) : null],
+    ["Language", state.languages.find((l) => l.code === c.lang)?.name || c.lang],
+    ["Completed", c.completed_at ? when(c.completed_at) : null],
+    ["First text", when(c.created_at)],
+  ].filter(([, v]) => v);
+}
+
+async function openThread(phone) {
+  convos.open = phone;
+  const dialog = $("thread-dialog");
+  $("thread-title").textContent = formatPhone(phone);
+  if (!dialog.open) {
+    $("thread-messages").replaceChildren(h("p", { class: "empty", text: "Loading..." }));
+    $("thread-answers").replaceChildren();
+    dialog.showModal();
+  }
+  try {
+    const { church, messages } = await api(`/api/admin/conversations?phone=${encodeURIComponent(phone)}`);
+    if (convos.open !== phone) return;
+    $("thread-title").textContent = [church?.church_name, formatPhone(phone)].filter(Boolean).join(" · ");
+    $("thread-messages").replaceChildren(...(messages.length
+      ? messages.flatMap((m) => [
+        h("div", { class: `bubble ${m.direction}`, text: m.body || "(empty)" }),
+        h("span", { class: `bubble-time ${m.direction}`, text: when(m.created_at) }),
+      ])
+      : [h("p", { class: "empty", text: "No texts recorded." })]));
+    const answers = answerList(church);
+    $("thread-answers").replaceChildren(...(answers.length
+      ? answers.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])
+      : [h("dd", { text: "No answers yet." })]));
+    const last = $("thread-messages").lastElementChild;
+    if (last) last.scrollIntoView({ block: "end" });
+  } catch (err) {
+    if (!err.silent) $("thread-messages").replaceChildren(h("p", { class: "row-error", text: err.message }));
+  }
+}
+
+$("convo-refresh").addEventListener("click", loadConversations);
+$("convo-search").addEventListener("input", (e) => { convos.search = e.target.value; renderConversations(); });
+$("thread-refresh").addEventListener("click", () => { openThread(convos.open); loadConversations(); });
+$("thread-close").addEventListener("click", () => $("thread-dialog").close());
+$("thread-dialog").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.close();
+});
+$("thread-dialog").addEventListener("close", () => { convos.open = null; });
 
 // ---------- text messaging checks ----------
 
