@@ -9,7 +9,8 @@
 // Env vars:
 //   SMS_SEND_KEY  shared secret so this isn't an open SMS relay
 
-import { MMS_MAX, sendText } from "../lib/voipms.js";
+import { logEvent } from "../lib/events.js";
+import { MMS_MAX, explainStatus, sendText } from "../lib/voipms.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -47,6 +48,8 @@ export default async function handler(req, res) {
   try {
     res.status(200).json(await sendText(dst, message, media));
   } catch (err) {
+    await logEvent("error", "sms-send", `A text wasn't sent: ${err.status ? explainStatus(err.status) : err.message}`,
+      { phone: "+1" + dst, detail: { status: err.status || null } });
     // err.status is voip.ms's reason, e.g. "ip_not_enabled" when the calling
     // IP isn't whitelisted; without it, voip.ms or the relay wasn't reached.
     if (err.status) res.status(502).json({ error: err.status });
