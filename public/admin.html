@@ -396,6 +396,7 @@
   <div class="wrap">
     <button class="screen-tab" type="button" data-screen="conversations">Conversations <span id="unread-total"></span></button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
+    <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
     <button class="screen-tab" type="button" data-screen="users">Users</button>
     <button class="screen-tab" type="button" data-screen="connection">Connection</button>
@@ -495,7 +496,7 @@
       </div>
     </section>
 
-    <section class="block" data-screen="prompts">
+    <section class="block" data-screen="languages">
       <h2>Languages</h2>
       <p class="hint">A language appears in the first message's menu once it's switched on, and it can only be switched on when every prompt has text in it. The menu label is how it's listed there. Names in their own script, like Español or 中文, are easiest to recognise but make that message a Unicode SMS, which holds less text; the preview shows the count.</p>
       <div class="table-scroll">
@@ -845,9 +846,13 @@ function renderLanguages() {
       h("td", {}, h("label", { class: "switch" }, toggle, h("span", { class: "track" }), h("span", { class: "switch-text", text: l.active ? "On" : "Off" }))),
       h("td", { class: "right" }, h("button", {
         type: "button",
-        class: editing ? "btn small current" : "btn small",
-        text: editing ? "Editing" : "Edit",
-        onclick: () => selectLang(l.code),
+        class: "btn small",
+        text: "Edit prompts",
+        onclick: () => {
+          selectLang(l.code);
+          history.replaceState(null, "", "#prompts");
+          showScreen("prompts");
+        },
       })),
     );
   });
@@ -1413,7 +1418,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "prompts", "log", "users", "connection"];
+const SCREENS = ["conversations", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
