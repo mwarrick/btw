@@ -66,6 +66,7 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
 fieldset{border:0;margin:14px 0 0;padding:0}
 legend{font-weight:600;font-size:15px;padding:0}
 .bad .choice{border-color:var(--bad)}
+.status-line{margin:8px 0 0;padding:10px 14px;font-size:15px}.status-line b{color:var(--ok)}
 .mic{width:auto;min-height:38px;margin:6px 0 0;padding:6px 14px;font-weight:600}
 .mic.on{background:var(--bad);border-color:var(--bad);color:#fff}
 .picks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
@@ -108,6 +109,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <section id="write" hidden>
   <h1 id="title"></h1>
   <p class="church" id="church"></p>
+  <p class="card status-line" id="status" hidden></p>
   <details class="card guide" id="guide" open><summary id="guidetitle"></summary><div id="guidebody"></div></details>
   <form class="card" id="storyform" novalidate>
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" name="first_name" maxlength="60" autocomplete="given-name"></div>
@@ -491,6 +493,20 @@ legend{font-weight:600;font-size:15px;padding:0}
     });
   }
 
+  // Where their saved story stands: who can read it, and whether the team
+  // has read it since their last change and featured it.
+  function showStatus(s) {
+    var box = $("status");
+    box.hidden = !s || !s.submitted_at || !s.share;
+    if (box.hidden) return;
+    var who = { me: ["story_status_me", "Only you can see your story."], church: ["story_status_church", "Shared with your church."],
+      baptize: ["story_status_baptize", "Shared with your church and the Baptize 2027 team."] }[s.share];
+    var kids = [T[who[0]] || who[1]];
+    if (s.read) kids.push(" · ", T.story_status_read || "Read by the team");
+    if (s.featured) kids.push(" · ", el("b", {}, ["★ " + (T.story_status_featured || "Featured by the team")]));
+    box.replaceChildren.apply(box, kids);
+  }
+
   function loadWrite() {
     return getJSON(api).then(function (x) {
       T = x[1].text || {};
@@ -535,6 +551,7 @@ legend{font-weight:600;font-size:15px;padding:0}
       $("guardian_name").value = s.guardian_name; $("guardian_ok").checked = s.guardian_ok;
       showSharing();
       story = s; church = s.church;
+      showStatus(s);
       addMics();
       $("delete").hidden = !s.submitted_at;
       // Once their story is saved: their first 30 days, with church and name carried over.
@@ -560,6 +577,7 @@ legend{font-weight:600;font-size:15px;padding:0}
         if (x[0] === 200) {
           s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false;
           story = Object.assign({}, x[1].story, { church: church });
+          showStatus(story);
           showCard();
           return;
         }
