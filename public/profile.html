@@ -75,6 +75,8 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
 .agree{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:15px;margin-top:12px}
 .agree input{width:22px;height:22px;min-height:0;margin:1px 0 0;padding:0;flex:0 0 auto}
 .welcome{color:var(--ok);font-weight:600;padding:12px 14px}
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+button.quiet{background:transparent;color:var(--brand);border:1px solid var(--line);width:100%;margin-top:10px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -107,6 +109,9 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
   // form, with the phone editable and a language picker, that creates the
   // church and opens its own page.
   var signingUp = !key;
+  // Signing up: when the page opened (a form sent back in under 3 seconds is
+  // a bot's), and whether the texted code is being asked for.
+  var opened = Date.now(), codeStep = false;
   var api = "/api/profile?key=" + encodeURIComponent(key);
   var photosApi = "/api/profile-photos?key=" + encodeURIComponent(key);
   var $ = function (id) { return document.getElementById(id); };
@@ -165,6 +170,15 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
       var agree = el("input", { type: "checkbox", name: "consent" });
       agree.checked = !!data.consent;
       form.append(el("div", { class: "card", id: "f-consent" }, [el("label", { class: "agree" }, [agree, el("span", {}, [T.web_signup_consent || ""])])]));
+      // A field people never see: a bot that fills it in is turned away.
+      form.append(el("div", { class: "hp", "aria-hidden": "true" }, [el("label", {}, ["Company", el("input", { name: "company_hp", tabindex: "-1", autocomplete: "off" })])]));
+      // The code texted to their phone, asked for after the first Sign up.
+      var code = el("input", { name: "code", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6" });
+      code.value = data.code || "";
+      var resend = el("button", { type: "button", class: "quiet" }, [T.web_code_resend || "Send a new code"]);
+      resend.addEventListener("click", function () { submit({ resend: true }); });
+      form.append(el("div", { class: "card", id: "f-code", hidden: codeStep ? null : "" }, [el("label", {}, [T.web_code_label || "Enter the code we texted you.", code]), resend]));
+      $("save").textContent = codeStep ? T.web_code_button || "Confirm" : T.web_signup_button || "Sign up";
     }
     sync();
   }
@@ -213,7 +227,6 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
       document.documentElement.dir = d.dir;
       document.title = T.web_title || "Baptize 2027";
       $("intro").textContent = T.web_signup_intro || "";
-      $("save").textContent = T.web_signup_button || "Sign up";
       $("langlabel").textContent = T.web_language || "Language";
       $("lang").replaceChildren.apply($("lang"), d.languages.map(function (l) {
         var o = el("option", { value: l.code }, [l.name]);
@@ -429,18 +442,35 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
     })();
   });
 
-  $("form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var f = e.currentTarget, body = values();
+  $("form").addEventListener("submit", function (e) { e.preventDefault(); submit({}); });
+  // Saves the answers, or (signing up) asks for the code and then signs up.
+  function submit(extra) {
+    var f = $("form"), body = Object.assign(values(), extra);
     f.querySelectorAll(".err").forEach(function (n) { n.remove(); });
     f.querySelectorAll(".bad").forEach(function (n) { n.classList.remove("bad"); });
+    if (signingUp) {
+      body.lang = $("lang").value;
+      body.elapsed = Date.now() - opened;
+      if (!codeStep || extra.resend) delete body.code;
+      else if (!String(body.code || "").trim()) { f.code.focus(); return; }
+    }
     $("save").disabled = true; status("…");
-    if (signingUp) body.lang = $("lang").value;
     fetch(signingUp ? "/api/profile" : api, { method: signingUp ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
       .then(function (x) {
         // Signed up: their own page, from now on their link.
         if (signingUp && x[0] === 200) { location.href = "/p/" + x[1].key + "?welcome=1"; return; }
+        // The code is on its way: ask for it.
+        if (signingUp && x[0] === 202) {
+          codeStep = true;
+          f.code.value = "";
+          $("f-code").hidden = false;
+          $("save").textContent = T.web_code_button || "Confirm";
+          status("", "");
+          $("f-code").scrollIntoView({ block: "center" });
+          f.code.focus();
+          return;
+        }
         if (x[0] === 200) { fill(x[1].church); return status(T.web_saved || "Saved.", "ok"); }
         if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
         var box = x[1].field && $("f-" + x[1].field);
@@ -454,7 +484,7 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
       })
       .catch(function () { status("Couldn't connect. Try again.", "bad"); })
       .then(function () { $("save").disabled = false; });
-  });
+  }
 })();
 </script>
 </body>

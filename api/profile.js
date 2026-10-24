@@ -38,9 +38,10 @@
 
 import { EDITABLE, ERROR_PROMPTS, cleanChurchFields } from "../lib/church-fields.js";
 import { logEvent } from "../lib/events.js";
-import { isProfileKey, linkText, newProfileKey, siteUrl } from "../lib/profile-link.js";
+import { isProfileKey, linkText, newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
+import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
 const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
@@ -66,14 +67,14 @@ const TEXT_KEYS = [
   // The signup form (no key).
   "web_signup_intro", "web_language", "web_phone_signup_hint", "web_signup_consent", "web_signup_button",
   "web_signed_up", "web_phone_taken", "web_required", "web_phone_invalid",
+  // Its phone check (lib/web-guard.js).
+  "web_code_label", "web_code_button", "web_code_resend", "web_code_wrong", "web_code_expired", "web_wait", "web_busy",
 ];
 // The front page's wording (public/index.html).
 const LANDING_KEYS = ["web_title", "web_language", "web_phone", "web_phone_invalid",
   "land_intro", "land_church_title", "land_church_text", "land_signup", "land_text_us", "land_link_title",
   "land_link_hint", "land_link_button", "land_link_sent", "land_baptized_title", "land_baptized_text",
   "land_coming_soon", "land_team_title", "land_team_text", "land_team_button"];
-// Get my link texts a number at most this often.
-const LINK_EVERY_MS = 10 * 60 * 1000;
 // Answers the signup form must have; state and ZIP only in the US.
 const REQUIRED = ["church_name", "street", "city", "name", "email"];
 const RTL = new Set(["ar", "ur"]);
@@ -89,8 +90,8 @@ export default async function handler(req, res) {
     const params = new URL(req.url, "http://x").searchParams;
     if (req.method === "GET" && params.get("part") === "signup") return await signupForm(params.get("lang"), res);
     if (req.method === "GET" && params.get("part") === "landing") return await signupForm(params.get("lang"), res, LANDING_KEYS);
-    if (req.method === "POST" && params.get("part") === "link") return await sendLink(req.body || {}, res, siteUrl(req));
-    if (req.method === "POST") return await signup(req.body || {}, res);
+    if (req.method === "POST" && params.get("part") === "link") return await sendLink(req, req.body || {}, res, siteUrl(req));
+    if (req.method === "POST") return await signup(req, req.body || {}, res, siteUrl(req));
     const key = new URL(req.url, "http://x").searchParams.get("key");
     const [church] = isProfileKey(key) ? await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`) : [];
     if (!church) {
@@ -156,8 +157,9 @@ async function signupForm(wanted, res, keys = TEXT_KEYS) {
     ...(keys === LANDING_KEYS ? { number: did.length === 10 ? `+1 ${did.slice(0, 3)}-${did.slice(3, 6)}-${did.slice(6)}` : null } : {}) });
 }
 
-// Get my link (see POST ?part=link above).
-async function sendLink(body, res, site) {
+// Get my link (see POST ?part=link above). Bots, and numbers or visitors
+// over their limits, get the same answer and nothing is sent.
+async function sendLink(req, body, res, site) {
   const phone = phoneValue(body.phone);
   if (!phone) {
     const [language] = typeof body.lang === "string" ? await db(`btw_languages?code=${eq(body.lang)}&select=code`) : [];
@@ -165,21 +167,20 @@ async function sendLink(body, res, site) {
     res.status(400).json({ error: "Enter the phone number you signed up with.", field: "phone", message: words.web_phone_invalid });
     return;
   }
-  const since = new Date(Date.now() - LINK_EVERY_MS).toISOString();
-  const [[church], [session], recent] = await Promise.all([
+  const ip = visitor(req);
+  if (looksLikeBot(body)) {
+    await record("bot", ip, phone);
+    res.status(200).json({ sent: true });
+    return;
+  }
+  const [[church], [session]] = await Promise.all([
     db(`btw_churches?phone=${eq(phone)}&select=phone,lang,profile_key,simulated`),
     db(`btw_sessions?phone=${eq(phone)}&select=phase`),
-    db(`btw_events?phone=${eq(phone)}&source=eq.get-link&created_at=gte.${encodeURIComponent(since)}&select=id&limit=1`),
   ]);
-  if (church && !church.simulated && session?.phase !== "stopped" && !recent.length) {
+  if (church && !church.simulated && session?.phase !== "stopped" && (await withinLimits("link", ip, phone)) && (await textsLeft())) {
+    await record("link", ip, phone);
     const text = await linkText(phone, church, church.lang || "en", site);
-    let error = null;
-    try {
-      await sendText(phone.slice(2), text);
-    } catch (err) {
-      error = err.status ? explainStatus(err.status) : `Couldn't send: ${err.message}`;
-    }
-    // The text in their thread, and a note that also spaces out repeats.
+    const error = await send(phone, text);
     await Promise.all([
       db("btw_messages", { method: "POST", body: { phone, direction: "out", thread: "signup", body: text, error } }),
       logEvent(error ? "error" : "info", "get-link", error ? `Get my link wasn't sent: ${error}` : "Texted their page link (Get my link on the front page).", { phone }),
@@ -188,15 +189,30 @@ async function sendLink(body, res, site) {
   res.status(200).json({ sent: true });
 }
 
-// A signup from the web form (see POST above).
-async function signup(body, res) {
+// Sends one text; returns null, or why it failed.
+async function send(phone, text) {
+  try {
+    await sendText(phone.slice(2), text);
+    return null;
+  } catch (err) {
+    return err.status ? explainStatus(err.status) : `Couldn't send: ${err.message}`;
+  }
+}
+
+// A signup from the web form (see POST above), in two steps: the answers are
+// checked and a code is texted to the phone (202 { needCode }); the same
+// answers sent again with { code } save the signup and text the thank-you
+// with their page link, as a signup by text gets. { resend: true } texts a
+// new code. Bots get a 202 and nothing is sent or saved.
+async function signup(req, body, res, site) {
   const [language] = typeof body.lang === "string" ? await db(`btw_languages?code=${eq(body.lang)}&active=eq.true&select=code`) : [];
   const lang = language ? language.code : "en";
-  const words = await wording(lang);
+  const words = await wording(lang, [...TEXT_KEYS, "web_code_text", "done", "done_link"]);
   const refuse = (status, field, prompt, error) => res.status(status).json({ error, field, message: words[prompt] || error });
+  const ip = visitor(req);
 
   const phone = phoneValue(body.phone);
-  if (!phone) return refuse(400, "phone", "web_phone_invalid", "Enter the phone number you text from.");
+  if (!phone) return refuse(400, "phone", "web_phone_invalid", "Enter a US or Canadian mobile number with its area code.");
   const input = Object.fromEntries(EDITABLE.filter((f) => f in body).map((f) => [f, body[f]]));
   const { fields, error, field, prompt } = cleanChurchFields({ country: "US", ...input });
   if (error) return refuse(400, field, prompt || ERROR_PROMPTS[field], error);
@@ -210,6 +226,31 @@ async function signup(body, res) {
   const [taken] = await db(`btw_churches?phone=${eq(phone)}&select=phone`);
   if (taken) return refuse(409, "phone", "web_phone_taken", "This number is already signed up. Text it to get your link.");
 
+  if (looksLikeBot(body)) {
+    await record("bot", ip, phone);
+    return res.status(202).json({ needCode: true });
+  }
+
+  // Step 1 (or a new code): text the code.
+  if (!body.code || body.resend) {
+    if (!(await withinLimits("code", ip, phone))) return refuse(429, body.resend ? "code" : null, "web_wait", "Too many tries. Please wait a few minutes and try again.");
+    if (!(await textsLeft())) return refuse(503, null, "web_busy", "We can't send texts right now. Please try again later.");
+    await record("code", ip, phone);
+    const code = await newCode(phone);
+    const template = words.web_code_text || "Your Baptize 2027 code is {code}.";
+    const failed = await send(phone, template.includes("{code}") ? template.replace("{code}", code) : `${template} ${code}`);
+    if (failed) {
+      await logEvent("error", "web-signup", `The signup form's code wasn't sent: ${failed}`, { phone });
+      return refuse(502, null, "web_busy", "We couldn't text that number. Check it, or try again later.");
+    }
+    return res.status(202).json({ needCode: true });
+  }
+
+  // Step 2: the code.
+  const check = await checkCode(phone, body.code);
+  if (check === "wrong") return refuse(400, "code", "web_code_wrong", "That code isn't right. Check the text and try again.");
+  if (check !== "ok") return refuse(400, "code", "web_code_expired", "That code has expired. Send a new one.");
+
   const now = new Date().toISOString();
   const key = newProfileKey();
   await db("btw_churches", { method: "POST", body: { ...fields, phone, lang, status: "complete", completed_at: now, consent_at: now, profile_key: key } });
@@ -218,18 +259,24 @@ async function signup(body, res) {
     body: { phone, lang, phase: "done", queue: [], editing: false },
     prefer: "resolution=merge-duplicates",
   });
+  // The thank-you a signup by text ends with: done and the page link. It
+  // doesn't wait on the daily cap: the number was just verified.
+  const link = profileUrl(site, key);
+  const linkLine = (words.done_link || "").includes("{link}") ? words.done_link.replace("{link}", link) : link;
+  const thanks = [words.done, linkLine].filter(Boolean).join("\n");
+  await record("welcome", ip, phone);
+  const failed = await send(phone, thanks);
+  await db("btw_messages", { method: "POST", body: { phone, direction: "out", thread: "signup", body: thanks, error: failed } });
+  if (failed) await logEvent("error", "web-signup", `The thank-you after a web signup wasn't sent: ${failed}`, { phone });
   res.status(200).json({ key });
 }
 
-// The number as stored: +1 and 10 digits for the US and Canada, otherwise
-// + and 8 to 15 digits when typed with a + (texts only come in from 10-digit
-// numbers today; see docs/gaps.md).
+// The number as stored: +1 and 10 digits. The forms text it, and only US and
+// Canadian numbers can be texted from our number (see docs/gaps.md).
 function phoneValue(input) {
-  const text = String(input || "").trim();
-  const d = text.replace(/\D/g, "");
-  if (text.startsWith("+") && !d.startsWith("1")) return d.length >= 8 && d.length <= 15 ? `+${d}` : null;
-  if (d.length === 10) return `+1${d}`;
-  if (d.length === 11 && d[0] === "1") return `+${d}`;
+  const d = String(input || "").replace(/\D/g, "");
+  if (d.length === 10 && /^[2-9]/.test(d)) return `+1${d}`;
+  if (d.length === 11 && d[0] === "1" && /^[2-9]/.test(d.slice(1))) return `+${d}`;
   return null;
 }
 

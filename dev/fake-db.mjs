@@ -27,7 +27,7 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "web_signup_button", lang: "es", text: "Inscribirse" },
     { key: "land_text_us", lang: "en", text: "Or text {number} and sign up by text message, in your language." },
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" }],
-  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [] };
+  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [] };
 export const files = new Map(); // "bucket/path" -> Buffer
 
 // A 40x30 blue PNG, for fake MMS attachments.
@@ -80,6 +80,7 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p.get("method") === "sendSMS" && p.get("message").length > 70 && /[^\x00-\x7f]/.test(p.get("message"))) return new Response(JSON.stringify({ status: "sms_toolong" }));
     if (p.get("method") === "getDIDsInfo") return new Response(JSON.stringify({ status: "success", dids: [{ did: p.get("did").replace(/\D/g, "").slice(-10), description: "Signups", sms_enabled: "1" }] }));
     sent.push({ to: p.get("dst"), method: p.get("method"), message: p.get("message") });
+    console.log("Fake text to", p.get("dst"), JSON.stringify(p.get("message")));
     return new Response(JSON.stringify({ status: "success", sms: 1 }));
   }
   const u = new URL(url); const table = u.pathname.split("/").pop();
@@ -90,6 +91,9 @@ globalThis.fetch = async (url, opts = {}) => {
     if (v.startsWith("eq.")) return String(r[k]) === v.slice(3);
     if (v.startsWith("in.")) return v.slice(4, -1).split(",").map((x) => x.replace(/^"|"$/g, "")).includes(String(r[k]));
     if (v === "is.null") return r[k] == null;
+    for (const [op, test] of [["gte.", (a, b) => a >= b], ["gt.", (a, b) => a > b], ["lte.", (a, b) => a <= b], ["lt.", (a, b) => a < b]]) {
+      if (v.startsWith(op)) return r[k] != null && test(String(r[k]), v.slice(op.length));
+    }
     return true; });
   const json = (d) => new Response(d === undefined ? "" : JSON.stringify(d), { status: 200 });
   const sel = u.searchParams.get("select") || "";

@@ -27,9 +27,8 @@ This is a proof of concept. These gaps are known and kept on purpose for the dem
 - **Unconfirmed in production.** The Log panel and language detection on a real non-English first text haven't been checked there.
 
 ## The front page and the web signup form (`/`, `/signup`)
-- **No rate limiting.** Anyone can post signups as fast as they like.
-- **No phone verification.** The number typed isn't confirmed by a code, so a web signup can claim any number. The real owner then finds it "already signed up" (409), and their texts are treated as a finished signup that isn't theirs. Only a reviewer can clear it, with Delete in the conversation.
-- **Texting works only for US/Canada numbers.** The form accepts international numbers (`+` and 8 to 15 digits), but texts from them aren't handled (see Reach).
-- **No spam protection.** There is no CAPTCHA or honeypot.
-- **Get my link is limited per number, not per visitor.** One text per number per 10 minutes, but someone could make it text many signed-up numbers (each gets only its own link, so nothing leaks).
-- **No text on web signup.** The form sends nothing, though its phone hint says "We'll text you here".
+Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a texted 6-digit code before a web signup is saved. There is also a hidden bot field, a 3-second minimum, limits per visitor and per number, and a daily cap on texts (`WEB_TEXTS_PER_DAY`, default 300). What's left:
+- **US and Canadian numbers only.** Elsewhere, people can't sign up on the web or by text (see Reach).
+- **Visitors are told apart only by IP address.** Many pastors on one church's wifi share one, so that is at most 10 codes an hour from one address. A determined attacker with many addresses is held back only by the daily cap and the per-number limits.
+- **No CAPTCHA.** Cloudflare Turnstile can be added if bots get past the hidden field.
+- **Short-code texts aren't answered.** Texts from short codes (e.g. WhatsApp's 29283) are only shown in the Log panel; nothing replies to them.

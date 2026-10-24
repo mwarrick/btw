@@ -90,8 +90,12 @@ export default async function handler(req, res) {
 
   console.log("Inbound SMS", JSON.stringify(sms));
 
-  // Short codes and other non-US/Canada senders can't be replied to.
+  // Short codes (e.g. WhatsApp's verification codes from 29283) and other
+  // non-US/Canada senders: never answered, but shown in the Log panel so the
+  // team can read them.
   if (sms.from.length !== 10) {
+    await logEvent("info", "short-code", `Text from ${sms.from}, not answered: ${sms.message || "(no words)"}`,
+      { detail: { from: sms.from, to: sms.to, id: sms.id, media: sms.media } });
     res.status(200).send("ok");
     return;
   }
