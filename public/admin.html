@@ -243,6 +243,13 @@
   .list { display: grid; gap: 10px; margin-top: 12px; }
   .list h3 { margin: 14px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
   .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .photo-card { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+  .photo-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--surface-2); }
+  .photo-card figcaption { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; font-size: 13px; }
+  .photo-card figcaption .btn { margin-left: auto; }
+  .linkish { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+  .linkish:hover { text-decoration: underline; }
   .prompt {
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 14px; display: grid; gap: 8px; min-width: 0;
@@ -422,6 +429,7 @@
   <div class="wrap">
     <button class="screen-tab" type="button" data-screen="conversations">Conversations <span id="unread-total"></span></button>
     <button class="screen-tab" type="button" data-screen="churches">Churches</button>
+    <button class="screen-tab" type="button" data-screen="photos">Photos <span id="photos-unseen"></span></button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
     <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
@@ -490,6 +498,16 @@
           <tbody id="church-rows"></tbody>
         </table>
       </div>
+    </section>
+
+    <section class="block" data-screen="photos">
+      <h2>Photos</h2>
+      <p class="hint">Photos churches shared from their page, newest first. Each was uploaded with the church confirming permission to share it publicly, including on social media. Click one to open it full size; the church's name opens its conversation.</p>
+      <div class="convo-bar">
+        <span class="spacer"></span>
+        <button class="btn" id="photos-refresh" type="button">Refresh</button>
+      </div>
+      <div class="photo-grid" id="photo-grid"></div>
     </section>
 
     <section class="block" data-screen="log">
@@ -878,6 +896,7 @@ async function load() {
   renderList();
   renderSavebar();
   loadConversations();
+  loadAdminPhotos();
   loadLog();
 }
 
@@ -1491,7 +1510,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "churches", "prompts", "languages", "log", "users", "connection"];
+const SCREENS = ["conversations", "churches", "photos", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
@@ -1730,10 +1749,15 @@ function renderThread() {
     h("button", { class: "tab", type: "button", "aria-pressed": String(convos.tab === "team"),
       onclick: () => { convos.tab = "team"; renderThread(); } },
       `Messages${team.length ? ` ${team.length}` : ""}`, unseen ? chip(`${unseen} new`, "bad") : null),
+    h("button", { class: "tab", type: "button", "aria-pressed": String(convos.tab === "photos"),
+      onclick: () => { convos.tab = "photos"; renderThread(); } }, "Photos"),
   );
 
   const shown = messages.filter((m) => (m.thread || "signup") === convos.tab);
-  $("thread-messages").replaceChildren(...(shown.length
+  if (convos.tab === "photos") {
+    $("thread-messages").replaceChildren(h("p", { class: "empty", text: "Loading..." }));
+    loadThreadPhotos(phone);
+  } else $("thread-messages").replaceChildren(...(shown.length
     ? shown.flatMap((m) => [
       m.body || !m.media?.length ? h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }) : null,
       m.media?.length ? attachments(m) : null,
@@ -1772,6 +1796,61 @@ function attachments(m) {
     link.append(img);
     return link;
   }));
+}
+
+// ---------- photos ----------
+
+// One photo: the thumbnail (opens full size), when, New until first opened
+// in its conversation, and Delete. `withChurch` adds the church's name,
+// which opens its conversation on Photos.
+function photoCard(p, withChurch) {
+  const del = h("button", { class: "btn small", type: "button", text: "Delete", onclick: async () => {
+    if (!confirm("Delete this photo for good? It's gone for the church too.")) return;
+    try {
+      await api(`/api/admin/photos?id=${p.id}`, { method: "DELETE" });
+      toast("Photo deleted.");
+      if (convos.open && convos.tab === "photos") loadThreadPhotos(convos.open);
+      loadAdminPhotos();
+    } catch (err) {
+      if (!err.silent) toast(err.message, "bad");
+    }
+  } });
+  return h("figure", { class: "photo-card" },
+    h("a", { href: p.url, target: "_blank", rel: "noopener noreferrer", title: "Open full size" },
+      h("img", { src: p.thumb, alt: `Photo from ${p.church_name || formatPhone(p.phone)}`, loading: "lazy" })),
+    h("figcaption", {},
+      withChurch ? h("button", { class: "linkish", type: "button", text: p.church_name || formatPhone(p.phone), onclick: () => openThread(p.phone, "photos") }) : null,
+      h("span", { class: "when", text: when(p.created_at) }),
+      p.seen_at ? null : chip("New", "bad"),
+      p.consent_at ? null : chip("No permission", "warn"),
+      del));
+}
+
+async function loadAdminPhotos() {
+  try {
+    const { photos, unseen } = await api("/api/admin/photos");
+    $("photos-unseen").replaceChildren(...(unseen ? [chip(String(unseen), "bad")] : []));
+    $("photo-grid").replaceChildren(...(photos.length
+      ? photos.map((p) => photoCard(p, true))
+      : [h("p", { class: "empty", text: "No photos yet. Churches add them on the Photos tab of the page linked in their thank-you text." })]));
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+$("photos-refresh").addEventListener("click", loadAdminPhotos);
+
+async function loadThreadPhotos(phone) {
+  try {
+    const { photos } = await api(`/api/admin/photos?phone=${encodeURIComponent(phone)}`);
+    if (convos.open !== phone || convos.tab !== "photos") return;
+    $("thread-messages").replaceChildren(photos.length
+      ? h("div", { class: "photo-grid" }, photos.map((p) => photoCard(p, false)))
+      : h("p", { class: "empty", text: "No photos from this church yet." }));
+    // Opening them here marked them seen.
+    if (photos.some((p) => !p.seen_at)) loadAdminPhotos();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
 }
 
 function renderCompose(session, church) {

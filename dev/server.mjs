@@ -13,14 +13,16 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { tables } from "./fake-db.mjs";
+import { files, tables } from "./fake-db.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT) || 8787;
 
 Object.assign(process.env, {
   SMS_INBOUND_KEY: "k",
-  SUPABASE_URL: "https://fake.supabase.co",
+  // Requests to it never leave this process (dev/fake-db.mjs answers them),
+  // except signed Storage links, which the browser loads from this server.
+  SUPABASE_URL: `http://localhost:${PORT}/fake-supabase`,
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_fake",
   ADMIN_PASSWORD: "pw",
   GOOGLE_TRANSLATE_API_KEY: "fake",
@@ -42,7 +44,7 @@ const handlers = {};
 for (const file of fs.readdirSync(path.join(ROOT, "api/admin")).filter((f) => f.endsWith(".js"))) {
   handlers[`/api/admin/${file.slice(0, -3)}`] = (await import(path.join(ROOT, "api/admin", file))).default;
 }
-for (const name of ["sms-inbound", "sms-send", "prompts", "profile"]) {
+for (const name of ["sms-inbound", "sms-send", "prompts", "profile", "profile-photos"]) {
   handlers[`/api/${name}`] = (await import(path.join(ROOT, "api", `${name}.js`))).default;
 }
 
@@ -60,6 +62,14 @@ for (const m of ["hello", "1", "Tom", "tom@x"]) await text("5125550122", m);
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
+  // Signed Storage links (photos).
+  const signed = url.pathname.match(/^\/fake-supabase\/storage\/v1\/object\/sign\/(.+)$/);
+  if (signed) {
+    const file = files.get(decodeURIComponent(signed[1]));
+    res.statusCode = file ? 200 : 404;
+    res.setHeader("Content-Type", "image/jpeg");
+    return res.end(file);
+  }
   const handler = handlers[url.pathname];
   if (handler) {
     let raw = "";

@@ -1,0 +1,168 @@
+-- Photos from churches, starting with uploads on the pastor's page
+-- (/p/<key>#photos). Files go in the private btw-photos bucket (another app
+-- in this shared project already has one called "photos"); each has a
+-- btw_photos row. The page makes a resized JPEG and a small one for the
+-- grid. Photos are shared publicly, including on social media, so each
+-- upload needs the permission box ticked, and the exact text agreed to is
+-- saved with the photo. Removing a photo deletes it for good.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('btw-photos', 'btw-photos', false, 5242880, array['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+on conflict (id) do nothing;
+
+create table btw_photos (
+  id            bigint generated always as identity primary key,
+  phone         text not null,                 -- the signup's number (btw_churches.phone)
+  path          text not null unique,          -- in btw-photos: <digits>/<random>.jpg
+  thumb_path    text,                          -- the small copy for grids
+  source        text not null default 'web' check (source in ('web', 'sms', 'admin')),
+  content_type  text not null default 'image/jpeg',
+  bytes         integer,
+  width         integer,
+  height        integer,
+  consent_at    timestamptz,                   -- when they agreed to public use
+  consent_text  text,                          -- what they agreed to, in their language
+  message_id    bigint references btw_messages (id) on delete set null,  -- the MMS it came in (later)
+  uploaded_by   uuid references btw_users (id),  -- a reviewer, when one added it
+  seen_at       timestamptz,                   -- first opened in /admin
+  created_at    timestamptz not null default now()
+);
+create index btw_photos_phone_idx on btw_photos (phone, id desc);
+alter table btw_photos enable row level security;
+
+insert into btw_prompt_keys (key, section, description, placeholders, sort_order) values
+  ('web_tab_signup', 'system', 'Signup page: tab for the answers form.', '{}', 700),
+  ('web_tab_photos', 'system', 'Signup page: tab for photos.', '{}', 701),
+  ('web_photos_intro', 'system', 'Signup page, Photos: the line at the top.', '{}', 702),
+  ('web_consent', 'system', 'Signup page, Photos: the permission checkbox (saved with each photo as their consent; must say photos may be shared publicly, incl. social media).', '{}', 703),
+  ('web_add_photos', 'system', 'Signup page, Photos: the upload button.', '{}', 704),
+  ('web_consent_needed', 'system', 'Signup page, Photos: when they upload without checking permission.', '{}', 705),
+  ('web_uploading', 'system', 'Signup page, Photos: while uploading.', '{}', 706),
+  ('web_uploaded', 'system', 'Signup page, Photos: after uploading.', '{}', 707),
+  ('web_upload_failed', 'system', 'Signup page, Photos: when a photo fails.', '{}', 708),
+  ('web_delete', 'system', 'Signup page, Photos: the delete button.', '{}', 709),
+  ('web_delete_confirm', 'system', 'Signup page, Photos: asked before deleting.', '{}', 710),
+  ('web_no_photos', 'system', 'Signup page, Photos: when there are none.', '{}', 711)
+on conflict (key) do nothing;
+
+insert into btw_prompts (key, lang, text) values
+  ('web_tab_signup', 'en', 'Your signup'),
+  ('web_tab_signup', 'es', 'Su inscripción'),
+  ('web_tab_signup', 'fr', 'Votre inscription'),
+  ('web_tab_signup', 'pt', 'Sua inscrição'),
+  ('web_tab_signup', 'zh', '您的报名'),
+  ('web_tab_signup', 'ar', 'تسجيلك'),
+  ('web_tab_signup', 'hi', 'आपका पंजीकरण'),
+  ('web_tab_signup', 'bn', 'আপনার নিবন্ধন'),
+  ('web_tab_signup', 'ru', 'Ваша регистрация'),
+  ('web_tab_signup', 'ur', 'آپ کی رجسٹریشن'),
+  ('web_tab_photos', 'en', 'Photos'),
+  ('web_tab_photos', 'es', 'Fotos'),
+  ('web_tab_photos', 'fr', 'Photos'),
+  ('web_tab_photos', 'pt', 'Fotos'),
+  ('web_tab_photos', 'zh', '照片'),
+  ('web_tab_photos', 'ar', 'الصور'),
+  ('web_tab_photos', 'hi', 'फ़ोटो'),
+  ('web_tab_photos', 'bn', 'ছবি'),
+  ('web_tab_photos', 'ru', 'Фото'),
+  ('web_tab_photos', 'ur', 'تصاویر'),
+  ('web_photos_intro', 'en', 'Share photos of your baptisms. Baptize 2027 may share them publicly, including on social media.'),
+  ('web_photos_intro', 'es', 'Comparta fotos de sus bautismos. Baptize 2027 podrá compartirlas públicamente, incluso en redes sociales.'),
+  ('web_photos_intro', 'fr', 'Partagez des photos de vos baptêmes. Baptize 2027 pourra les partager publiquement, y compris sur les réseaux sociaux.'),
+  ('web_photos_intro', 'pt', 'Compartilhe fotos dos seus batismos. O Baptize 2027 poderá compartilhá-las publicamente, inclusive nas redes sociais.'),
+  ('web_photos_intro', 'zh', '分享您教会的洗礼照片。Baptize 2027 可能会公开分享这些照片，包括在社交媒体上。'),
+  ('web_photos_intro', 'ar', 'شارك صور معمودياتكم. قد تنشرها Baptize 2027 علنًا، بما في ذلك على وسائل التواصل الاجتماعي.'),
+  ('web_photos_intro', 'hi', 'अपने बपतिस्मा की फ़ोटो साझा करें। Baptize 2027 इन्हें सोशल मीडिया सहित सार्वजनिक रूप से साझा कर सकता है।'),
+  ('web_photos_intro', 'bn', 'আপনার বাপ্তিস্মের ছবি শেয়ার করুন। Baptize 2027 এগুলো সোশ্যাল মিডিয়াসহ প্রকাশ্যে শেয়ার করতে পারে।'),
+  ('web_photos_intro', 'ru', 'Поделитесь фотографиями ваших крещений. Baptize 2027 может публиковать их, в том числе в социальных сетях.'),
+  ('web_photos_intro', 'ur', 'اپنے بپتسمہ کی تصاویر شیئر کریں۔ Baptize 2027 انہیں سوشل میڈیا سمیت عوامی طور پر شیئر کر سکتا ہے۔'),
+  ('web_consent', 'en', 'Everyone in these photos (or a parent, for anyone under 18) agrees that Baptize 2027 may share them publicly, including on social media.'),
+  ('web_consent', 'es', 'Todas las personas en estas fotos (o su padre o madre, si son menores de 18) aceptan que Baptize 2027 las comparta públicamente, incluso en redes sociales.'),
+  ('web_consent', 'fr', 'Chaque personne sur ces photos (ou un parent, pour les moins de 18 ans) accepte que Baptize 2027 les partage publiquement, y compris sur les réseaux sociaux.'),
+  ('web_consent', 'pt', 'Todas as pessoas nestas fotos (ou um responsável, se menores de 18) concordam que o Baptize 2027 as compartilhe publicamente, inclusive nas redes sociais.'),
+  ('web_consent', 'zh', '照片中的每个人（未满18岁者由其父母）都同意 Baptize 2027 公开分享这些照片，包括在社交媒体上。'),
+  ('web_consent', 'ar', 'يوافق كل من يظهر في هذه الصور (أو أحد الوالدين لمن هم دون 18 عامًا) على أن تنشرها Baptize 2027 علنًا، بما في ذلك على وسائل التواصل الاجتماعي.'),
+  ('web_consent', 'hi', 'इन फ़ोटो में दिखने वाले सभी लोग (18 से कम उम्र वालों के लिए माता-पिता) सहमत हैं कि Baptize 2027 इन्हें सोशल मीडिया सहित सार्वजनिक रूप से साझा कर सकता है।'),
+  ('web_consent', 'bn', 'এই ছবিগুলোর সবাই (১৮ বছরের কম বয়সীদের ক্ষেত্রে বাবা-মা) সম্মত যে Baptize 2027 এগুলো সোশ্যাল মিডিয়াসহ প্রকাশ্যে শেয়ার করতে পারে।'),
+  ('web_consent', 'ru', 'Все люди на этих фото (или родитель — за тех, кому нет 18) согласны, что Baptize 2027 может публиковать их, в том числе в социальных сетях.'),
+  ('web_consent', 'ur', 'ان تصاویر میں موجود ہر شخص (18 سال سے کم عمر کے لیے والدین) راضی ہے کہ Baptize 2027 انہیں سوشل میڈیا سمیت عوامی طور پر شیئر کرے۔'),
+  ('web_add_photos', 'en', 'Add photos'),
+  ('web_add_photos', 'es', 'Agregar fotos'),
+  ('web_add_photos', 'fr', 'Ajouter des photos'),
+  ('web_add_photos', 'pt', 'Adicionar fotos'),
+  ('web_add_photos', 'zh', '添加照片'),
+  ('web_add_photos', 'ar', 'إضافة صور'),
+  ('web_add_photos', 'hi', 'फ़ोटो जोड़ें'),
+  ('web_add_photos', 'bn', 'ছবি যোগ করুন'),
+  ('web_add_photos', 'ru', 'Добавить фото'),
+  ('web_add_photos', 'ur', 'تصاویر شامل کریں'),
+  ('web_consent_needed', 'en', 'Please check the permission box first.'),
+  ('web_consent_needed', 'es', 'Primero marque la casilla de permiso.'),
+  ('web_consent_needed', 'fr', 'Cochez d''abord la case d''autorisation.'),
+  ('web_consent_needed', 'pt', 'Primeiro marque a caixa de permissão.'),
+  ('web_consent_needed', 'zh', '请先勾选授权确认框。'),
+  ('web_consent_needed', 'ar', 'يرجى تحديد مربع الموافقة أولًا.'),
+  ('web_consent_needed', 'hi', 'कृपया पहले अनुमति वाला बॉक्स चुनें।'),
+  ('web_consent_needed', 'bn', 'অনুগ্রহ করে প্রথমে অনুমতির বাক্সে টিক দিন।'),
+  ('web_consent_needed', 'ru', 'Сначала отметьте согласие.'),
+  ('web_consent_needed', 'ur', 'براہ کرم پہلے اجازت والا خانہ منتخب کریں۔'),
+  ('web_uploading', 'en', 'Uploading…'),
+  ('web_uploading', 'es', 'Subiendo…'),
+  ('web_uploading', 'fr', 'Envoi en cours…'),
+  ('web_uploading', 'pt', 'Enviando…'),
+  ('web_uploading', 'zh', '正在上传…'),
+  ('web_uploading', 'ar', 'جارٍ الرفع…'),
+  ('web_uploading', 'hi', 'अपलोड हो रहा है…'),
+  ('web_uploading', 'bn', 'আপলোড হচ্ছে…'),
+  ('web_uploading', 'ru', 'Загрузка…'),
+  ('web_uploading', 'ur', 'اپلوڈ ہو رہا ہے…'),
+  ('web_uploaded', 'en', 'Thank you! Your photos are uploaded.'),
+  ('web_uploaded', 'es', '¡Gracias! Sus fotos se subieron.'),
+  ('web_uploaded', 'fr', 'Merci ! Vos photos sont envoyées.'),
+  ('web_uploaded', 'pt', 'Obrigado! Suas fotos foram enviadas.'),
+  ('web_uploaded', 'zh', '谢谢！照片已上传。'),
+  ('web_uploaded', 'ar', 'شكرًا! تم رفع صورك.'),
+  ('web_uploaded', 'hi', 'धन्यवाद! आपकी फ़ोटो अपलोड हो गईं।'),
+  ('web_uploaded', 'bn', 'ধন্যবাদ! আপনার ছবি আপলোড হয়েছে।'),
+  ('web_uploaded', 'ru', 'Спасибо! Фото загружены.'),
+  ('web_uploaded', 'ur', 'شکریہ! آپ کی تصاویر اپلوڈ ہو گئیں۔'),
+  ('web_upload_failed', 'en', 'A photo couldn''t be uploaded. Please try again.'),
+  ('web_upload_failed', 'es', 'No se pudo subir una foto. Inténtelo de nuevo.'),
+  ('web_upload_failed', 'fr', 'Une photo n''a pas pu être envoyée. Réessayez.'),
+  ('web_upload_failed', 'pt', 'Não foi possível enviar uma foto. Tente novamente.'),
+  ('web_upload_failed', 'zh', '有照片上传失败，请重试。'),
+  ('web_upload_failed', 'ar', 'تعذّر رفع إحدى الصور. يرجى المحاولة مرة أخرى.'),
+  ('web_upload_failed', 'hi', 'एक फ़ोटो अपलोड नहीं हो सकी। कृपया फिर से कोशिश करें।'),
+  ('web_upload_failed', 'bn', 'একটি ছবি আপলোড করা যায়নি। আবার চেষ্টা করুন।'),
+  ('web_upload_failed', 'ru', 'Не удалось загрузить фото. Попробуйте ещё раз.'),
+  ('web_upload_failed', 'ur', 'ایک تصویر اپلوڈ نہیں ہو سکی۔ دوبارہ کوشش کریں۔'),
+  ('web_delete', 'en', 'Delete'),
+  ('web_delete', 'es', 'Eliminar'),
+  ('web_delete', 'fr', 'Supprimer'),
+  ('web_delete', 'pt', 'Excluir'),
+  ('web_delete', 'zh', '删除'),
+  ('web_delete', 'ar', 'حذف'),
+  ('web_delete', 'hi', 'हटाएँ'),
+  ('web_delete', 'bn', 'মুছুন'),
+  ('web_delete', 'ru', 'Удалить'),
+  ('web_delete', 'ur', 'حذف کریں'),
+  ('web_delete_confirm', 'en', 'Delete this photo for good?'),
+  ('web_delete_confirm', 'es', '¿Eliminar esta foto para siempre?'),
+  ('web_delete_confirm', 'fr', 'Supprimer définitivement cette photo ?'),
+  ('web_delete_confirm', 'pt', 'Excluir esta foto definitivamente?'),
+  ('web_delete_confirm', 'zh', '要永久删除这张照片吗？'),
+  ('web_delete_confirm', 'ar', 'حذف هذه الصورة نهائيًا؟'),
+  ('web_delete_confirm', 'hi', 'इस फ़ोटो को हमेशा के लिए हटाएँ?'),
+  ('web_delete_confirm', 'bn', 'এই ছবিটি স্থায়ীভাবে মুছবেন?'),
+  ('web_delete_confirm', 'ru', 'Удалить это фото навсегда?'),
+  ('web_delete_confirm', 'ur', 'یہ تصویر ہمیشہ کے لیے حذف کریں؟'),
+  ('web_no_photos', 'en', 'No photos yet.'),
+  ('web_no_photos', 'es', 'Aún no hay fotos.'),
+  ('web_no_photos', 'fr', 'Pas encore de photos.'),
+  ('web_no_photos', 'pt', 'Ainda não há fotos.'),
+  ('web_no_photos', 'zh', '还没有照片。'),
+  ('web_no_photos', 'ar', 'لا توجد صور بعد.'),
+  ('web_no_photos', 'hi', 'अभी कोई फ़ोटो नहीं।'),
+  ('web_no_photos', 'bn', 'এখনও কোনো ছবি নেই।'),
+  ('web_no_photos', 'ru', 'Фото пока нет.'),
+  ('web_no_photos', 'ur', 'ابھی کوئی تصویر نہیں۔')
+on conflict (key, lang) do nothing;
