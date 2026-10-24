@@ -29,6 +29,7 @@ const TEXT_KEYS = [
   "story_intro", "story_church", "story_church_hint", "story_church_none", "story_phone_hint", "story_send",
   "story_sent", "story_title", "story_name", "story_body", "story_body_hint", "story_consent", "story_save",
   "story_saved", "story_guide", "story_delete", "story_delete_confirm", "story_deleted",
+  "j_start_button",
 ];
 const NAME_MAX = 60;
 const BODY_MAX = 4000; // the advice asks for about 250 words; this only stops abuse

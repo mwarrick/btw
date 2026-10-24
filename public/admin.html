@@ -283,6 +283,10 @@
   .story-english { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); white-space: pre-wrap; }
   .story-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .guide-title { margin: 28px 0 4px; font-size: 16px; }
+  .jd-fields { display: grid; gap: 8px; }
+  .jd-fields label { display: grid; gap: 4px; font-size: 13.5px; color: var(--muted); }
+  .jd-fields input, .jd-fields textarea, .bible-row input { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); color: var(--ink); font-size: 15px; }
+  .bible-row { display: grid; grid-template-columns: 9em 1fr auto; gap: 8px; align-items: center; margin: 6px 0; }
   .guide-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
   .guide-text { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); line-height: 1.5; }
   .meter.over { color: var(--warn); font-weight: 600; }
@@ -443,6 +447,7 @@
     <button class="screen-tab" type="button" data-screen="photos">Photos <span id="photos-unseen"></span></button>
     <button class="screen-tab" type="button" data-screen="baptisms">Baptisms</button>
     <button class="screen-tab" type="button" data-screen="testimonies">Testimonies <span id="stories-unseen"></span></button>
+    <button class="screen-tab" type="button" data-screen="discipleship">Discipleship <span id="journeys-flagged"></span></button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
     <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
@@ -553,6 +558,47 @@
         <button class="btn" id="guide-translate" type="button">Translate into every language</button>
         <span class="meter" id="guide-status"></span>
       </div>
+    </section>
+
+    <section class="block" data-screen="discipleship">
+      <h2>Discipleship</h2>
+      <p class="hint">The first 30 days of faith (<b>baptize.app/journey</b>): one reading a day, online only. Check-ins on days 7, 14, 21 and 30 go to the person's church, on the <b>Newly baptized</b> tab of its page. <b>Could use a call</b> means they answered "It's hard" or "I have a question", or missed a check-in by 3 days, since the church last pressed We talked.</p>
+      <div class="convo-bar">
+        <span class="meter" id="journey-meter"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="journey-refresh" type="button">Refresh</button>
+      </div>
+      <p class="meter" id="journey-answers"></p>
+      <div class="table-scroll">
+        <table class="convo-table">
+          <thead><tr><th>Person</th><th>Church</th><th>Day</th><th>Check-ins</th><th>Next step</th></tr></thead>
+          <tbody id="journey-rows"></tbody>
+        </table>
+      </div>
+
+      <h3 class="guide-title">The 30 days</h3>
+      <p class="hint">What people read each day, one day and one language at a time (English shows where a language has none). Edit the English, then <b>Translate into every language</b> for Google drafts of all 30 days, and check them. The passage is the reference shown on the page; <b>Read it</b> opens the English reference in that language's Bible link (below).</p>
+      <div class="guide-bar">
+        <label>Language <select id="jd-lang"></select></label>
+        <label>Day <select id="jd-day"></select></label>
+        <span class="meter" id="jd-meta"></span>
+      </div>
+      <div class="jd-fields">
+        <label>Theme <input id="jd-theme" maxlength="80"></label>
+        <label>Passage <input id="jd-passage" maxlength="80"></label>
+        <label>Note <textarea id="jd-note" rows="4" maxlength="600"></textarea></label>
+        <label>Question <input id="jd-question" maxlength="200"></label>
+        <label>Small step <input id="jd-step" maxlength="200"></label>
+      </div>
+      <div class="guide-bar">
+        <button class="btn primary" id="jd-save" type="button">Save</button>
+        <button class="btn" id="jd-translate" type="button">Translate into every language</button>
+        <span class="meter" id="jd-status"></span>
+      </div>
+
+      <h3 class="guide-title">Read it links</h3>
+      <p class="hint">Where <b>Read it</b> goes in each language: an https link with <b>{passage}</b> where the English reference goes. Languages without one use English's. The defaults search Bible Gateway in a free-to-read version of each language; check that they open the right Bible.</p>
+      <div id="bible-links"></div>
     </section>
 
     <section class="block" data-screen="photos">
@@ -953,6 +999,7 @@ async function load() {
   loadConversations();
   loadAdminPhotos();
   loadTestimonies();
+  loadJourneysAdmin();
   loadLog();
 }
 
@@ -1566,7 +1613,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "churches", "photos", "baptisms", "testimonies", "prompts", "languages", "log", "users", "connection"];
+const SCREENS = ["conversations", "churches", "photos", "baptisms", "testimonies", "discipleship", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
@@ -1577,6 +1624,7 @@ function showScreen(name) {
     else tab.removeAttribute("aria-current");
   }
   if (name === "testimonies" && !guide.loaded) loadGuide();
+  if (name === "discipleship" && !plan.loaded) loadPlan();
   // Textareas measured while hidden have no height.
   if (name === "prompts") document.querySelectorAll(".prompt textarea").forEach(autosize);
 }
@@ -2023,6 +2071,117 @@ $("guide-translate").addEventListener("click", async () => {
     $("guide-translate").disabled = false;
   }
 });
+
+// ---------- discipleship (the first 30 days) ----------
+
+const ANSWERS = { good: ["Going well", "ok"], hard: ["It's hard", "bad"], question: ["Has a question", "warn"] };
+const NEXT_STEPS = { group: "Join a small group", serve: "Serve", class: "Take a class", unsure: "Not sure yet" };
+const FLAG_WHY = { hard: "said it's hard", question: "has a question", missed: "missed a check-in" };
+
+async function loadJourneysAdmin() {
+  try {
+    const { journeys, totals } = await api("/api/admin/journeys");
+    $("journeys-flagged").replaceChildren(...(totals.flagged ? [chip(String(totals.flagged), "bad")] : []));
+    $("journey-meter").textContent = `${totals.started} started · ${totals.active_week} opened their page this week · ${totals.finished} finished · ${totals.flagged} could use a call`;
+    $("journey-answers").textContent = "Check-ins: " + [7, 14, 21, 30].map((d) => {
+      const a = totals.answers[d];
+      return `day ${d}: ${a.good} well, ${a.hard} hard, ${a.question} question`;
+    }).join(" · ");
+    $("journey-rows").replaceChildren(...(journeys.length ? journeys.map((j) => h("tr", {},
+      h("td", {}, h("span", { class: "who", text: j.first_name }), j.flag ? chip(`Could use a call: ${FLAG_WHY[j.flag.reason]} (day ${j.flag.day})`, "bad") : null,
+        h("span", { class: "sub", text: [j.lang !== "en" ? langNameAll(j.lang) : null, j.contact_ok && j.phone ? formatPhone(j.phone) : null, j.testimony_id ? "wrote a story" : null].filter(Boolean).join(" · ") })),
+      h("td", {}, j.church_phone
+        ? h("button", { class: "linkish", type: "button", text: j.church_name || "(church)", onclick: () => openThread(j.church_phone, "signup") })
+        : h("span", { class: "sub", text: "Church no longer signed up" })),
+      h("td", { class: "count", text: j.finished ? "Finished" : `${j.day} (${j.done} done)` }),
+      h("td", {}, ...(j.checkins.length ? j.checkins.map((c) => h("div", {}, chip(`Day ${c.day}`, "muted"), " ", chip(ANSWERS[c.answer][0], ANSWERS[c.answer][1]), c.note ? h("span", { class: "sub", text: c.note }) : null)) : [h("span", { class: "sub", text: "—" })])),
+      h("td", { text: j.next_step ? NEXT_STEPS[j.next_step] : "" }),
+    )) : [h("tr", {}, h("td", { colspan: "5", class: "empty", text: "No one has started yet. People start at baptize.app/journey, or from their saved story." }))]));
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+$("journey-refresh").addEventListener("click", loadJourneysAdmin);
+
+// The 30 days' content and the Read it links.
+const plan = { loaded: false, days: [], languages: [], links: [] };
+const langNameAll = (code) => plan.languages.find((l) => l.code === code)?.name || code;
+const JD_FIELDS = ["theme", "passage", "note", "question", "step"];
+async function loadPlan(keep) {
+  try {
+    const [{ days, languages }, { links }] = await Promise.all([api("/api/admin/journeys?part=days"), api("/api/admin/journeys?part=bible")]);
+    Object.assign(plan, { loaded: true, days, languages, links });
+    const lang = keep?.lang || $("jd-lang").value || "en";
+    const day = keep?.day || $("jd-day").value || "1";
+    $("jd-lang").replaceChildren(...languages.map((l) => h("option", { value: l.code, selected: l.code === lang },
+      `${l.name}${l.code === "en" ? "" : ` (${days.filter((d) => d.lang === l.code).length} of 30)`}`)));
+    $("jd-day").replaceChildren(...Array.from({ length: 30 }, (_, i) => {
+      const en = days.find((d) => d.day === i + 1 && d.lang === "en");
+      return h("option", { value: String(i + 1), selected: String(i + 1) === String(day) }, `${i + 1}. ${en?.theme || ""}`);
+    }));
+    showPlanDay();
+    renderBibleLinks();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+function showPlanDay() {
+  const lang = $("jd-lang").value || "en", day = Number($("jd-day").value || 1);
+  const row = plan.days.find((d) => d.day === day && d.lang === lang);
+  const en = plan.days.find((d) => d.day === day && d.lang === "en");
+  for (const f of JD_FIELDS) {
+    $(`jd-${f}`).value = row?.[f] || "";
+    $(`jd-${f}`).placeholder = lang !== "en" ? en?.[f] || "" : "";
+    $(`jd-${f}`).dir = ["ar", "ur"].includes(lang) ? "rtl" : "ltr";
+  }
+  $("jd-meta").textContent = row ? `Last changed ${when(row.updated_at)}` : "No translation yet: people see the English (shown greyed).";
+  $("jd-translate").hidden = lang !== "en";
+  $("jd-status").textContent = "";
+}
+$("jd-lang").addEventListener("change", showPlanDay);
+$("jd-day").addEventListener("change", showPlanDay);
+$("jd-save").addEventListener("click", async () => {
+  const lang = $("jd-lang").value, day = Number($("jd-day").value);
+  try {
+    await api("/api/admin/journeys?part=days", { method: "PUT", body: { day, lang, ...Object.fromEntries(JD_FIELDS.map((f) => [f, $(`jd-${f}`).value])) } });
+    toast(`Day ${day} saved (${langNameAll(lang)}).`);
+    loadPlan({ lang, day });
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+});
+$("jd-translate").addEventListener("click", async () => {
+  if (!confirm("Replace all 30 days in every other language with Google's translation of the saved English? Hand-made translations are overwritten.")) return;
+  $("jd-translate").disabled = true;
+  $("jd-status").textContent = "Translating…";
+  try {
+    const { results } = await api("/api/admin/journeys?part=days-translate", { method: "POST", body: {} });
+    const failed = results.filter((r) => !r.saved);
+    await loadPlan({ lang: "en", day: $("jd-day").value });
+    $("jd-status").textContent = failed.length
+      ? `Translated ${results.length - failed.length}; not saved: ${failed.map((r) => `${r.name} (${r.error})`).join(", ")}`
+      : `Translated into ${results.length} language${results.length === 1 ? "" : "s"}. Check each one.`;
+  } catch (err) {
+    $("jd-status").textContent = "";
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    $("jd-translate").disabled = false;
+  }
+});
+function renderBibleLinks() {
+  $("bible-links").replaceChildren(...plan.languages.map((l) => {
+    const input = h("input", { value: plan.links.find((x) => x.lang === l.code)?.body || "", placeholder: l.code === "en" ? "" : "(uses English's)", spellcheck: "false" });
+    return h("div", { class: "bible-row" }, h("span", { text: l.name }), input,
+      h("button", { class: "btn small", type: "button", text: "Save", onclick: async () => {
+        try {
+          await api("/api/admin/journeys?part=bible", { method: "PUT", body: { lang: l.code, url: input.value } });
+          toast(`Read it link saved (${l.name}).`);
+        } catch (err) {
+          if (!err.silent) toast(err.message, "bad");
+        }
+      } }));
+  }));
+}
 
 // ---------- photos ----------
 

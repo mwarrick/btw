@@ -102,6 +102,7 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
     <div id="f-consent"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
     <button type="submit" id="save"></button>
     <p class="status" id="savestatus" role="status"></p>
+    <a class="button" id="journey" href="#" hidden style="display:block;text-align:center;text-decoration:none;font-weight:700;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;margin-top:12px"></a>
     <button type="button" class="danger" id="delete" hidden></button>
   </form>
 </section>
@@ -266,6 +267,10 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
       put("delete", "story_delete", "Delete my story");
       $("first_name").value = s.first_name; $("body").value = s.body; $("consent").checked = s.consent;
       $("delete").hidden = !s.submitted_at;
+      // Once their story is saved: their first 30 days, with church and name carried over.
+      put("journey", "j_start_button", "Start my first 30 days");
+      $("journey").href = "/journey?story=" + encodeURIComponent(key);
+      $("journey").hidden = !s.submitted_at;
       count();
       $("msg").hidden = true; $("write").hidden = false;
     });
@@ -279,7 +284,7 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
     getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ first_name: $("first_name").value, body: $("body").value, consent: $("consent").checked }) })
       .then(function (x) {
-        if (x[0] === 200) { s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; return; }
+        if (x[0] === 200) { s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false; return; }
         if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
         s.textContent = "";
         if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }

@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b6ea8">
+<title>Baptize 2027</title>
+<style>
+/* The first 30 days: /journey (start) and /j/<key> (the days). One small
+   file, like the church's page, for weak phone signals. */
+:root{--brand:#0b6ea8;--ink:#13212d;--muted:#5b6977;--line:#cfd8e1;--bg:#f3f6f9;--card:#fff;--bad:#b3261e;--ok:#1c7a45;--soft:#e7f1f8}
+@media (prefers-color-scheme:dark){:root{--brand:#3fa6dd;--ink:#e5ecf2;--muted:#94a3b0;--line:#2a3846;--bg:#0b1117;--card:#141d26;--bad:#f08a80;--ok:#5ccc8f;--soft:#13283a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center}
+header .logo{display:block;flex:0 0 auto;border-radius:8px}
+header .home{display:block;flex:0 0 auto;border-radius:8px}
+header .home:focus-visible{outline:2px solid #fff;outline-offset:2px}
+header p{margin:0;font-size:15px}
+main{max-width:600px;margin:0 auto;padding:4px 16px 40px}
+h1{font-size:22px;margin:16px 0 4px}
+.sub{color:var(--muted);margin:0 0 4px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+label{display:block;font-weight:600;font-size:15px;margin-top:10px}
+label:first-child{margin-top:0}
+.hint{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:3px}
+input,select,textarea{display:block;width:100%;margin-top:6px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:46px}
+textarea{min-height:5em;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:1px}
+.lang{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:12px 0 0;font-size:15px;color:var(--muted)}
+.lang select{width:auto;margin:0;background:var(--card);min-height:42px;padding:8px 10px}
+button,a.button{display:block;width:100%;text-align:center;text-decoration:none;font:inherit;font-weight:700;border:0;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;min-height:48px;cursor:pointer;margin-top:12px}
+button:disabled{opacity:.5}
+button.quiet,a.button.quiet{background:transparent;color:var(--brand);border:1px solid var(--line)}
+.results{list-style:none;margin:6px 0 0;padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.results:empty{display:none}
+.results li+li{border-top:1px solid var(--line)}
+.results button{margin:0;width:100%;text-align:start;background:var(--card);color:var(--ink);font-weight:600;border-radius:0;min-height:52px;padding:10px 12px}
+.results small{display:block;font-weight:400;color:var(--muted)}
+.results .none{padding:12px;color:var(--muted);font-size:15px}
+.picked{display:flex;gap:10px;align-items:center;margin-top:6px;padding:10px 12px;border:1px solid var(--brand);border-radius:9px;background:var(--bg)}
+.picked div{flex:1;font-weight:600}.picked small{display:block;font-weight:400;color:var(--muted)}
+.picked button{width:auto;margin:0;min-height:38px;padding:6px 12px}
+.agree{display:flex;gap:10px;align-items:flex-start;font-weight:400}
+.agree input{width:22px;height:22px;min-height:0;margin:2px 0 0;padding:0;flex:0 0 auto}
+.err{display:block;color:var(--bad);font-weight:400;font-size:14px;margin-top:4px}
+.bad input,.bad textarea{border-color:var(--bad)}
+.status{font-size:15px;margin:10px 0 0;min-height:1.4em}
+.status.ok{color:var(--ok);font-weight:600}.status.bad{color:var(--bad)}
+.msg{text-align:center;color:var(--muted);padding:40px 8px}
+.dots{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin:12px 0}
+.dots a{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:50%;font-size:12px;font-weight:700;text-decoration:none;border:2px solid var(--line);color:var(--muted)}
+.dots a.open{border-color:var(--brand);color:var(--brand)}
+.dots a.done{background:var(--brand);border-color:var(--brand);color:#fff}
+.dots a.today{box-shadow:0 0 0 3px var(--soft)}
+.dots span{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:50%;font-size:12px;color:var(--line);border:2px dashed var(--line)}
+details.day{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:10px 0;padding:0}
+details.day>summary{list-style:none;cursor:pointer;padding:14px;display:flex;gap:10px;align-items:baseline}
+details.day>summary::-webkit-details-marker{display:none}
+details.day>summary b{white-space:nowrap;color:var(--brand)}
+details.day>summary span{flex:1;font-weight:600}
+details.day>summary i{font-style:normal;color:var(--ok);font-weight:700}
+details.day .body{padding:0 14px 14px}
+.passage{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--soft);border-radius:9px;padding:10px 12px;font-weight:600}
+.passage a{white-space:nowrap;font-weight:700;color:var(--brand)}
+.label{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-top:14px}
+.day p{margin:6px 0}
+.answers{display:grid;gap:8px;margin-top:8px}
+.answers button{margin:0;background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:600}
+.answers button[aria-pressed=true]{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);color:var(--brand)}
+.checkin{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.checkin h3{margin:0;font-size:17px}
+.week{background:var(--soft);border-color:transparent}
+.week b{display:block;font-size:14px;color:var(--muted)}
+.finished{color:var(--ok);font-weight:700}
+.locked{color:var(--muted);font-size:15px;padding:6px 2px}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.row label{flex:0 0 auto}.row input{margin:0;width:8.5em}
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><a class="home" href="/"><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture></a><p id="intro"></p></header>
+<main>
+<p class="msg" id="msg">…</p>
+
+<!-- /journey: start -->
+<section id="start" hidden>
+  <div class="lang" id="langrow"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
+  <h1 id="starttitle"></h1>
+  <form class="card" id="startform" novalidate>
+    <div id="f-church">
+      <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
+      <input id="q" type="search" autocomplete="off" enterkeyhint="search">
+      <div class="picked" id="picked" hidden><div><span id="pickedname"></span><small id="pickedplace"></small></div><button type="button" class="quiet" id="change">✕</button></div>
+      <ul class="results" id="results"></ul>
+    </div>
+    <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" maxlength="60" autocomplete="given-name"></div>
+    <div id="f-contact_ok" style="margin-top:14px"><label class="agree"><input type="checkbox" id="contact_ok"><span id="contactlabel"></span></label></div>
+    <div id="f-phone" hidden><label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
+    <div id="f-consent" style="margin-top:14px"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
+    <div class="hp" aria-hidden="true"><label>Company <input id="company_hp" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit" id="startbtn"></button>
+    <p class="status" id="startstatus" role="status"></p>
+  </form>
+</section>
+
+<!-- /j/<key>: the 30 days -->
+<section id="days" hidden>
+  <h1 id="title"></h1>
+  <p class="sub" id="bookmark"></p>
+  <p class="card finished" id="finished" hidden></p>
+  <div class="card week" id="week" hidden><b id="weeklabel"></b><span id="weeknote"></span></div>
+  <nav class="dots" id="dots" aria-label="30 days"></nav>
+  <div id="list"></div>
+  <div class="card">
+    <div class="row"><label for="time" style="margin:0;flex:0 0 auto"><input id="time" type="time" value="08:00"></label>
+    <a class="button quiet" id="calendar" href="#" style="margin:0"></a></div>
+  </div>
+</section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var key = (location.pathname.match(/\/j\/([A-Za-z0-9_-]+)/) || [])[1] || "";
+  var params = new URLSearchParams(location.search);
+  var T = {}, opened = Date.now();
+  function put(id, k, fallback) { $(id).textContent = T[k] || fallback || ""; }
+  function fill(s, vars) { return String(s || "").replace(/\{(\w+)\}/g, function (m, p) { return vars[p] != null ? vars[p] : m; }); }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    for (var a in attrs) if (attrs[a] != null) e.setAttribute(a, attrs[a]);
+    (kids || []).forEach(function (c) { if (c != null) e.append(c); });
+    return e;
+  }
+  function getJSON(url, opts) {
+    return fetch(url, opts).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); });
+  }
+  function fail(text) { $("start").hidden = $("days").hidden = true; $("msg").hidden = false; $("msg").textContent = text; }
+  function setLang(d) {
+    document.documentElement.lang = d.lang;
+    document.documentElement.dir = d.dir;
+    document.title = T.j_title || "Baptize 2027";
+    put("intro", "j_intro");
+  }
+  function showError(field, message) {
+    var box = $("f-" + field);
+    if (!box) return false;
+    box.classList.add("bad");
+    box.append(el("span", { class: "err" }, [message]));
+    box.scrollIntoView({ block: "center" });
+    return true;
+  }
+
+  // ---------- /journey: start ----------
+  var church = null, fromStory = null, searchTimer = null, searchSeq = 0;
+  function loadStart(lang) {
+    var story = params.get("story") || "";
+    return getJSON("/api/journey?part=start&lang=" + encodeURIComponent(lang) + (story ? "&story=" + encodeURIComponent(story) : "")).then(function (x) {
+      var d = x[1];
+      T = d.text || {};
+      setLang(d);
+      put("starttitle", "j_title", "Your first 30 days");
+      put("langlabel", "web_language", "Language");
+      put("churchlabel", "story_church", "Your church");
+      put("churchhint", "story_church_hint");
+      put("namelabel", "story_name", "Your first name");
+      put("contactlabel", "j_contact", "My church may contact me");
+      put("phonelabel", "web_phone", "Phone");
+      put("phonehint", "j_phone_hint");
+      put("consentlabel", "j_consent");
+      put("startbtn", "j_start_button", "Start my first 30 days");
+      $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
+        var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
+      }));
+      $("langrow").hidden = (d.languages || []).length < 2;
+      // From their story: the church and first name are already known, and so
+      // is their phone (the story's link was texted to it).
+      if (d.from) {
+        fromStory = d.from;
+        if (d.from.church) { pick(d.from.church); $("change").hidden = true; }
+        if (!$("first_name").value) $("first_name").value = d.from.first_name || "";
+      }
+      $("msg").hidden = true; $("start").hidden = false;
+      return d;
+    });
+  }
+  function pick(c) {
+    church = c;
+    $("pickedname").textContent = c ? c.name : "";
+    $("pickedplace").textContent = c ? c.place : "";
+    $("picked").hidden = !c; $("q").hidden = !!c;
+    $("results").replaceChildren();
+    if (!c) { $("q").value = ""; $("q").focus(); }
+  }
+  $("change").addEventListener("click", function () { pick(null); });
+  $("q").addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    var q = $("q").value.trim();
+    if (q.length < 2) return $("results").replaceChildren();
+    searchTimer = setTimeout(function () {
+      var mine = ++searchSeq;
+      getJSON("/api/journey?part=churches&q=" + encodeURIComponent(q)).then(function (x) {
+        if (mine !== searchSeq) return;
+        var list = x[1].churches || [];
+        $("results").replaceChildren.apply($("results"), list.length ? list.map(function (c) {
+          var b = el("button", { type: "button" }, [c.name, el("small", {}, [c.place])]);
+          b.addEventListener("click", function () { pick(c); });
+          return el("li", {}, [b]);
+        }) : [el("li", { class: "none" }, [T.story_church_none || "No church found."])]);
+      });
+    }, 250);
+  });
+  $("contact_ok").addEventListener("change", function () { $("f-phone").hidden = !$("contact_ok").checked || !!fromStory; });
+  $("startform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = $("startform"), s = $("startstatus");
+    f.querySelectorAll(".err").forEach(function (n) { n.remove(); });
+    f.querySelectorAll(".bad").forEach(function (n) { n.classList.remove("bad"); });
+    s.textContent = ""; s.className = "status";
+    $("startbtn").disabled = true;
+    var tz = "UTC";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (err) { /* UTC */ }
+    getJSON("/api/journey?part=start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      lang: $("lang").value || "en", story: params.get("story") || null, church: church && church.id,
+      first_name: $("first_name").value, contact_ok: $("contact_ok").checked, phone: $("phone").value,
+      consent: $("consent").checked, tz: tz, company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
+      .then(function (x) {
+        if (x[0] === 200 && x[1].key) { location.href = "/j/" + x[1].key; return; }
+        if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }
+      })
+      .catch(function () { s.textContent = "Couldn't connect. Try again."; s.className = "status bad"; })
+      .then(function () { $("startbtn").disabled = false; });
+  });
+
+  // ---------- /j/<key>: the days ----------
+  var api = "/api/journey?key=" + encodeURIComponent(key), J = null;
+  var NEXT = [["group", "j_next_group"], ["serve", "j_next_serve"], ["class", "j_next_class"], ["unsure", "j_next_unsure"]];
+  function loadDays(keepOpen) {
+    return getJSON(api).then(function (x) {
+      T = x[1].text || {};
+      if (x[0] !== 200) return fail(T.web_bad_link || "This link doesn't work anymore.");
+      var d = x[1];
+      J = d.journey;
+      setLang(d);
+      put("title", "j_title", "Your first 30 days");
+      put("bookmark", "j_bookmark");
+      $("finished").textContent = T.j_finished || "";
+      $("finished").hidden = !J.finished;
+      $("week").hidden = !(d.church && d.church.weekly_note);
+      $("weeklabel").textContent = fill(T.j_week_note || "This week at {church}", { church: d.church ? d.church.name : "" });
+      $("weeknote").textContent = d.church ? d.church.weekly_note : "";
+      put("calendar", "j_calendar", "Add a daily reminder to my calendar");
+      renderDots(d.days);
+      renderList(d.days, keepOpen);
+      $("msg").hidden = true; $("days").hidden = false;
+    });
+  }
+  function isDone(n) { return J.done_days.indexOf(n) >= 0; }
+  function renderDots(days) {
+    $("dots").replaceChildren.apply($("dots"), days.map(function (d) {
+      if (!d.open) return el("span", { "aria-label": fill(T.j_day || "Day {n}", { n: d.day }) }, [String(d.day)]);
+      return el("a", { href: "#day-" + d.day, class: "open" + (isDone(d.day) ? " done" : "") + (d.day === J.today ? " today" : ""),
+        "aria-label": fill(T.j_day || "Day {n}", { n: d.day }) }, [String(d.day)]);
+    }));
+  }
+  function renderList(days, keepOpen) {
+    // Today first, then the days before it; the next day to open is shown locked.
+    var open = days.filter(function (d) { return d.open; }).reverse();
+    var next = days.filter(function (d) { return !d.open; })[0];
+    var nodes = open.map(function (d) { return dayCard(d, keepOpen ? keepOpen === d.day : d.day === J.today); });
+    if (next) nodes.unshift(el("p", { class: "locked" }, [fill(T.j_day || "Day {n}", { n: next.day }) + " · " + (T.j_locked || "Not open yet")]));
+    $("list").replaceChildren.apply($("list"), nodes);
+  }
+  function dayCard(d, expanded) {
+    var done = isDone(d.day);
+    var doneBtn = el("button", { type: "button", class: done ? "quiet" : null }, [(done ? "✓ " : "") + (T.j_done || "Done")]);
+    doneBtn.addEventListener("click", function () { save({ done: d.day, value: !isDone(d.day) }, d.day); });
+    var body = [
+      el("div", { class: "passage" }, [el("span", { dir: "auto" }, [d.passage]), d.read ? el("a", { href: d.read, target: "_blank", rel: "noopener noreferrer" }, [T.j_read || "Read it"]) : null]),
+      el("p", {}, [d.note]),
+      el("span", { class: "label" }, [T.j_question || "Think about it"]), el("p", {}, [d.question]),
+      el("span", { class: "label" }, [T.j_step || "Your step today"]), el("p", {}, [d.step]),
+    ];
+    // Day 27: telling their story.
+    if (d.day === 27) body.push(el("a", { class: "button quiet", href: "/story?lang=" + encodeURIComponent(document.documentElement.lang) }, [T.land_baptized_button || "Share your story"]));
+    if (J.checkin_days.indexOf(d.day) >= 0) body.push(checkin(d.day));
+    body.push(doneBtn);
+    return el("details", { class: "day", id: "day-" + d.day, open: expanded ? "" : null }, [
+      el("summary", {}, [el("b", {}, [fill(T.j_day || "Day {n}", { n: d.day })]), el("span", {}, [d.theme]), done ? el("i", {}, ["✓"]) : null]),
+      el("div", { class: "body" }, body),
+    ]);
+  }
+  function checkin(day) {
+    var had = J.checkins[day] || {};
+    var chosen = had.answer || null, next = J.next_step || null;
+    var box = el("div", { class: "checkin", id: "f-checkin-" + day }, [el("h3", {}, [T.j_checkin || "How is it going?"])]);
+    var answers = el("div", { class: "answers" }, [["good", "j_good"], ["hard", "j_hard"], ["question", "j_ask"]].map(function (a) {
+      var b = el("button", { type: "button", "aria-pressed": String(chosen === a[0]) }, [T[a[1]] || a[0]]);
+      b.addEventListener("click", function () {
+        chosen = a[0];
+        answers.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      });
+      return b;
+    }));
+    box.append(answers);
+    var steps = null;
+    if (day === 30) {
+      box.append(el("span", { class: "label" }, [T.j_next || "What's your next step?"]));
+      steps = el("div", { class: "answers" }, NEXT.map(function (n) {
+        var b = el("button", { type: "button", "aria-pressed": String(next === n[0]) }, [T[n[1]] || n[0]]);
+        b.addEventListener("click", function () {
+          next = n[0];
+          steps.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        });
+        return b;
+      }));
+      box.append(steps);
+    }
+    var note = el("textarea", { maxlength: "1000" }, []);
+    note.value = had.note || "";
+    var status = el("p", { class: "status" + (had.answer ? " ok" : ""), role: "status" }, [had.answer ? T.j_sent || "Thank you! Your church will see this." : ""]);
+    var send = el("button", { type: "button" }, [T.j_send || "Send"]);
+    send.addEventListener("click", function () {
+      if (!chosen) { answers.querySelector("button").focus(); return; }
+      send.disabled = true;
+      save({ checkin: { day: day, answer: chosen, note: note.value, next_step: next } }, day).then(function () { send.disabled = false; });
+    });
+    box.append(el("label", {}, [T.j_note || "Anything your church should know? (optional)", note]), send, status);
+    return box;
+  }
+  function save(body, day) {
+    return getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (x) { if (x[0] === 200) return loadDays(day); })
+      .catch(function () { /* the page stays as it was; they can try again */ });
+  }
+  function calendarHref() { return api + "&part=calendar&time=" + encodeURIComponent($("time").value || "08:00"); }
+  $("time").addEventListener("change", function () { $("calendar").href = calendarHref(); });
+
+  if (key) {
+    loadDays().then(function () { $("calendar").href = calendarHref(); })
+      .catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+  } else {
+    var wanted = [params.get("lang") || ""].concat((navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); }));
+    loadStart("en").then(function (d) {
+      var codes = (d.languages || []).map(function (l) { return l.code; });
+      var pickLang = d.from ? d.lang : wanted.filter(function (c) { return codes.indexOf(c) >= 0; })[0];
+      if (pickLang && pickLang !== "en") return loadStart(pickLang);
+    }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+    $("lang").addEventListener("change", function () { loadStart($("lang").value); });
+  }
+})();
+</script>
+</body>
+</html>

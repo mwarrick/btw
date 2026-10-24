@@ -45,10 +45,11 @@ import { logEvent } from "../lib/events.js";
 import { isProfileKey, linkText, newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
 import { RTL, phoneValue, wording as words } from "../lib/web-text.js";
+import { journeysWithStatus } from "../lib/journeys.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
-const FIELDS = ["id", "phone", "lang", "completed_at", "consent_at", "profile_key", "simulated", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
+const FIELDS = ["id", "phone", "lang", "completed_at", "consent_at", "profile_key", "simulated", "weekly_note", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
 // The page's wording (TEXT_KEYS unless told otherwise).
 const wording = (lang, keys = TEXT_KEYS) => words(lang, keys);
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
@@ -73,6 +74,10 @@ const TEXT_KEYS = [
   "web_phone", "web_phone_hint",
   // Finishing a signup begun by text (web_form_link).
   "web_finish_intro", "web_finish_button",
+  // The Newly baptized tab: people on their first 30 days (api/journey.js).
+  "web_tab_journeys", "web_journeys_intro", "web_no_journeys", "web_journey_progress", "web_journey_flag",
+  "web_journey_talked", "web_journey_next_label", "web_weekly_note", "web_weekly_note_hint",
+  "j_good", "j_hard", "j_ask", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_day",
   // The Stories tab: baptism stories from the church's people (api/story.js).
   "web_tab_stories", "web_stories_intro", "web_no_stories",
   // The signup form (no key).
@@ -85,7 +90,7 @@ const TEXT_KEYS = [
 const LANDING_KEYS = ["web_title", "web_language", "web_phone", "web_phone_invalid",
   "land_intro", "land_church_title", "land_church_text", "land_signup", "land_text_us", "land_link_title",
   "land_link_hint", "land_link_button", "land_link_sent", "land_baptized_title", "land_baptized_text",
-  "land_coming_soon", "land_baptized_button", "land_team_title", "land_team_text", "land_team_button"];
+  "land_coming_soon", "land_baptized_button", "land_journey_button", "land_team_title", "land_team_text", "land_team_button"];
 // Answers the signup form must have; state and ZIP only in the US.
 const REQUIRED = ["church_name", "street", "city", "name", "email"];
 
@@ -115,6 +120,17 @@ export default async function handler(req, res) {
       res.status(200).json({ messages: await history(church.phone) });
       return;
     }
+    if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "journeys") {
+      const list = await journeysWithStatus([church.id]);
+      res.status(200).json({
+        weekly_note: church.weekly_note || "",
+        journeys: list.sort((a, b) => (!!b.flag - !!a.flag) || b.id - a.id).map((j) => ({
+          id: j.id, first_name: j.first_name, day: j.day, done: j.done, finished: j.finished, next_step: j.next_step,
+          checkins: j.checkins, flag: j.flag, phone: j.contact_ok && j.phone ? formatPhone(j.phone) : null, started_on: j.started_on,
+        })),
+      });
+      return;
+    }
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "stories") {
       const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&select=first_name,body,submitted_at,updated_at&order=submitted_at.desc`);
       res.status(200).json({ stories: stories.filter((s) => s.submitted_at) });
@@ -127,6 +143,20 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Newly baptized tab: We talked clears someone's flag; the weekly note
+    // shows on every day's page of their first 30 days.
+    if (req.body && "journey_talked" in req.body) {
+      const id = Number(req.body.journey_talked);
+      await db(`btw_journeys?id=eq.${Number.isInteger(id) ? id : 0}&church_id=eq.${church.id}`, { method: "PATCH", body: { talked_at: new Date().toISOString() } });
+      res.status(200).json({ ok: true });
+      return;
+    }
+    if (req.body && "weekly_note" in req.body) {
+      const note = String(req.body.weekly_note ?? "").trim().replace(/\s+/g, " ").slice(0, 200) || null;
+      await db(`btw_churches?id=eq.${church.id}`, { method: "PATCH", body: { weekly_note: note } });
+      res.status(200).json({ weekly_note: note || "" });
+      return;
+    }
     if (req.body && "baptisms" in req.body) {
       const n = Number(req.body.baptisms);
       if (!Number.isInteger(n) || n < 0 || n > 100000) {
@@ -346,7 +376,7 @@ async function sendThanks(phone, words, link) {
 // The answers the page can edit; the phone is sent apart, since it can't be
 // changed (it's the signup's identity).
 function publicFields(church) {
-  const { id, phone, lang, completed_at, consent_at, profile_key, simulated, baptisms, baptisms_at, ...rest } = church;
+  const { id, phone, lang, completed_at, consent_at, profile_key, simulated, weekly_note, baptisms, baptisms_at, ...rest } = church;
   return rest;
 }
 

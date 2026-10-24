@@ -39,3 +39,10 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **Advice translations need checking.** The seeded advice was translated by hand. "Translate into every language" overwrites every other language with Google drafts, which need a native speaker's eye.
 - **US and Canadian numbers only**, as for churches.
 
+## The first 30 days (`/journey`)
+- **The plan is a draft.** We wrote the 30 days. A pastor should review them, and the translations are Google drafts until someone checks them ("Translate into every language" on the Discipleship screen).
+- **No reminders unless they set them up.** Nothing is texted. Someone who doesn't bookmark the page or add the calendar reminders may not come back; the church's tab shows who has gone quiet.
+- **Read it depends on an outside site.** The links go to Bible Gateway, and the version chosen for each language needs checking. Bengali has no link and uses English's.
+- **No phone check.** Starting from the front page doesn't verify the phone a person gives for their church to call. Starting from a story uses that story's verified number.
+- **No add to home screen.** The page can be bookmarked, but it can't be installed like an app.
+

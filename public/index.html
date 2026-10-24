@@ -72,6 +72,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
   <h2 id="baptized-title">I was baptized</h2>
   <p id="baptized-text"></p>
   <a class="button" href="/story" id="story">Share your story</a>
+  <a class="button quiet" href="/journey" id="journey" style="margin-top:10px">First 30 days</a>
 </section>
 
 <section class="card team" id="team">
@@ -97,7 +98,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
       put("church-title", "land_church_title"); put("church-text", "land_church_text"); put("signup", "land_signup");
       put("link-title", "land_link_title"); put("link-hint", "land_link_hint"); put("link-button", "land_link_button");
       put("phone-label", "web_phone");
-      put("baptized-title", "land_baptized_title"); put("baptized-text", "land_baptized_text"); put("story", "land_baptized_button");
+      put("baptized-title", "land_baptized_title"); put("baptized-text", "land_baptized_text"); put("story", "land_baptized_button"); put("journey", "land_journey_button");
       put("team-title", "land_team_title"); put("team-text", "land_team_text"); put("team-button", "land_team_button");
       put("langlabel", "web_language");
       // "Or text +1 714-716-5116 ...", with the number as a link that opens their texting app.
@@ -115,6 +116,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
       // The signup form opens in the language picked here.
       $("signup").href = "/signup?lang=" + encodeURIComponent(d.lang);
       $("story").href = "/story?lang=" + encodeURIComponent(d.lang);
+      $("journey").href = "/journey?lang=" + encodeURIComponent(d.lang);
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = document.createElement("option");
         o.value = l.code; o.textContent = l.name; o.selected = l.code === d.lang;

@@ -44,7 +44,7 @@ const handlers = {};
 for (const file of fs.readdirSync(path.join(ROOT, "api/admin")).filter((f) => f.endsWith(".js"))) {
   handlers[`/api/admin/${file.slice(0, -3)}`] = (await import(path.join(ROOT, "api/admin", file))).default;
 }
-for (const name of ["sms-inbound", "sms-send", "prompts", "profile", "profile-photos", "story"]) {
+for (const name of ["sms-inbound", "sms-send", "prompts", "profile", "profile-photos", "story", "journey"]) {
   handlers[`/api/${name}`] = (await import(path.join(ROOT, "api", `${name}.js`))).default;
 }
 
@@ -81,7 +81,7 @@ http.createServer(async (req, res) => {
     return handler(req, res);
   }
   // vercel.json's rewrites and cleanUrls, by hand.
-  const page = url.pathname === "/admin" ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname === "/signup" ? "profile.html" : url.pathname === "/story" || url.pathname.startsWith("/s/") ? "story.html" : url.pathname === "/demo" ? "demo.html"
+  const page = url.pathname === "/admin" ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname === "/signup" ? "profile.html" : url.pathname === "/story" || url.pathname.startsWith("/s/") ? "story.html" : url.pathname === "/journey" || url.pathname.startsWith("/j/") ? "journey.html" : url.pathname === "/demo" ? "demo.html"
     : url.pathname.startsWith("/p/") ? "profile.html" : url.pathname;
   const file = path.join(ROOT, "public", page);
   if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

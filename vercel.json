@@ -59,6 +59,23 @@
           "value": "DENY"
         }
       ]
+    },
+    {
+      "source": "/j/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -73,6 +90,10 @@
     {
       "source": "/s/:key",
       "destination": "/story"
+    },
+    {
+      "source": "/j/:key",
+      "destination": "/journey"
     }
   ]
 }
