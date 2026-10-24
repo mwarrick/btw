@@ -2017,7 +2017,8 @@ function storyCard(t) {
     h("button", { class: "btn small", type: "button", text: t.featured_at ? "★ Featured" : "☆ Feature",
       title: t.featured_at ? "Click to stop featuring it" : "Star it to feature (they agreed)", onclick: async () => {
       try {
-        await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { featured: !t.featured_at } });
+        const { sent } = await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { featured: !t.featured_at } });
+        if (sent) toast(sent === "mocked" ? "Featured. It would go to baptize.org now (mocked: Baptize has no API yet; see the Log)." : "Featured and sent to baptize.org.");
         loadTestimonies();
       } catch (err) {
         if (!err.silent) toast(err.message, "bad");

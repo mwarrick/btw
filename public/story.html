@@ -228,7 +228,8 @@ legend{font-weight:600;font-size:15px;padding:0}
   // ---------- /story ----------
   var church = null, searchTimer = null, searchSeq = 0;
   function loadStart(lang) {
-    return getJSON("/api/story?part=start&lang=" + encodeURIComponent(lang)).then(function (x) {
+    var qr = new URLSearchParams(location.search).get("church") || "";
+    return getJSON("/api/story?part=start&lang=" + encodeURIComponent(lang) + (qr ? "&church=" + encodeURIComponent(qr) : "")).then(function (x) {
       var d = x[1];
       T = d.text || {};
       setLang(d);
@@ -246,6 +247,8 @@ legend{font-weight:600;font-size:15px;padding:0}
         var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
       }));
       $("lang").parentNode.hidden = (d.languages || []).length < 2;
+      // From their church's QR code: that church, which they can still change.
+      if (d.church && !church) pick(d.church);
       $("msg").hidden = true; $("start").hidden = false;
       return d;
     });
@@ -284,6 +287,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     $("send").disabled = true;
     getJSON("/api/story?part=link", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lang: $("lang").value || "en", church: church && church.id, phone: $("phone").value,
+        via_qr: !!(church && new URLSearchParams(location.search).get("church") === String(church.id)),
         company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
       .then(function (x) {
         if (x[0] === 200) { s.textContent = T.story_sent || "Check your texts."; s.className = "status ok"; return; }
@@ -414,10 +418,14 @@ legend{font-weight:600;font-size:15px;padding:0}
       ctx.globalAlpha = 1;
     }
     ctx.font = "800 48px " + font; ctx.direction = "ltr";
-    ctx.fillText("Baptize 2027", W / 2, H - 120);
+    ctx.fillText("Baptize 2027", W / 2, H - 150);
+    ctx.font = "600 38px " + font; ctx.globalAlpha = .85;
+    ctx.fillText(HASHTAG, W / 2, H - 92); ctx.globalAlpha = 1;
     return c;
   }
-  function shareText() { return story.body + "\n\n\u2014 " + story.first_name; }
+  // The movement's hashtag, on the picture and with the text they share.
+  var HASHTAG = "#BaptizeTheWorld";
+  function shareText() { return story.body + "\n\n\u2014 " + story.first_name + "\n\n" + HASHTAG; }
   function showCard() {
     $("card").hidden = !story || !story.submitted_at;
     if ($("card").hidden) return;

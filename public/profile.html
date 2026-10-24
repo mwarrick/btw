@@ -81,8 +81,8 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 button.quiet{background:transparent;color:var(--brand);border:1px solid var(--line);width:100%;margin-top:10px}
 [hidden]{display:none!important}
-#qrcard .qr{display:block;width:220px;max-width:100%;margin:12px auto 4px;background:#fff;padding:8px;border-radius:8px}#qrcard .qr svg{display:block;width:100%;height:auto}#qrlink{display:block;text-align:center;font-size:13px;color:var(--muted);word-break:break-all}#qrcard .print{display:none}.person .last{display:block;color:var(--muted);font-size:14px}
-@media print{body *{visibility:hidden}#qrcard,#qrcard *{visibility:visible}#qrcard{position:absolute;inset:0;border:0;text-align:center;padding-top:48px}#qrcard .print{display:block;font-size:28px;font-weight:700;margin:8px 0}#qrcard .screen{display:none}#qrcard .qr{width:60%;max-width:420px}#qrlink{font-size:14px;color:#000}}
+.qrcard .qr{display:block;width:220px;max-width:100%;margin:12px auto 4px;background:#fff;padding:8px;border-radius:8px}.qrcard .qr svg{display:block;width:100%;height:auto}.qrcard .qrlink{display:block;text-align:center;font-size:13px;color:var(--muted);word-break:break-all}.qrcard .print{display:none}.person .last{display:block;color:var(--muted);font-size:14px}
+@media print{body *{visibility:hidden}.qrcard,.qrcard *{visibility:visible}.qrcard{position:absolute;inset:0;border:0;text-align:center;padding-top:48px}.qrcard .print{display:block;font-size:28px;font-weight:700;margin:8px 0}.qrcard .screen{display:none}.qrcard .qr{width:60%;max-width:420px}.qrcard .qrlink{font-size:14px;color:#000}}
 </style>
 </head>
 <body>
@@ -106,13 +106,10 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
 <span class="hint" id="bhint"></span><p class="note" id="bupdated"></p>
 <button type="submit" id="bsave" style="width:100%;margin-top:12px"></button><p id="bstatus" role="status"></p></form></section>
 <section id="journeys" hidden><p class="card" id="jintro"></p>
-<div class="card" id="qrcard"><h3 class="screen" id="qrtitle" style="margin:0"></h3><p class="hint screen" id="qrhint"></p>
-<p class="print" id="qrprintchurch"></p><p class="print" id="qrprinttitle"></p>
-<div class="qr" id="qr"></div><span id="qrlink" dir="ltr"></span>
-<button type="button" class="quiet screen" id="qrprint" style="width:100%;margin-top:10px"></button></div>
+<div class="card qrcard" id="qrcard" hidden></div>
 <form class="card" id="weekform"><label for="weeknote"><span id="weeklabel"></span><span class="hint" id="weekhint"></span><input id="weeknote" maxlength="200"></label><button type="submit" id="weeksave"></button> <span id="weekstatus"></span></form>
 <div id="jlist"></div></section>
-<section id="stories" hidden><p class="card" id="sintro"></p><div id="slist"></div></section>
+<section id="stories" hidden><p class="card" id="sintro"></p><div class="card qrcard" id="sqrcard" hidden></div><div id="slist"></div></section>
 <section id="resources" hidden><div class="card"><p id="rintro"></p><a class="add" id="ropen" target="_blank" rel="noopener"></a></div></section></main>
 <div class="bar" id="bar" hidden><div><span id="status" role="status"></span><button id="save" form="form" type="submit">Save</button></div></div>
 <script>
@@ -386,27 +383,29 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   // a call first.
   var ANSWER = { good: "j_good", hard: "j_hard", question: "j_ask" };
   var NEXT = { group: "j_next_group", serve: "j_next_serve", "class": "j_next_class", unsure: "j_next_unsure" };
-  // The QR code that starts the 30 days with this church picked. The QR
-  // library (public/js/qrcode.js) loads only when this tab opens.
-  function showQR(url) {
-    $("qrtitle").textContent = T.web_journey_qr || "Invite them with a QR code";
-    $("qrhint").textContent = T.web_journey_qr_hint || "";
-    $("qrprint").textContent = T.web_print || "Print";
-    $("qrprinttitle").textContent = T.j_title || "Your first 30 days";
+  // A QR code that opens `url` with this church picked (the 30 days on the
+  // Newly baptized tab, the story form on Stories), with a Print button for
+  // a one-page sheet. The QR library (public/js/qrcode.js) loads only when
+  // one of these tabs opens.
+  function showQR(card, url, title, hint, printTitle) {
     var name = $("f-church_name") && $("f-church_name").querySelector("input");
-    $("qrprintchurch").textContent = name ? name.value : "";
-    $("qrlink").textContent = url;
+    var qr = el("div", { class: "qr" }, []);
+    var print = el("button", { type: "button", class: "quiet screen", style: "width:100%;margin-top:10px" }, [T.web_print || "Print"]);
+    print.addEventListener("click", function () { window.print(); });
+    card.replaceChildren(el("h3", { class: "screen", style: "margin:0" }, [title]), el("p", { class: "hint screen" }, [hint]),
+      el("p", { class: "print" }, [name ? name.value : ""]), el("p", { class: "print" }, [printTitle]),
+      qr, el("span", { class: "qrlink", dir: "ltr" }, [url]), print);
+    card.hidden = false;
     function draw() {
       var code = qrcode(0, "M");
       code.addData(url); code.make();
-      $("qr").innerHTML = code.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      qr.innerHTML = code.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
     }
     if (window.qrcode) return draw();
     var sc = document.createElement("script");
     sc.src = "/js/qrcode.js"; sc.onload = draw;
     document.head.append(sc);
   }
-  $("qrprint").addEventListener("click", function () { window.print(); });
   // "3 days ago", in the page's language.
   function ago(iso) {
     var days = Math.round((Date.now() - Date.parse(iso)) / 864e5);
@@ -416,7 +415,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   function loadJourneys() {
     fetch(api + "&part=journeys").then(function (r) { return r.json(); }).then(function (d) {
       $("weeknote").value = d.weekly_note || "";
-      if (d.start_url) showQR(d.start_url);
+      if (d.start_url) showQR($("qrcard"), d.start_url, T.web_journey_qr || "Invite them with a QR code", T.web_journey_qr_hint || "", T.j_title || "Your first 30 days");
       var list = d.journeys || [];
       $("tab-journeys").textContent = (T.web_tab_journeys || "Newly baptized") + (list.some(function (j) { return j.flag; }) ? " •" : "");
       $("jlist").replaceChildren.apply($("jlist"), list.length ? list.map(function (j) {
@@ -449,6 +448,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   // Baptism stories written for this church (/story), newest first.
   function loadStories() {
     fetch(api + "&part=stories").then(function (r) { return r.json(); }).then(function (d) {
+      if (d.start_url) showQR($("sqrcard"), d.start_url, T.web_story_qr || "Invite them to share their story", T.web_story_qr_hint || "", T.story_title || "Your baptism story");
       var list = d.stories || [];
       $("slist").replaceChildren.apply($("slist"), list.length ? list.map(function (st) {
         return el("article", { class: "card story" }, [el("h3", {}, [st.first_name || ""]),

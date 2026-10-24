@@ -8,7 +8,8 @@
 //                                private, or for their church only); `waiting` counts links
 //                                sent but nothing written yet
 //   PATCH ?id= { seen: true } -> { ok }: no longer New
-//   PATCH ?id= { featured }   -> { ok }: starred to feature, or not
+//   PATCH ?id= { featured }   -> { ok, sent }: starred to feature, or not; featuring hands it
+//                                to Baptize (saveStory in lib/baptize.js, mocked: `sent` is "mocked")
 //   POST ?part=samples        -> { added }: replaces the three sample stories (lib/simulations.js)
 //   POST ?id= { translate: true } -> { text }: the story in English (not saved)
 //   DELETE ?id=               -> { deleted: true }
@@ -20,6 +21,7 @@
 //                                language and saved, for a person to check
 
 import { requireAdmin } from "../../lib/admin-auth.js";
+import { saveStory } from "../../lib/baptize.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
 import { addSampleStoriesToSimulation } from "../../lib/simulations.js";
 import { translate } from "../../lib/translate.js";
@@ -49,7 +51,12 @@ export default async function handler(req, res) {
         method: "PATCH", body: { featured_at: req.body.featured ? new Date().toISOString() : null }, prefer: "return=representation",
       });
       if (!done.length) return res.status(404).json({ error: "That story isn't shared with the team." });
-      return res.status(200).json({ ok: true });
+      if (!req.body.featured) return res.status(200).json({ ok: true });
+      const [story] = await db(`btw_testimonies?id=eq.${id}&select=first_name,lang,body,answers,consent_text,adult,guardian_name,church_id`);
+      const [church] = story.church_id ? await db(`btw_churches?id=eq.${story.church_id}&select=church_name,city,state,country`) : [];
+      const sent = await saveStory({ ...story, church_name: church?.church_name,
+        church_place: church ? [church.city, church.state, church.country && church.country !== "US" ? church.country : null].filter(Boolean).join(", ") : null });
+      return res.status(200).json({ ok: true, sent: sent.mocked ? "mocked" : "sent" });
     }
     if (req.method === "PATCH") {
       await db(`btw_testimonies?id=eq.${id}`, { method: "PATCH", body: { seen_at: new Date().toISOString() } });
