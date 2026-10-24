@@ -182,8 +182,16 @@ async function converse(sms, site) {
           replies = [engine.say(lang, "info_reply")];
         }
       } else {
-        await save(phone, before, result.state, church, key);
+        // Right after the language is picked, the first time: their own page
+        // as another way to answer (web_form_link), between the welcome and
+        // the first question. Saving the key makes the link work from now on.
+        const offerForm = !finished && before.phase === "lang" && result.state.phase === "collect" && !church?.profile_key;
+        await save(phone, before, result.state, church, key, offerForm);
         replies = result.replies;
+        if (offerForm) {
+          const form = engine.say(result.state.lang, "web_form_link", { link });
+          if (form && form.includes(link)) replies = [...replies.slice(0, -1), form, ...replies.slice(-1)];
+        }
         lang = result.state.lang || lang;
         stopped = result.state.phase === "stopped";
         justFinished = !finished && result.state.phase === "done";
@@ -323,7 +331,7 @@ function toState(session, church) {
   };
 }
 
-async function save(phone, before, state, church, key) {
+async function save(phone, before, state, church, key, keepKey = false) {
   const now = new Date().toISOString();
   // Complete from the first DONE until a restart, even while an answer is
   // being edited or the language changed afterwards.
@@ -336,7 +344,7 @@ async function save(phone, before, state, church, key) {
   row.consent_at = state.data.consent ? church?.consent_at || now : null;
   row.completed_at = completed;
   row.status = state.phase === "stopped" ? "opted_out" : completed ? "complete" : "in_progress";
-  if (completed) row.profile_key = key;
+  if (completed || keepKey) row.profile_key = key;
 
   await Promise.all([
     db("btw_sessions?on_conflict=phone", {
