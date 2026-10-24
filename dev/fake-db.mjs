@@ -8,9 +8,11 @@
 // <ask_name>, plus the real English keyword lists. Supabase Storage is kept
 // in `files` (upload, signed links, delete); dev/server.mjs serves the links.
 
+import zlib from "node:zlib";
+
 const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", kw_done: "DONE",
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
-const keys = ["menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
+const keys = ["photo_ask","photo_yes","photo_no","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
   "summary_hint","edit_saved","edit_invalid","sum_intro","sum_outro","val_you","val_same","val_yes","val_no"];
 for (const q of ["name","email","church","country","region","postal","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
   keys.push("ask_"+q, "err_"+q, "edit_"+q);
@@ -21,6 +23,15 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     ...Object.entries(KW).map(([k, t]) => ({ key: k, lang: "en", text: t }))],
   btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [] };
 export const files = new Map(); // "bucket/path" -> Buffer
+
+// A 40x30 blue PNG, for fake MMS attachments.
+function tinyPng() {
+  const crc = (buf) => { let c = ~0; for (const b of buf) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return ~c >>> 0; };
+  const chunk = (type, data) => { const t = Buffer.concat([Buffer.from(type), data]); const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const c = Buffer.alloc(4); c.writeUInt32BE(crc(t)); return Buffer.concat([len, t, c]); };
+  const head = Buffer.alloc(13); head.writeUInt32BE(40, 0); head.writeUInt32BE(30, 4); head[8] = 8; head[9] = 2;
+  const rows = Buffer.concat(Array.from({ length: 30 }, () => Buffer.concat([Buffer.from([0]), Buffer.from(Array(40).fill([40, 110, 200]).flat())])));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", head), chunk("IDAT", zlib.deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+}
 export const sent = [];
 export let failSend = false; export function setFailSend(v) { failSend = v; }
 let nextId = 1;
@@ -33,6 +44,13 @@ globalThis.fetch = async (url, opts = {}) => {
     const b = JSON.parse(opts.body);
     if (url.endsWith("/detect")) return new Response(JSON.stringify({ data: { detections: [[{ language: "en", confidence: 1 }]] } }));
     return new Response(JSON.stringify({ data: { translations: b.q.map((q) => ({ translatedText: `[${b.target}] ${q}` })) } }));
+  }
+  // MMS attachments at https://media.example/...: a small PNG, except
+  // ".../missing" (404) and ".vcf" (a contact card, not a picture).
+  if (url.startsWith("https://media.example/")) {
+    if (url.includes("missing")) return new Response("", { status: 404 });
+    if (url.endsWith(".vcf")) return new Response("BEGIN:VCARD\nFN:Someone\nEND:VCARD\n", { headers: { "Content-Type": "text/vcard" } });
+    return new Response(tinyPng(), { headers: { "Content-Type": "image/png" } });
   }
   if (url.includes("/storage/v1/")) {
     const rest = url.split("/storage/v1")[1];

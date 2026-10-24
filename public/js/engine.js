@@ -331,5 +331,14 @@ export function createEngine({ prompts, languages }) {
     return [];
   }
 
-  return { start, startIn, reply, menu, again };
+  // A YES (true) or NO (false) in `lang` or English, or null for anything
+  // else: for questions asked outside the signup, such as photo permission.
+  function yesNo(lang, input) {
+    const word = normalize(input ?? "");
+    if (words(lang, "kw_yes").has(word)) return true;
+    if (words(lang, "kw_no").has(word)) return false;
+    return null;
+  }
+
+  return { start, startIn, reply, menu, again, yesNo, say: text };
 }

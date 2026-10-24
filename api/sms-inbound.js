@@ -13,10 +13,15 @@
 // last, since everything after media= is read as the list (a link may
 // itself contain & or ;).
 //
-// Pictures are kept with the text (btw_messages.media) and shown in /admin.
-// Once a signup is finished they go to the team thread like any text;
-// before that, a picture with no words gets the open question again rather
-// than counting as a wrong answer.
+// Pictures: the links are kept with the text (btw_messages.media) and each
+// picture is copied into our storage (lib/photos.js), shown on the pastor's
+// page and in /admin. They may be shared publicly, so permission is asked by
+// text (photo_ask) once the signup is finished: with the first picture of a
+// batch, or right after finishing for pictures sent while signing up. A YES
+// or NO to it, while photos are waiting, answers for all of them
+// (photo_yes / photo_no, with the page link). A picture with no words while
+// a signup question is open gets that question again; after finishing, its
+// message also goes to the team thread like any text.
 //
 // Sources disagree on whether voip.ms sends GET with placeholders (sometimes
 // separated by ";" instead of "&") or POST with a JSON body, so this accepts both.
@@ -35,6 +40,7 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts, straighten } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
+import { answerPhotos, pendingPhotos, savePhotosFromText } from "../lib/photos.js";
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
@@ -99,17 +105,31 @@ async function converse(sms, site) {
   });
   if (!logged) return; // a retry of a text already handled
 
-  let replies;
+  let replies = [];
+  let engine, lang, link, finished = false, stopped = false, justFinished = false;
   try {
     const [[session], [church], { languages, prompts }] = await Promise.all([
       db(`btw_sessions?phone=${eq(phone)}&select=*`),
       db(`btw_churches?phone=${eq(phone)}&select=*`),
       loadPrompts(),
     ]);
-    const engine = createEngine({ prompts, languages });
+    engine = createEngine({ prompts, languages });
     const before = toState(session, church);
+    lang = before.lang || church?.lang || "en";
+    // The pastor's own page, linked from the DONE message; the key is kept
+    // once the signup is complete.
+    const key = church?.profile_key || newProfileKey();
+    link = profileUrl(site, key);
+    finished = !!church?.completed_at;
+    stopped = before.phase === "stopped";
     const pictureOnly = !sms.message.trim() && sms.media.length > 0;
-    if (pictureOnly && ["collect", "lang", "summary"].includes(before.phase) && session) {
+    // YES or NO, after finishing, while texted photos wait for permission.
+    const permission = before.phase === "done" && !sms.media.length ? engine.yesNo(lang, sms.message) : null;
+
+    if (permission !== null && (await pendingPhotos(phone)).length) {
+      await answerPhotos(phone, permission, engine.say(lang, "photo_ask"), sms.message.trim());
+      replies = [engine.say(lang, permission ? "photo_yes" : "photo_no", { link: `${link}#photos` })];
+    } else if (pictureOnly && ["collect", "lang", "summary"].includes(before.phase) && session) {
       // Just a picture while a question is open (signing up, or changing an
       // answer): keep it, and ask the question again.
       replies = engine.again(before);
@@ -117,28 +137,52 @@ async function converse(sms, site) {
       // A new number's first text starts the signup in the language it's
       // written in when that's clear, or with the language menu otherwise;
       // only an opt-out word is taken at its word.
-      // The pastor's own page, linked from the DONE message; the key is kept
-      // once the signup is complete.
-      const key = church?.profile_key || newProfileKey();
-      let result = engine.reply(before, sms.message, { link: profileUrl(site, key) });
+      let result = engine.reply(before, sms.message, { link });
       if (!session && result.state.phase !== "stopped") {
-        const lang = await guessLanguage(sms.message, languages, phone);
-        result = lang ? engine.startIn(lang) : engine.start();
+        const detected = await guessLanguage(sms.message, languages, phone);
+        result = detected ? engine.startIn(detected) : engine.start();
       }
       // Once the signup has been finished (even if an answer is being changed
       // since), anything that isn't a command is for the reviewers: it joins
       // the team thread in /admin, and the bot stays quiet.
-      if (church?.completed_at && result.unhandled) {
+      if (finished && result.unhandled) {
         await toTeam(logged, phone);
-        return;
+      } else {
+        await save(phone, before, result.state, church, key);
+        replies = result.replies;
+        lang = result.state.lang || lang;
+        stopped = result.state.phase === "stopped";
+        justFinished = !finished && result.state.phase === "done";
+        finished = finished || justFinished;
       }
-      await save(phone, before, result.state, church, key);
-      replies = result.replies;
     }
   } catch (err) {
     // Forget the text so voip.ms's retry runs it again.
     await db(`btw_messages?id=eq.${logged.id}`, { method: "DELETE" }).catch(() => {});
     throw err;
+  }
+
+  // Pictures go into storage (after the text is handled, so a retry can't
+  // copy them twice). Once the signup is finished, the first picture of a
+  // batch, or finishing with pictures already waiting, brings the
+  // permission question.
+  if (sms.media.length || justFinished) {
+    try {
+      const waiting = (await pendingPhotos(phone)).length;
+      let saved = 0;
+      if (sms.media.length) {
+        const out = await savePhotosFromText({ phone, messageId: logged.id, urls: sms.media });
+        saved = out.saved;
+        if (out.skipped.length) {
+          await logEvent("warning", "sms-inbound", `Some of a text's attachments weren't kept as photos: ${out.skipped.join("; ")}`, { phone });
+        }
+      }
+      if (finished && !stopped && ((saved && !waiting) || (justFinished && waiting))) {
+        replies.push(engine.say(lang, "photo_ask"));
+      }
+    } catch (err) {
+      await logEvent("error", "sms-inbound", `Couldn't keep a text's photos: ${err.message}`, { phone });
+    }
   }
 
   // The state is already saved, so a failed send isn't retried: that would
