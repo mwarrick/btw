@@ -48,7 +48,7 @@ const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...ED
 // and its own wording.
 const TEXT_KEYS = [
   "sum_name", "sum_email", "sum_church", "sum_street", "sum_city", "sum_state", "sum_zip", "sum_denom",
-  "sum_website", "sum_contact", "sum_baptism", "sum_map", "sum_country", "val_yes", "val_no", "err_postal",
+  "sum_website", "sum_contact", "sum_baptism", "sum_map", "sum_country", "web_region", "web_postal", "val_yes", "val_no", "err_postal",
   ...Object.values(ERROR_PROMPTS),
   "web_title", "web_intro", "web_save", "web_saved", "web_contact_hint", "web_contact_phone", "web_baptism_same", "web_bad_link",
   // The Photos tab (api/profile-photos.js).
