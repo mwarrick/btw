@@ -20,7 +20,8 @@ for (const s of ["name","email","church","country","street","city","state","zip"
 
 export const tables = { btw_languages: [{ code: "en", name: "English", menu_label: "English", active: true, menu_order: 1 }],
   btw_prompts: [...keys.map((k) => ({ key: k, lang: "en", text: `<${k}>` })),
-    ...Object.entries(KW).map(([k, t]) => ({ key: k, lang: "en", text: t }))],
+    ...Object.entries(KW).map(([k, t]) => ({ key: k, lang: "en", text: t })),
+    { key: "resources_url", lang: "en", text: "https://example.org/resources" }],
   btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [] };
 export const files = new Map(); // "bucket/path" -> Buffer
 

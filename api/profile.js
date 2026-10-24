@@ -27,6 +27,10 @@ const TEXT_KEYS = [
   // The Photos tab (api/profile-photos.js).
   "web_tab_signup", "web_tab_photos", "web_photos_intro", "web_consent", "web_add_photos", "web_consent_needed",
   "web_uploading", "web_uploaded", "web_upload_failed", "web_delete", "web_delete_confirm", "web_no_photos", "web_photos_temporary",
+  // The Resources tab: a button to the organizer's folder (resources_url).
+  "resources_url", "web_tab_resources", "web_resources_intro", "web_resources_open",
+  // Texted photos waiting for permission, given on the page.
+  "web_photos_waiting", "web_allow_sharing", "web_waiting_label",
   "web_phone", "web_phone_hint",
 ];
 const RTL = new Set(["ar", "ur"]);
