@@ -41,6 +41,7 @@ const TEXT_KEYS = [
   "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
   "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
   "story_phone_invalid", "story_cant_text", "story_speak", "story_listening", "story_card_pick", "story_name_label",
+  "story_status_me", "story_status_church", "story_status_baptize", "story_status_read", "story_status_featured",
   "j_start_button",
 ];
 const NAME_MAX = 60;
@@ -48,7 +49,7 @@ const BODY_MAX = 4000; // the advice asks for about 250 words; this only stops a
 const ANSWER_MAX = 1000;
 const QUESTIONS = ["before", "why", "moment", "advice", "verse"]; // story_q_<name>
 const SHARES = { me: "story_share_me", church: "story_share_church", baptize: "story_share_baptize" };
-const STORY_FIELDS = "id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,guardian_at,consent_at,submitted_at,updated_at";
+const STORY_FIELDS = "id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,guardian_at,consent_at,submitted_at,updated_at,seen_at,featured_at";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -171,6 +172,8 @@ async function page(story, res) {
 
 const view = (s, church) => ({
   first_name: s.first_name || "", answers: s.answers || {}, body: s.body || "", share: s.share || null,
+  // Their story's status: read by the team (since their last change) and featured.
+  read: s.share === "baptize" && !!s.seen_at, featured: s.share === "baptize" && !!s.featured_at,
   adult: s.adult ?? null, guardian_name: s.guardian_name || "", guardian_ok: !!s.guardian_at,
   consent: !!s.consent_at, submitted_at: s.submitted_at,
   church: church ? { name: church.church_name, place: place(church) } : null,
