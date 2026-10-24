@@ -26,9 +26,9 @@
 import { logEvent } from "../lib/events.js";
 import { isProfileKey, newProfileKey, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
-import { explainStatus, sendText } from "../lib/voipms.js";
+import { canText, explainStatus, sendText } from "../lib/voipms.js";
 import { looksLikeBot, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
-import { dir, languages, phoneValue, wording } from "../lib/web-text.js";
+import { anyPhoneValue, dir, languages, wording } from "../lib/web-text.js";
 
 const TEXT_KEYS = [
   "web_language", "web_phone", "web_phone_invalid", "web_required", "web_wait", "web_busy", "web_bad_link",
@@ -39,6 +39,7 @@ const TEXT_KEYS = [
   "story_q_verse", "story_share", "story_share_me", "story_share_church", "story_share_baptize", "story_age",
   "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
   "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
+  "story_phone_invalid", "story_cant_text", "story_speak", "story_listening", "story_card_pick", "story_name_label",
   "j_start_button",
 ];
 const NAME_MAX = 60;
@@ -118,8 +119,10 @@ async function sendLink(req, body, res) {
 
   const [church] = body.church ? await db(`btw_churches?id=${eq(body.church)}&select=id,completed_at,simulated`) : [];
   if (!church || !church.completed_at || church.simulated) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
-  const phone = phoneValue(body.phone);
-  if (!phone) return refuse(400, "phone", "web_phone_invalid", "Enter a US or Canadian mobile number with its area code.");
+  // Any country's number; whether we can text it depends on the provider.
+  const phone = anyPhoneValue(body.phone);
+  if (!phone) return refuse(400, "phone", "story_phone_invalid", "Enter your mobile number, with + and your country code outside the US and Canada.");
+  if (!canText(phone)) return refuse(400, "phone", "story_cant_text", "We can't text numbers in your country yet.");
 
   const ip = visitor(req);
   if (looksLikeBot(body)) {
@@ -143,7 +146,7 @@ async function sendLink(req, body, res) {
   const template = (await wording(lang, ["story_link_text"])).story_link_text || "Write your baptism story here: {link}";
   const link = `${siteUrl(req)}/s/${key}`;
   try {
-    await sendText(phone.slice(2), template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
+    await sendText(canText(phone), template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
   } catch (err) {
     const why = err.status ? explainStatus(err.status) : err.message;
     await logEvent("error", "story", `A testimony link wasn't sent: ${why}`, { phone });

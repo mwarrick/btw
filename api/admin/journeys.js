@@ -11,12 +11,13 @@
 //   POST ?part=days-translate -> { results }: the English days, machine-translated into
 //                                every switched-on language and saved, for a person to check
 //   POST ?part=skip&id=       -> { ok }: demo only, moves someone a day further along
+//   POST ?part=samples        -> { added }: replaces the six sample people (lib/journeys.js)
 //   GET ?part=bible           -> { links: [{ lang, body }], languages }
 //   PUT ?part=bible { lang, url } -> { link }: the Read it link for a language; it must
 //                                contain {passage}; empty removes it (English's is used)
 
 import { requireAdmin } from "../../lib/admin-auth.js";
-import { CHECKIN_DAYS, journeysWithStatus, skipDay } from "../../lib/journeys.js";
+import { CHECKIN_DAYS, addSampleJourneysToSimulation, journeysWithStatus, skipDay } from "../../lib/journeys.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
 import { translate } from "../../lib/translate.js";
 
@@ -36,6 +37,10 @@ export default async function handler(req, res) {
     if (part === "skip" && req.method === "POST") {
       const id = await skipDay(new URL(req.url, "http://x").searchParams.get("id"));
       return id ? res.status(200).json({ ok: true }) : res.status(404).json({ error: "No such person." });
+    }
+    if (part === "samples" && req.method === "POST") {
+      const added = await addSampleJourneysToSimulation();
+      return added ? res.status(200).json({ added }) : res.status(400).json({ error: "Add simulations first (Conversations): the sample people join a simulated church." });
     }
     if (part === "bible" && req.method === "GET") return await bible(res);
     if (part === "bible" && req.method === "PUT") return await saveBible(req.body || {}, user, res);
