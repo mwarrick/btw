@@ -28,8 +28,9 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "web_form_link", lang: "en", text: "Prefer a form? Answer every question on one page instead: {link} Or just keep replying here." },
     { key: "land_text_us", lang: "en", text: "Or text {number} and sign up by text message, in your language." },
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" }],
-  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [], btw_testimonies: [],
-  btw_guides: [{ key: "testimony", lang: "en", body: "## What is a baptism testimony?\nA short, personal story.\n\n## The three parts\n• **Before:** your life before faith.\n• **How:** coming to faith.\n• **After:** your life now.", updated_at: new Date().toISOString() }] };
+  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [], btw_testimonies: [], btw_journeys: [], btw_checkins: [], btw_journey_days: Array.from({ length: 30 }, (_, i) => ({ day: i + 1, lang: "en", theme: `Theme ${i + 1}`,
+    passage: i === 4 ? "John 16:23–24; Philippians 4:6–7" : `Mark ${i + 1}:1–8`, note: `Note for day ${i + 1}.`, question: `Question ${i + 1}?`, step: `Step ${i + 1}.` })),
+  btw_guides: [{ key: "bible_url", lang: "en", body: "https://www.biblegateway.com/passage/?search={passage}&version=WEB" }, { key: "testimony", lang: "en", body: "## What is a baptism testimony?\nA short, personal story.\n\n## The three parts\n• **Before:** your life before faith.\n• **How:** coming to faith.\n• **After:** your life now.", updated_at: new Date().toISOString() }] };
 export const files = new Map(); // "bucket/path" -> Buffer
 
 // A 40x30 blue PNG, for fake MMS attachments.

@@ -1,6 +1,6 @@
 # Plan: the first 30 days of faith
 
-Status: **plan only, not built.** Revised on 2026-10-24 after the user's decisions:
+Status: **built 2026-10-24** with the recommendations below (draft plan editable in /admin, one day per calendar day, Read it links out, anyone can start); see CLAUDE.md. Revised on 2026-10-24 after the user's decisions:
 - **Online only** in this prototype: no daily texts.
 - **The plan:** a simple 30-day plan found and assembled from common practice (below).
 - **Flags go to the church contact.** People who say "Hard", "I have a question", or go quiet are flagged on the church's page; nobody is texted.
