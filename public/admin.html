@@ -2369,7 +2369,7 @@ $("check-sms").addEventListener("click", async (e) => {
       row("Number", number.ok, number.ok ? "OK" : "Failed",
         [number.did ? `Texts come from ${formatPhone(number.did)}` : null,
           number.ok ? `${number.sms ? "SMS on" : ""}${number.description ? `${number.sms ? ", " : ""}${number.description}` : ""}` : number.error]
-          .filter(Boolean).join(". ") + "."),
+          .filter(Boolean).join(". ").replace(/\.?$/, ".")),
     );
     $("checks").hidden = false;
     $("check-when").textContent = `Checked at ${new Date().toLocaleTimeString()}`;
