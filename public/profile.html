@@ -227,8 +227,9 @@ select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;backgr
     }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
   }
   if (signingUp) {
-    // Their browser's language when it's one we have, else English.
-    var wanted = (navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); });
+    // The language picked on the front page (?lang=), else their browser's
+    // when it's one we have, else English.
+    var wanted = [new URLSearchParams(location.search).get("lang") || ""].concat((navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); }));
     fetch("/api/profile?part=signup&lang=en").then(function (r) { return r.json(); }).then(function (d) {
       var codes = (d.languages || []).map(function (l) { return l.code; });
       loadSignup(wanted.filter(function (c) { return codes.indexOf(c) >= 0; })[0] || "en");
