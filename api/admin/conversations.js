@@ -14,8 +14,9 @@
 //                        team thread as the logged-in user (refused after STOP;
 //                        a simulated signup's message is saved but not sent)
 //   POST ?phone=+1... { sendLink: true } -> { message }: the same, with the
-//                        pastor's page link (done_link in their language); makes
-//                        the link's key first if the signup has none
+//                        pastor's page link (login_link in their language, or
+//                        done_link where it's missing); makes the link's key
+//                        first if the signup has none
 //   POST ?phone=+1... { finish: true } -> { finished: true }: closes an
 //                        unfinished signup as if they'd texted DONE (nothing is
 //                        texted): the questions stop, missing answers stay
@@ -197,8 +198,10 @@ async function finish(phone, session, church, res) {
   res.status(200).json({ finished: true });
 }
 
-// done_link ("See or update your signup anytime: {link}") in the pastor's
-// language, with their link; makes and saves the key if there isn't one.
+// login_link ("Upload photos, change your profile, record baptism counts
+// here: {link}") in the pastor's language, with their link (done_link, the
+// thank-you's wording, where login_link is missing); makes and saves the key
+// if there isn't one.
 async function linkMessage(phone, church, lang, site) {
   let key = church.profile_key;
   if (!key) {
@@ -207,8 +210,9 @@ async function linkMessage(phone, church, lang, site) {
   }
   const link = profileUrl(site, key);
   const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
-  const rows = await db(`btw_prompts?key=eq.done_link&lang=in.${langs}&select=lang,text`);
-  const template = (rows.find((r) => r.lang === lang) || rows.find((r) => r.lang === "en"))?.text || "{link}";
+  const rows = await db(`btw_prompts?key=in.(login_link,done_link)&lang=in.${langs}&select=key,lang,text`);
+  const pick = (key, l) => rows.find((r) => r.key === key && r.lang === l)?.text;
+  const template = pick("login_link", lang) || pick("login_link", "en") || pick("done_link", lang) || pick("done_link", "en") || "{link}";
   return template.includes("{link}") ? template.replace("{link}", link) : `${template}\n${link}`;
 }
 
