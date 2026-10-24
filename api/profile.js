@@ -6,6 +6,12 @@
 //                      signup's phone (shown, not editable), plus the page's
 //                      wording in the signup's language (English where a
 //                      prompt is missing)
+//   GET ?key=...&part=messages -> { messages: [{ mine, body, at, photos: [id] }] }: the
+//                      conversation with this number, oldest first (the latest 300),
+//                      both the signup texts and the team's; `mine` is theirs.
+//                      Replies that failed to send are left out, and who on the
+//                      team wrote is not shown. `photos` are the ids of the
+//                      pictures that text brought (still kept), for #photo-<id>.
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
 //   PATCH ?key=...  { baptisms } -> { baptisms, baptisms_at }: their total so far
@@ -34,6 +40,8 @@ const TEXT_KEYS = [
   "web_waiting_label", "web_not_shared_label",
   // The church's sharing choice.
   "web_opt_in", "web_opt_out", "web_opted_in", "web_opt_out_confirm",
+  // The conversation under the signup form.
+  "web_messages_title", "web_from_us", "web_from_you", "web_photo_link", "web_no_messages",
   // The Baptisms tab.
   "web_tab_baptisms", "web_baptisms_question", "web_baptisms_hint", "web_baptisms_updated", "web_baptisms_invalid",
   "web_phone", "web_phone_hint",
@@ -57,6 +65,10 @@ export default async function handler(req, res) {
     }
     const lang = church.lang || "en";
 
+    if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "messages") {
+      res.status(200).json({ messages: await history(church.phone) });
+      return;
+    }
     if (req.method === "GET") {
       res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), baptisms: church.baptisms, baptisms_at: church.baptisms_at,
         lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
@@ -103,6 +115,18 @@ export default async function handler(req, res) {
 function publicFields(church) {
   const { phone, lang, baptisms, baptisms_at, ...rest } = church;
   return rest;
+}
+
+// Their conversation for the page (see GET ...&part=messages above).
+async function history(phone) {
+  const [rows, photos] = await Promise.all([
+    db(`btw_messages?phone=${eq(phone)}&error=is.null&select=id,direction,body,created_at&order=id.desc&limit=300`),
+    db(`btw_photos?phone=${eq(phone)}&message_id=not.is.null&select=id,message_id&order=id`),
+  ]);
+  const byMessage = new Map();
+  for (const p of photos) byMessage.set(p.message_id, [...(byMessage.get(p.message_id) || []), p.id]);
+  // Fetched newest first so a long thread keeps its latest texts; shown oldest first.
+  return rows.sort((a, b) => a.id - b.id).map((m) => ({ mine: m.direction === "in", body: m.body || "", at: m.created_at, photos: byMessage.get(m.id) || [] }));
 }
 
 // +17145550100 -> (714) 555-0100
