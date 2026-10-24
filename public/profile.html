@@ -71,13 +71,20 @@ a.add{text-decoration:none}
 .grid .wait{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;font-weight:700;border-radius:6px;padding:3px 7px}
 #waiting button{width:100%;margin-top:10px}
 .grid .del{position:absolute;right:6px;bottom:6px;min-height:34px;padding:6px 10px;font-size:13px;background:rgba(0,0,0,.65)}
+select{display:block;width:100%;margin-top:5px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:46px}
+.agree{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:15px;margin-top:12px}
+.agree input{width:22px;height:22px;min-height:0;margin:1px 0 0;padding:0;flex:0 0 auto}
+.welcome{color:var(--ok);font-weight:600;padding:12px 14px}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture><p id="intro"></p></header>
 <nav class="tabs" id="tabs" hidden><button type="button" id="tab-signup"></button><button type="button" id="tab-photos"></button><button type="button" id="tab-baptisms"></button><button type="button" id="tab-resources" hidden></button></nav>
-<main><p class="msg" id="msg">…</p><form id="form" hidden novalidate></form>
+<main><p class="msg" id="msg">…</p>
+<p class="card welcome" id="welcome" hidden></p>
+<div class="card" id="langcard" hidden><label for="lang" id="langlabel"></label><select id="lang"></select></div>
+<form id="form" hidden novalidate></form>
 <section class="card" id="history" hidden><h2 id="htitle"></h2><div class="thread" id="thread"></div></section>
 <section id="photos" hidden>
 <div class="card viewer" id="viewer" hidden></div>
@@ -96,6 +103,10 @@ a.add{text-decoration:none}
 <script>
 (function () {
   var key = (location.pathname.match(/\/p\/([A-Za-z0-9_-]+)/) || [])[1] || new URLSearchParams(location.search).get("key") || "";
+  // Without a key (the site's front page) this is the signup form: the same
+  // form, with the phone editable and a language picker, that creates the
+  // church and opens its own page.
+  var signingUp = !key;
   var api = "/api/profile?key=" + encodeURIComponent(key);
   var photosApi = "/api/profile-photos?key=" + encodeURIComponent(key);
   var $ = function (id) { return document.getElementById(id); };
@@ -139,6 +150,7 @@ a.add{text-decoration:none}
   }
   function render(data) {
     var form = $("form");
+    form.replaceChildren();
     GROUPS.forEach(function (g) {
       var card = el("div", { class: "card" }, [g[0] ? el("h2", {}, [T[g[0]] || ""]) : null]);
       var short = [];
@@ -149,10 +161,15 @@ a.add{text-decoration:none}
       });
       form.append(card);
     });
-    form.addEventListener("input", sync);
-    form.addEventListener("change", sync);
+    if (signingUp) {
+      var agree = el("input", { type: "checkbox", name: "consent" });
+      agree.checked = !!data.consent;
+      form.append(el("div", { class: "card", id: "f-consent" }, [el("label", { class: "agree" }, [agree, el("span", {}, [T.web_signup_consent || ""])])]));
+    }
     sync();
   }
+  $("form").addEventListener("input", function () { sync(); });
+  $("form").addEventListener("change", function () { sync(); });
   // Show the contact's phone only with a contact name, and the baptism
   // address only when it isn't the church's.
   function sync() {
@@ -178,7 +195,48 @@ a.add{text-decoration:none}
   function status(text, kind) { var s = $("status"); s.textContent = text; s.className = kind || ""; }
   function fail(text) { $("form").hidden = true; $("bar").hidden = true; $("msg").hidden = false; $("msg").textContent = text; }
 
-  fetch(api).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); }).then(function (x) {
+  // The form's current values, as sent to the API.
+  function values() {
+    var body = {};
+    Array.prototype.forEach.call($("form").elements, function (i) {
+      if (!i.name || (i.type === "radio" && !i.checked)) return;
+      body[i.name] = i.type === "radio" ? i.value === "true" : i.type === "checkbox" ? i.checked : i.value;
+    });
+    return body;
+  }
+
+  // ---------- signing up (no key) ----------
+  function loadSignup(lang, keep) {
+    return fetch("/api/profile?part=signup&lang=" + encodeURIComponent(lang)).then(function (r) { return r.json(); }).then(function (d) {
+      T = d.text || {};
+      document.documentElement.lang = d.lang;
+      document.documentElement.dir = d.dir;
+      document.title = T.web_title || "Baptize 2027";
+      $("intro").textContent = T.web_signup_intro || "";
+      $("save").textContent = T.web_signup_button || "Sign up";
+      $("langlabel").textContent = T.web_language || "Language";
+      $("lang").replaceChildren.apply($("lang"), d.languages.map(function (l) {
+        var o = el("option", { value: l.code }, [l.name]);
+        o.selected = l.code === d.lang;
+        return o;
+      }));
+      // The phone is theirs to type here; the rest is the church page's form.
+      GROUPS[1][1][2] = ["phone", "web_phone", "tel", "tel", "web_phone_signup_hint"];
+      render(Object.assign({ country: "US" }, keep || {}));
+      $("msg").hidden = true; $("langcard").hidden = false; $("form").hidden = false; $("bar").hidden = false;
+    }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+  }
+  if (signingUp) {
+    // Their browser's language when it's one we have, else English.
+    var wanted = (navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); });
+    fetch("/api/profile?part=signup&lang=en").then(function (r) { return r.json(); }).then(function (d) {
+      var codes = (d.languages || []).map(function (l) { return l.code; });
+      loadSignup(wanted.filter(function (c) { return codes.indexOf(c) >= 0; })[0] || "en");
+    }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+    $("lang").addEventListener("change", function () { loadSignup($("lang").value, values()); });
+  }
+
+  if (!signingUp) fetch(api).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); }).then(function (x) {
     T = x[1].text || {};
     if (x[0] !== 200) return fail(T.web_bad_link || "This link doesn't work anymore.");
     document.documentElement.lang = x[1].lang;
@@ -209,6 +267,12 @@ a.add{text-decoration:none}
     $("add-text").textContent = T.web_add_photos || "Add photos";
     // #photos opens the tab; #photo-<id> (from a texted photo's receipt) also
     // shows that photo.
+    // Just signed up on the web: say so once.
+    if (/[?&]welcome=1/.test(location.search)) {
+      $("welcome").textContent = T.web_signed_up || "You're signed up!";
+      $("welcome").hidden = false;
+      history.replaceState(null, "", location.pathname + location.hash);
+    }
     loadHistory();
     show(/^#photos?(-\d+)?$/.test(location.hash) ? "photos" : location.hash === "#baptisms" ? "baptisms"
       : location.hash === "#resources" && !$("tab-resources").hidden ? "resources" : "signup", true);
@@ -366,17 +430,16 @@ a.add{text-decoration:none}
 
   $("form").addEventListener("submit", function (e) {
     e.preventDefault();
-    var f = e.currentTarget, body = {};
-    Array.prototype.forEach.call(f.elements, function (i) {
-      if (!i.name || (i.type === "radio" && !i.checked)) return;
-      body[i.name] = i.type === "radio" ? i.value === "true" : i.value;
-    });
+    var f = e.currentTarget, body = values();
     f.querySelectorAll(".err").forEach(function (n) { n.remove(); });
     f.querySelectorAll(".bad").forEach(function (n) { n.classList.remove("bad"); });
     $("save").disabled = true; status("…");
-    fetch(api, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    if (signingUp) body.lang = $("lang").value;
+    fetch(signingUp ? "/api/profile" : api, { method: signingUp ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
       .then(function (x) {
+        // Signed up: their own page, from now on their link.
+        if (signingUp && x[0] === 200) { location.href = "/p/" + x[1].key + "?welcome=1"; return; }
         if (x[0] === 200) { fill(x[1].church); return status(T.web_saved || "Saved.", "ok"); }
         if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
         var box = x[1].field && $("f-" + x[1].field);
