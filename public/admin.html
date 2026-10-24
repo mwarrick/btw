@@ -115,6 +115,16 @@
   }
   .screen-tab:hover { color: var(--ink); }
   .screen-tab[aria-current="page"] { color: var(--ink); border-bottom-color: var(--brand); }
+  /* the setup screens, in a menu at the end of the bar */
+  .screens .spacer { flex: 1; }
+  .screen-menu {
+    position: fixed; z-index: 30; min-width: 180px; padding: 4px 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / .14); display: flex; flex-direction: column;
+  }
+  .screen-menu[hidden] { display: none; }
+  .screen-menu .screen-tab { border-bottom: 0; border-inline-start: 3px solid transparent; padding: 9px 14px; text-align: start; }
+  .screen-menu .screen-tab[aria-current="page"] { border-inline-start-color: var(--brand); background: var(--bg); }
 
   /* login */
   .login {
@@ -448,11 +458,15 @@
     <button class="screen-tab" type="button" data-screen="baptisms">Baptisms</button>
     <button class="screen-tab" type="button" data-screen="testimonies">Testimonies <span id="stories-unseen"></span></button>
     <button class="screen-tab" type="button" data-screen="discipleship">Discipleship <span id="journeys-flagged"></span></button>
-    <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
-    <button class="screen-tab" type="button" data-screen="languages">Languages</button>
-    <button class="screen-tab" type="button" data-screen="log">Log</button>
-    <button class="screen-tab" type="button" data-screen="users">Users</button>
-    <button class="screen-tab" type="button" data-screen="connection">Connection</button>
+    <span class="spacer"></span>
+    <button class="screen-tab" type="button" id="settings-tab" aria-haspopup="true" aria-expanded="false">Settings <span id="settings-current"></span> ▾</button>
+  </div>
+  <div class="screen-menu" id="settings-menu" role="menu" hidden>
+    <button class="screen-tab" type="button" role="menuitem" data-screen="prompts">Prompts</button>
+    <button class="screen-tab" type="button" role="menuitem" data-screen="languages">Languages</button>
+    <button class="screen-tab" type="button" role="menuitem" data-screen="log">Log</button>
+    <button class="screen-tab" type="button" role="menuitem" data-screen="users">Users</button>
+    <button class="screen-tab" type="button" role="menuitem" data-screen="connection">Connection</button>
   </div>
 </nav>
 
@@ -1620,22 +1634,48 @@ const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? locatio
 function showScreen(name) {
   state.screen = name;
   for (const section of $("editor").querySelectorAll(":scope > section")) section.hidden = section.dataset.screen !== name;
-  for (const tab of $("screens").querySelectorAll(".screen-tab")) {
+  for (const tab of $("screens").querySelectorAll(".screen-tab[data-screen]")) {
     if (tab.dataset.screen === name) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
   }
+  // A setup screen marks the Settings tab, and names itself on it.
+  const setting = $("settings-menu").querySelector(`[data-screen="${name}"]`);
+  if (setting) $("settings-tab").setAttribute("aria-current", "page");
+  else $("settings-tab").removeAttribute("aria-current");
+  $("settings-current").textContent = setting ? `· ${setting.textContent}` : "";
   if (name === "testimonies" && !guide.loaded) loadGuide();
   if (name === "discipleship" && !plan.loaded) loadPlan();
   // Textareas measured while hidden have no height.
   if (name === "prompts") document.querySelectorAll(".prompt textarea").forEach(autosize);
 }
 
-for (const tab of $("screens").querySelectorAll(".screen-tab")) {
+for (const tab of $("screens").querySelectorAll(".screen-tab[data-screen]")) {
   tab.addEventListener("click", () => {
+    closeSettings();
     history.replaceState(null, "", `#${tab.dataset.screen}`);
     showScreen(tab.dataset.screen);
   });
 }
+// The Settings menu sits outside the scrolling bar, placed under its tab.
+function closeSettings() {
+  $("settings-menu").hidden = true;
+  $("settings-tab").setAttribute("aria-expanded", "false");
+}
+$("settings-tab").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!$("settings-menu").hidden) return closeSettings();
+  $("settings-tab").scrollIntoView({ block: "nearest", inline: "nearest" });
+  const r = $("settings-tab").getBoundingClientRect();
+  const menu = $("settings-menu");
+  menu.hidden = false;
+  menu.style.top = `${r.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(r.right - menu.offsetWidth, innerWidth - menu.offsetWidth - 8))}px`;
+  $("settings-tab").setAttribute("aria-expanded", "true");
+});
+document.addEventListener("click", (e) => { if (!$("settings-menu").contains(e.target)) closeSettings(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSettings(); });
+window.addEventListener("resize", closeSettings);
+window.addEventListener("scroll", closeSettings, { passive: true });
 window.addEventListener("hashchange", () => { if (!state.me?.setup) showScreen(screenFromHash()); });
 
 // ---------- conversations ----------
