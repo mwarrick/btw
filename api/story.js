@@ -9,7 +9,8 @@
 // guardian's OK is needed before anyone else reads it. The page also makes a
 // picture of the story they post themselves; nothing is published by us.
 //
-//   GET ?part=start&lang=xx  -> { languages, lang, dir, text }: the start page's wording
+//   GET ?part=start&lang=xx  -> { languages, lang, dir, text, guide }: the start page's wording
+//                               and the advice, read before asking for a link
 //   GET ?part=churches&q=..  -> { churches: [{ id, name, place }] }: finished, real
 //                               signups whose name or city contains q (2+ letters), up to 20
 //   POST ?part=link { lang, church, phone } -> { sent: true } or 400/429/503
@@ -83,7 +84,15 @@ export default async function handler(req, res) {
 
 async function start(wanted, res) {
   const { languages: list, lang } = await languages(wanted);
-  res.status(200).json({ languages: list, lang, dir: dir(lang), text: await wording(lang, TEXT_KEYS) });
+  const [text, guide] = await Promise.all([wording(lang, TEXT_KEYS), advice(lang)]);
+  res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide });
+}
+
+// The advice in their language, English where it has none.
+async function advice(lang) {
+  const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
+  const guides = await db(`btw_guides?key=eq.testimony&lang=in.${langs}&select=lang,body`);
+  return (guides.find((g) => g.lang === lang) || guides.find((g) => g.lang === "en"))?.body || "";
 }
 
 // "City, region" plus the country when it isn't the US.
@@ -145,13 +154,11 @@ async function sendLink(req, body, res) {
 
 async function page(story, res) {
   const lang = story.lang || "en";
-  const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
-  const [text, [church], guides] = await Promise.all([
+  const [text, [church], guide] = await Promise.all([
     wording(lang, TEXT_KEYS),
     story.church_id ? db(`btw_churches?id=eq.${story.church_id}&select=church_name,city,state,country`) : [],
-    db(`btw_guides?key=eq.testimony&lang=in.${langs}&select=lang,body`),
+    advice(lang),
   ]);
-  const guide = (guides.find((g) => g.lang === lang) || guides.find((g) => g.lang === "en"))?.body || "";
   res.status(200).json({ story: view(story, church), lang, dir: dir(lang), text, guide });
 }
 
