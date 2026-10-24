@@ -21,12 +21,13 @@
 //   POST ?phone=+1... { translate } -> { text }: that English in the
 //                        pastor's signup language, to check before sending
 //   DELETE ?phone=+1...  -> { deleted: true }: the number's texts, answers,
-//                        session and logged problems, so its next text
+//                        session, photos and logged problems, so its next text
 //                        starts a new signup
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { logEvent } from "../../lib/events.js";
 import { db, eq } from "../../lib/supabase.js";
+import { deletePhotos } from "../../lib/photos.js";
 import { newProfileKey, profileUrl, siteUrl } from "../../lib/profile-link.js";
 import { translate } from "../../lib/translate.js";
 import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
@@ -210,6 +211,7 @@ async function remove(phone, res) {
     res.status(400).json({ error: "Send the number as ?phone=+1XXXXXXXXXX." });
     return;
   }
+  await deletePhotos({ phone });
   await Promise.all(["btw_sessions", "btw_churches", "btw_messages", "btw_events"].map((table) =>
     db(`${table}?phone=${eq(phone)}`, { method: "DELETE" })));
   res.status(200).json({ deleted: true });

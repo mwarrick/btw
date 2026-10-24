@@ -9,8 +9,9 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `/p/<key>` | A pastor's own signup page, linked from the DONE text: see and update their answers on a phone. The key in the link is the only login. |
 | `GET/PATCH /api/profile?key=` | That page's data and saves |
+| `GET/POST/DELETE /api/profile-photos?key=` | That page's Photos tab (`/p/<key>#photos`): list, upload (with permission for public use), delete |
 | `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `simulations` (add or remove the eleven made-up signups) |
+| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `photos` (every church's photos, or one number's; delete), `simulations` (add or remove the eleven made-up signups) |
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
@@ -45,6 +46,7 @@ The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_
 | `btw_sessions` | Where each phone number is in the conversation |
 | `btw_messages` | Every text in and out (the voip.ms id is unique so retries are handled once), split into the signup thread and the team thread (reviewers and the pastor), with who sent it, read state, an English translation and any send error |
 | `btw_events` | Problems shown on the Log screen (replies that weren't sent, errors, callbacks with the wrong key) |
+| `btw_photos` | Churches' photos: file paths in the private `btw-photos` Storage bucket, when and how they came in, and the permission text agreed to |
 | `btw_users` | People who log in to `/admin` (scrypt password hashes); removed users stay with `active = false` |
 
 A language can only be switched on once every message has text in it. Editing happens in English: after an English message is saved, its Translate button translates it into every language that's switched on or started, saves the results and shows them. A translation that loses a `{placeholder}` is not saved. Drafts made per language with "Draft with Google" are only saved when someone clicks Save.

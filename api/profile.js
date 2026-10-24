@@ -24,6 +24,9 @@ const TEXT_KEYS = [
   "sum_website", "sum_contact", "sum_baptism", "sum_map", "sum_country", "val_yes", "val_no", "err_postal",
   ...Object.values(ERROR_PROMPTS),
   "web_title", "web_intro", "web_save", "web_saved", "web_contact_hint", "web_contact_phone", "web_baptism_same", "web_bad_link",
+  // The Photos tab (api/profile-photos.js).
+  "web_tab_signup", "web_tab_photos", "web_photos_intro", "web_consent", "web_add_photos", "web_consent_needed",
+  "web_uploading", "web_uploaded", "web_upload_failed", "web_delete", "web_delete_confirm", "web_no_photos",
   "web_phone", "web_phone_hint",
 ];
 const RTL = new Set(["ar", "ur"]);

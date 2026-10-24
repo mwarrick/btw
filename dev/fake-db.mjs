@@ -5,7 +5,8 @@
 // is.null filters, on_conflict upserts (also composite keys), bulk inserts,
 // PATCH, DELETE, return=representation, and the sender:/editor:btw_users(name)
 // embeds. Ordering and select lists are ignored. Prompts are placeholders like
-// <ask_name>, plus the real English keyword lists.
+// <ask_name>, plus the real English keyword lists. Supabase Storage is kept
+// in `files` (upload, signed links, delete); dev/server.mjs serves the links.
 
 const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", kw_done: "DONE",
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
@@ -18,7 +19,8 @@ for (const s of ["name","email","church","country","street","city","state","zip"
 export const tables = { btw_languages: [{ code: "en", name: "English", menu_label: "English", active: true, menu_order: 1 }],
   btw_prompts: [...keys.map((k) => ({ key: k, lang: "en", text: `<${k}>` })),
     ...Object.entries(KW).map(([k, t]) => ({ key: k, lang: "en", text: t }))],
-  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [] };
+  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [] };
+export const files = new Map(); // "bucket/path" -> Buffer
 export const sent = [];
 export let failSend = false; export function setFailSend(v) { failSend = v; }
 let nextId = 1;
@@ -31,6 +33,22 @@ globalThis.fetch = async (url, opts = {}) => {
     const b = JSON.parse(opts.body);
     if (url.endsWith("/detect")) return new Response(JSON.stringify({ data: { detections: [[{ language: "en", confidence: 1 }]] } }));
     return new Response(JSON.stringify({ data: { translations: b.q.map((q) => ({ translatedText: `[${b.target}] ${q}` })) } }));
+  }
+  if (url.includes("/storage/v1/")) {
+    const rest = url.split("/storage/v1")[1];
+    if (rest.startsWith("/object/sign/")) {
+      const bucket = rest.slice("/object/sign/".length);
+      const { paths } = JSON.parse(opts.body);
+      return new Response(JSON.stringify(paths.map((p) => ({ path: p, error: files.has(`${bucket}/${p}`) ? null : "not found",
+        signedURL: files.has(`${bucket}/${p}`) ? `/object/sign/${bucket}/${p}?token=dev` : null }))));
+    }
+    const key = rest.slice("/object/".length);
+    if (opts.method === "DELETE") {
+      for (const p of JSON.parse(opts.body).prefixes) files.delete(`${key}/${p}`);
+      return new Response("[]");
+    }
+    files.set(key, Buffer.from(opts.body));
+    return new Response(JSON.stringify({ Key: key }));
   }
   if (!url.includes("/rest/v1/")) {
     const p = new URLSearchParams(opts.body);
