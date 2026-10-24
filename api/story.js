@@ -19,7 +19,7 @@
 //                               /s/<key> (one testimony per phone; the latest church
 //                               and language picked win). Bots get { sent: true } and
 //                               nothing is sent; limits as for Get my link (lib/web-guard.js).
-//   GET ?key=..              -> { story, lang, dir, text, guide }: the writing page
+//   GET ?key=..              -> { story, lang, dir, text, guide, examples }: the writing page
 //   PATCH ?key=.. { first_name, answers, body, share, adult, guardian_name, guardian_ok, consent }
 //                            -> { story } or 400 { error, field, message }
 //   DELETE ?key=..           -> { deleted: true }: gone for good
@@ -41,7 +41,7 @@ const TEXT_KEYS = [
   "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
   "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
   "story_phone_invalid", "story_cant_text", "story_speak", "story_listening", "story_card_pick", "story_name_label",
-  "story_status_me", "story_status_church", "story_status_baptize", "story_status_read", "story_status_featured",
+  "story_examples", "story_status_me", "story_status_church", "story_status_baptize", "story_status_read", "story_status_featured",
   "j_start_button",
 ];
 const NAME_MAX = 60;
@@ -93,10 +93,11 @@ async function start(wanted, churchId, res) {
   res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide, church: qr ? { id: qr.id, name: qr.church_name, place: place(qr) } : null });
 }
 
-// The advice in their language, English where it has none.
-async function advice(lang) {
+// The advice (or another btw_guides text, such as the example stories) in
+// their language, English where it has none.
+async function advice(lang, key = "testimony") {
   const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
-  const guides = await db(`btw_guides?key=eq.testimony&lang=in.${langs}&select=lang,body`);
+  const guides = await db(`btw_guides?key=eq.${key}&lang=in.${langs}&select=lang,body`);
   return (guides.find((g) => g.lang === lang) || guides.find((g) => g.lang === "en"))?.body || "";
 }
 
@@ -162,12 +163,13 @@ async function sendLink(req, body, res) {
 
 async function page(story, res) {
   const lang = story.lang || "en";
-  const [text, [church], guide] = await Promise.all([
+  const [text, [church], guide, examples] = await Promise.all([
     wording(lang, TEXT_KEYS),
     story.church_id ? db(`btw_churches?id=eq.${story.church_id}&select=church_name,city,state,country`) : [],
     advice(lang),
+    advice(lang, "story_examples"),
   ]);
-  res.status(200).json({ story: view(story, church), lang, dir: dir(lang), text, guide });
+  res.status(200).json({ story: view(story, church), lang, dir: dir(lang), text, guide, examples });
 }
 
 const view = (s, church) => ({
