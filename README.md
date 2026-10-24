@@ -2,11 +2,13 @@
 
 Church signup for Baptize 2027, entirely by text message through [voip.ms](https://voip.ms), on Vercel serverless functions with a Supabase database. The SMS wording lives in the database and is edited at `/admin`.
 
+**Hackathon submission (track 2, testimony sharing):** see [docs/HACKATHON.md](docs/HACKATHON.md). License: MIT ([LICENSE](LICENSE)).
+
 | Path | Purpose |
 | --- | --- |
 | `/` | The front page: Church organizers (sign up, text us, Get my link), I was baptized (share your story), Team (`/admin`). |
 | `/signup` | The signup form: the same form as a church's own page, with the phone typed in, a language picker and the consent box. Confirms the phone with a texted 6-digit code, saves a finished signup, texts the thank-you with the page link and opens the page (`/p/<key>`). |
-| `/story`, `/s/<key>` | Baptism testimonies: pick a church, get a private link by text, write the story with the advice beside it. Only the team and that church read it. |
+| `/story`, `/s/<key>` | Baptism testimonies: pick a church, get a private link by text, answer guided questions (with example stories), choose who can read it (only them, their church, or their church and the team), and share a story picture. |
 | `/journey`, `/j/<key>` | The first 30 days of faith: one reading a day, check-ins that reach the person's church (Newly baptized tab on its page). Online only. |
 | `/demo` | A browser demo of the signup conversation. Nothing is saved or sent. |
 | `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
