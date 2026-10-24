@@ -37,7 +37,6 @@ input{display:block;width:100%;margin:6px 0 10px;font:inherit;color:inherit;back
 input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
 #linkstatus{font-size:15px;margin:10px 0 0}
 #linkstatus.ok{color:var(--ok)}#linkstatus.bad{color:var(--bad)}
-.soon{display:inline-block;font-size:13px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
 .team{display:flex;align-items:center;gap:12px}
 .team div{flex:1}
 .team h2{font-size:17px}
@@ -72,7 +71,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
 <section class="card" id="baptized">
   <h2 id="baptized-title">I was baptized</h2>
   <p id="baptized-text"></p>
-  <span class="soon" id="soon">Coming soon</span>
+  <a class="button" href="/story" id="story">Share your story</a>
 </section>
 
 <section class="card team" id="team">
@@ -98,7 +97,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
       put("church-title", "land_church_title"); put("church-text", "land_church_text"); put("signup", "land_signup");
       put("link-title", "land_link_title"); put("link-hint", "land_link_hint"); put("link-button", "land_link_button");
       put("phone-label", "web_phone");
-      put("baptized-title", "land_baptized_title"); put("baptized-text", "land_baptized_text"); put("soon", "land_coming_soon");
+      put("baptized-title", "land_baptized_title"); put("baptized-text", "land_baptized_text"); put("story", "land_baptized_button");
       put("team-title", "land_team_title"); put("team-text", "land_team_text"); put("team-button", "land_team_button");
       put("langlabel", "web_language");
       // "Or text +1 714-716-5116 ...", with the number as a link that opens their texting app.
@@ -115,6 +114,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
       } else tx.hidden = true;
       // The signup form opens in the language picked here.
       $("signup").href = "/signup?lang=" + encodeURIComponent(d.lang);
+      $("story").href = "/story?lang=" + encodeURIComponent(d.lang);
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = document.createElement("option");
         o.value = l.code; o.textContent = l.name; o.selected = l.code === d.lang;

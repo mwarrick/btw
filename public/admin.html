@@ -276,6 +276,15 @@
   }
   .prompt-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .meter { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .story-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0; background: var(--surface); }
+  .story-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .story-head .who { font-weight: 700; }
+  .story-body { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+  .story-english { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); white-space: pre-wrap; }
+  .story-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .guide-title { margin: 28px 0 4px; font-size: 16px; }
+  .guide-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .guide-text { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); line-height: 1.5; }
   .meter.over { color: var(--warn); font-weight: 600; }
   .uni { font-size: 12.5px; color: var(--warn); }
   .spacer { flex: 1 1 auto; }
@@ -433,6 +442,7 @@
     <button class="screen-tab" type="button" data-screen="churches">Churches</button>
     <button class="screen-tab" type="button" data-screen="photos">Photos <span id="photos-unseen"></span></button>
     <button class="screen-tab" type="button" data-screen="baptisms">Baptisms</button>
+    <button class="screen-tab" type="button" data-screen="testimonies">Testimonies <span id="stories-unseen"></span></button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
     <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
@@ -518,6 +528,30 @@
           </thead>
           <tbody id="baptism-rows"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="block" data-screen="testimonies">
+      <h2>Testimonies</h2>
+      <p class="hint">Baptism stories from <b>baptize.app/story</b>. A person picks their church and gets a private link by text, which proves the phone is theirs. Only the team and that church read these: each church sees its own on the Stories tab of its page. A story is <b>New</b> until marked read, and again after the writer changes it.</p>
+      <div class="convo-bar">
+        <span class="meter" id="story-meter"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="story-refresh" type="button">Refresh</button>
+      </div>
+      <div id="story-list"></div>
+
+      <h3 class="guide-title">Advice shown to writers</h3>
+      <p class="hint">Shown above the story box, in the writer's language (English where a language has none). Write <b>## </b> at the start of a line for a heading, <b>• </b> or <b>- </b> for a bullet, <b>**words**</b> for bold, and leave a blank line between paragraphs. Edit the English, then <b>Translate into every language</b> for Google drafts, and check them one by one.</p>
+      <div class="guide-bar">
+        <label>Language <select id="guide-lang"></select></label>
+        <span class="meter" id="guide-meta"></span>
+      </div>
+      <textarea id="guide-text" class="guide-text" rows="22" spellcheck="true"></textarea>
+      <div class="guide-bar">
+        <button class="btn primary" id="guide-save" type="button">Save</button>
+        <button class="btn" id="guide-translate" type="button">Translate into every language</button>
+        <span class="meter" id="guide-status"></span>
       </div>
     </section>
 
@@ -918,6 +952,7 @@ async function load() {
   renderSavebar();
   loadConversations();
   loadAdminPhotos();
+  loadTestimonies();
   loadLog();
 }
 
@@ -1531,7 +1566,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "churches", "photos", "baptisms", "prompts", "languages", "log", "users", "connection"];
+const SCREENS = ["conversations", "churches", "photos", "baptisms", "testimonies", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
@@ -1541,6 +1576,7 @@ function showScreen(name) {
     if (tab.dataset.screen === name) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
   }
+  if (name === "testimonies" && !guide.loaded) loadGuide();
   // Textareas measured while hidden have no height.
   if (name === "prompts") document.querySelectorAll(".prompt textarea").forEach(autosize);
 }
@@ -1866,6 +1902,127 @@ function attachments(m) {
     return link;
   }));
 }
+
+// ---------- testimonies ----------
+
+const langName = (code) => guide.languages.find((l) => l.code === code)?.name || code;
+
+function storyCard(t) {
+  const english = h("p", { class: "story-english", hidden: true });
+  const actions = [
+    t.lang && t.lang !== "en" ? h("button", { class: "btn small", type: "button", text: "English translation", onclick: async (e) => {
+      e.target.disabled = true;
+      try {
+        const { text } = await api(`/api/admin/testimonies?id=${t.id}`, { method: "POST", body: { translate: true } });
+        english.textContent = text;
+        english.hidden = false;
+        e.target.remove();
+      } catch (err) {
+        e.target.disabled = false;
+        if (!err.silent) toast(err.message, "bad");
+      }
+    } }) : null,
+    t.seen_at ? null : h("button", { class: "btn small", type: "button", text: "Mark read", onclick: async () => {
+      try {
+        await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { seen: true } });
+        loadTestimonies();
+      } catch (err) {
+        if (!err.silent) toast(err.message, "bad");
+      }
+    } }),
+    h("button", { class: "btn small", type: "button", text: "Delete", onclick: async () => {
+      if (!confirm(`Delete ${t.first_name || "this person"}'s story for good? It's gone for them and the church too.`)) return;
+      try {
+        await api(`/api/admin/testimonies?id=${t.id}`, { method: "DELETE" });
+        toast("Story deleted.");
+        loadTestimonies();
+      } catch (err) {
+        if (!err.silent) toast(err.message, "bad");
+      }
+    } }),
+  ];
+  return h("article", { class: "story-card" },
+    h("div", { class: "story-head" },
+      h("span", { class: "who", text: t.first_name || "(no name)" }),
+      t.church_phone
+        ? h("button", { class: "linkish", type: "button", text: t.church_name || "(church)", onclick: () => openThread(t.church_phone, "signup") })
+        : h("span", { class: "sub", text: "Church no longer signed up" }),
+      t.church_place ? h("span", { class: "sub", text: t.church_place }) : null,
+      h("span", { class: "when", text: when(t.updated_at) }),
+      t.lang && t.lang !== "en" ? chip(langName(t.lang), "muted") : null,
+      t.seen_at ? null : chip("New", "bad"),
+      h("span", { class: "sub", text: formatPhone(t.phone) })),
+    h("p", { class: "story-body", text: t.body || "" }),
+    english,
+    h("div", { class: "story-foot" }, actions));
+}
+
+async function loadTestimonies() {
+  try {
+    const { testimonies, unseen, waiting } = await api("/api/admin/testimonies");
+    $("stories-unseen").replaceChildren(...(unseen ? [chip(String(unseen), "bad")] : []));
+    $("story-meter").textContent = `${testimonies.length} ${testimonies.length === 1 ? "story" : "stories"}`
+      + (unseen ? ` · ${unseen} new` : "") + (waiting ? ` · ${waiting} link${waiting === 1 ? "" : "s"} sent, nothing written yet` : "");
+    $("story-list").replaceChildren(...(testimonies.length ? testimonies.map(storyCard)
+      : [h("p", { class: "empty", text: "No stories yet. People share theirs at baptize.app/story (I was baptized on the front page)." })]));
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+$("story-refresh").addEventListener("click", loadTestimonies);
+
+// The advice beside the story box (btw_guides), one language at a time.
+const guide = { loaded: false, rows: [], languages: [] };
+async function loadGuide(keepLang) {
+  try {
+    const { guides, languages } = await api("/api/admin/testimonies?part=guide");
+    Object.assign(guide, { loaded: true, rows: guides, languages });
+    const current = keepLang || $("guide-lang").value || "en";
+    $("guide-lang").replaceChildren(...languages.map((l) => h("option", { value: l.code, selected: l.code === current },
+      `${l.name}${guides.some((g) => g.lang === l.code) ? "" : " (none: English shows)"}${l.active ? "" : " (switched off)"}`)));
+    showGuide();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+}
+function showGuide() {
+  const lang = $("guide-lang").value || "en";
+  const row = guide.rows.find((g) => g.lang === lang);
+  $("guide-text").value = row?.body || "";
+  $("guide-text").dir = ["ar", "ur"].includes(lang) ? "rtl" : "ltr";
+  $("guide-meta").textContent = row ? `Last changed ${when(row.updated_at)}${row.editor?.name ? ` by ${row.editor.name}` : ""}` : "No text yet: writers see the English.";
+  $("guide-translate").hidden = lang !== "en";
+  $("guide-status").textContent = "";
+}
+$("guide-lang").addEventListener("change", showGuide);
+$("guide-save").addEventListener("click", async () => {
+  const lang = $("guide-lang").value;
+  try {
+    await api("/api/admin/testimonies?part=guide", { method: "PUT", body: { lang, body: $("guide-text").value } });
+    toast(`Advice saved (${langName(lang)}).`);
+    loadGuide(lang);
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  }
+});
+$("guide-translate").addEventListener("click", async () => {
+  if (!confirm("Replace the advice in every other language with Google's translation of the saved English? Hand-made translations are overwritten.")) return;
+  $("guide-translate").disabled = true;
+  $("guide-status").textContent = "Translating…";
+  try {
+    const { results } = await api("/api/admin/testimonies?part=guide-translate", { method: "POST", body: {} });
+    const failed = results.filter((r) => !r.saved);
+    await loadGuide("en");
+    $("guide-status").textContent = failed.length
+      ? `Translated ${results.length - failed.length}; not saved: ${failed.map((r) => `${r.name} (${r.error})`).join(", ")}`
+      : `Translated into ${results.length} language${results.length === 1 ? "" : "s"}. Check each one.`;
+  } catch (err) {
+    $("guide-status").textContent = "";
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    $("guide-translate").disabled = false;
+  }
+});
 
 // ---------- photos ----------
 

@@ -12,6 +12,8 @@
 //                      Replies that failed to send are left out, and who on the
 //                      team wrote is not shown. `photos` are the ids of the
 //                      pictures that text brought (still kept), for #photo-<id>.
+//   GET ?key=...&part=stories -> { stories: [{ first_name, body, submitted_at, updated_at }] }:
+//                      baptism stories written for this church (api/story.js), newest first
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
 //   PATCH ?key=...  { baptisms } -> { baptisms, baptisms_at }: their total so far
@@ -40,10 +42,13 @@ import { EDITABLE, ERROR_PROMPTS, cleanChurchFields } from "../lib/church-fields
 import { logEvent } from "../lib/events.js";
 import { isProfileKey, linkText, newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
+import { RTL, phoneValue, wording as words } from "../lib/web-text.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
-const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
+const FIELDS = ["id", "phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
+// The page's wording (TEXT_KEYS unless told otherwise).
+const wording = (lang, keys = TEXT_KEYS) => words(lang, keys);
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
 // and its own wording.
 const TEXT_KEYS = [
@@ -64,6 +69,8 @@ const TEXT_KEYS = [
   // The Baptisms tab.
   "web_tab_baptisms", "web_baptisms_question", "web_baptisms_hint", "web_baptisms_updated", "web_baptisms_invalid",
   "web_phone", "web_phone_hint",
+  // The Stories tab: baptism stories from the church's people (api/story.js).
+  "web_tab_stories", "web_stories_intro", "web_no_stories",
   // The signup form (no key).
   "web_signup_intro", "web_language", "web_phone_signup_hint", "web_signup_consent", "web_signup_button",
   "web_signed_up", "web_phone_taken", "web_required", "web_phone_invalid",
@@ -74,10 +81,9 @@ const TEXT_KEYS = [
 const LANDING_KEYS = ["web_title", "web_language", "web_phone", "web_phone_invalid",
   "land_intro", "land_church_title", "land_church_text", "land_signup", "land_text_us", "land_link_title",
   "land_link_hint", "land_link_button", "land_link_sent", "land_baptized_title", "land_baptized_text",
-  "land_coming_soon", "land_team_title", "land_team_text", "land_team_button"];
+  "land_coming_soon", "land_baptized_button", "land_team_title", "land_team_text", "land_team_button"];
 // Answers the signup form must have; state and ZIP only in the US.
 const REQUIRED = ["church_name", "street", "city", "name", "email"];
-const RTL = new Set(["ar", "ur"]);
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -103,6 +109,11 @@ export default async function handler(req, res) {
 
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "messages") {
       res.status(200).json({ messages: await history(church.phone) });
+      return;
+    }
+    if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "stories") {
+      const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&select=first_name,body,submitted_at,updated_at&order=submitted_at.desc`);
+      res.status(200).json({ stories: stories.filter((s) => s.submitted_at) });
       return;
     }
     if (req.method === "GET") {
@@ -271,19 +282,10 @@ async function signup(req, body, res, site) {
   res.status(200).json({ key });
 }
 
-// The number as stored: +1 and 10 digits. The forms text it, and only US and
-// Canadian numbers can be texted from our number (see docs/gaps.md).
-function phoneValue(input) {
-  const d = String(input || "").replace(/\D/g, "");
-  if (d.length === 10 && /^[2-9]/.test(d)) return `+1${d}`;
-  if (d.length === 11 && d[0] === "1" && /^[2-9]/.test(d.slice(1))) return `+${d}`;
-  return null;
-}
-
 // The answers the page can edit; the phone is sent apart, since it can't be
 // changed (it's the signup's identity).
 function publicFields(church) {
-  const { phone, lang, baptisms, baptisms_at, ...rest } = church;
+  const { id, phone, lang, baptisms, baptisms_at, ...rest } = church;
   return rest;
 }
 
@@ -303,15 +305,4 @@ async function history(phone) {
 function formatPhone(phone) {
   const d = String(phone || "").replace(/^\+1/, "");
   return /^\d{10}$/.test(d) ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : phone;
-}
-
-// `keys` in `lang`, English where a translation is missing.
-async function wording(lang, keys = TEXT_KEYS) {
-  const list = encodeURIComponent(`(${keys.join(",")})`);
-  const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
-  const rows = await db(`btw_prompts?key=in.${list}&lang=in.${langs}&select=key,lang,text`);
-  const out = {};
-  for (const r of rows) if (r.lang === "en" && !(r.key in out)) out[r.key] = r.text;
-  for (const r of rows) if (r.lang === lang) out[r.key] = r.text;
-  return out;
 }

@@ -27,7 +27,8 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "web_signup_button", lang: "es", text: "Inscribirse" },
     { key: "land_text_us", lang: "en", text: "Or text {number} and sign up by text message, in your language." },
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" }],
-  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [] };
+  btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [], btw_testimonies: [],
+  btw_guides: [{ key: "testimony", lang: "en", body: "## What is a baptism testimony?\nA short, personal story.\n\n## The three parts\n• **Before:** your life before faith.\n• **How:** coming to faith.\n• **After:** your life now.", updated_at: new Date().toISOString() }] };
 export const files = new Map(); // "bucket/path" -> Buffer
 
 // A 40x30 blue PNG, for fake MMS attachments.

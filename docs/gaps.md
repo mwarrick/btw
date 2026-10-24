@@ -32,3 +32,10 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **Visitors are told apart only by IP address.** Many pastors on one church's wifi share one, so that is at most 10 codes an hour from one address. A determined attacker with many addresses is held back only by the daily cap and the per-number limits.
 - **No CAPTCHA.** Cloudflare Turnstile can be added if bots get past the hidden field.
 - **Short-code texts aren't answered.** Texts from short codes (e.g. WhatsApp's 29283) are only shown in the Log panel; nothing replies to them.
+
+## Baptism testimonies (`/story`)
+- **No review before the church sees a story.** A saved story shows on the church's Stories tab at once. The team can delete it, but only after the fact.
+- **The phone check proves only the phone.** The link texted to the number shows it's theirs, but anyone can pick any church in the list.
+- **Advice translations need checking.** The seeded advice was translated by hand. "Translate into every language" overwrites every other language with Google drafts, which need a native speaker's eye.
+- **US and Canadian numbers only**, as for churches.
+
