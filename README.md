@@ -88,3 +88,7 @@ Text that fits one SMS goes out through `sendSMS`: 160 characters, or 70 if any 
 ## Local testing
 
 `node dev/server.mjs` serves the site on http://localhost:8787 with every API handler running against an in-memory database (`dev/fake-db.mjs`), a fake voip.ms and a fake Google Translate. Nothing leaves the machine. Log in to `/admin` with the setup password `pw` and add a user. A few conversations are seeded through the real SMS handler, and **Add simulations** adds eleven more.
+
+## Credits
+
+- QR codes on the church page: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4 by Kazuhiko Arase (MIT license), copied unchanged to `public/js/qrcode.js`. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.

@@ -81,7 +81,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <!-- /story: pick the church, get the link -->
 <section id="start" hidden>
   <div class="lang"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
-  <details class="card guide" id="startguide" open><summary id="startguidetitle"></summary><div id="startguidebody"></div></details>
+  <details class="card guide" id="startguide"><summary id="startguidetitle"></summary><div id="startguidebody"></div></details>
   <form class="card" id="startform" novalidate>
     <div id="f-church">
       <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
@@ -231,7 +231,7 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("phonelabel", "web_phone", "Phone");
       put("phonehint", "story_phone_hint");
       put("send", "story_send", "Text me a link");
-      // The advice comes first, before they ask for a link.
+      // The advice comes first, before they ask for a link (closed until opened).
       put("startguidetitle", "story_guide", "How to share your story");
       $("startguidebody").replaceChildren.apply($("startguidebody"), renderGuide(d.guide));
       $("startguide").hidden = !d.guide;

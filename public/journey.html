@@ -158,8 +158,9 @@ details.day .body{padding:0 14px 14px}
   // ---------- /journey: start ----------
   var church = null, fromStory = null, searchTimer = null, searchSeq = 0;
   function loadStart(lang) {
-    var story = params.get("story") || "";
-    return getJSON("/api/journey?part=start&lang=" + encodeURIComponent(lang) + (story ? "&story=" + encodeURIComponent(story) : "")).then(function (x) {
+    var story = params.get("story") || "", qr = params.get("church") || "";
+    return getJSON("/api/journey?part=start&lang=" + encodeURIComponent(lang) + (story ? "&story=" + encodeURIComponent(story) : "")
+      + (qr ? "&church=" + encodeURIComponent(qr) : "")).then(function (x) {
       var d = x[1];
       T = d.text || {};
       setLang(d);
@@ -184,6 +185,8 @@ details.day .body{padding:0 14px 14px}
         if (d.from.church) { pick(d.from.church); $("change").hidden = true; }
         if (!$("first_name").value) $("first_name").value = d.from.first_name || "";
       }
+      // From their church's QR code: that church, which they can still change.
+      if (d.church && !church) pick(d.church);
       $("msg").hidden = true; $("start").hidden = false;
       return d;
     });
@@ -226,6 +229,7 @@ details.day .body{padding:0 14px 14px}
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (err) { /* UTC */ }
     getJSON("/api/journey?part=start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
       lang: $("lang").value || "en", story: params.get("story") || null, church: church && church.id,
+      via_qr: !!(church && params.get("church") === String(church.id)),
       first_name: $("first_name").value, contact_ok: $("contact_ok").checked, phone: $("phone").value,
       consent: $("consent").checked, tz: tz, company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
       .then(function (x) {

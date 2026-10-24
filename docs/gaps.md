@@ -49,4 +49,9 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **Read it depends on an outside site.** The links go to Bible Gateway, and the version chosen for each language needs checking. Bengali has no link and uses English's.
 - **No phone check.** Starting from the front page doesn't verify the phone a person gives for their church to call. Starting from a story uses that story's verified number.
 - **No add to home screen.** The page can be bookmarked, but it can't be installed like an app.
+- **Not by text or WhatsApp.** The brief's main ask: a daily step by text with replies. Online only for now (decided).
+- **Our own plan, not John.** The brief suggests the Gospel of John with days 22 to 30 left to the church.
+- **No age question.** A church may get an under-18's phone number.
+- **"Quiet" means not opening the page.** Opening it without doing anything still counts as active.
+- **+1 day changes real data.** It's for demos; using it on a real person moves their days for good.
 
