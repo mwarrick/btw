@@ -166,13 +166,17 @@ export function newState() {
   return { phase: "lang", lang: null, queue: [], editing: false, data: {} };
 }
 
-// Uppercase, accents and surrounding punctuation removed, so "Sí." matches SI.
+// Uppercase, accents, Arabic vowel marks and surrounding punctuation
+// (Latin, French/Russian quotes, Chinese, Arabic and Urdu) removed, so "Sí." matches SI, “是”。
+// matches 是 and تخطَّ matches تخط.
+// (A function declaration, so it's hoisted: US_SET above uses it at load.)
 function normalize(s) {
+  const EDGE = /^[\s.,;:!?¡¿'"()“”‘’«»「」『』。！？，、؟،۔]+|[\s.,;:!?¡¿'"()“”‘’«»「」『』。！？，、؟،۔]+$/g;
   return String(s)
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f\u064b-\u065f\u0670]/g, "")
     .toUpperCase()
-    .replace(/^[\s.,;:!?¡¿'"()]+|[\s.,;:!?¡¿'"()]+$/g, "")
+    .replace(EDGE, "")
     .replace(/\s+/g, " ");
 }
 
