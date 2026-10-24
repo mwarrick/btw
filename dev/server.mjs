@@ -26,7 +26,7 @@ Object.assign(process.env, {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_fake",
   ADMIN_PASSWORD: "pw",
   GOOGLE_TRANSLATE_API_KEY: "fake",
-  VOIPMS_DID: "5559990000",
+  VOIPMS_DID: "15559990000", // with the leading 1, as it may be in Vercel
 });
 
 // The prompt editor needs btw_prompt_keys.

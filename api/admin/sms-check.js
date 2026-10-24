@@ -44,7 +44,9 @@ async function check(res) {
   number.did = did || null;
   if (number.ok && !number.found) {
     number.ok = false;
-    number.error = "voip.ms doesn't list this number on the account.";
+    number.error = number.listed?.length
+      ? `voip.ms lists ${number.listed.join(", ")} on the account, not this number. Check VOIPMS_DID in Vercel.`
+      : "voip.ms didn't list any numbers for it. Check VOIPMS_DID in Vercel.";
   } else if (number.ok && number.sms === false) {
     number.ok = false;
     number.error = "SMS isn't enabled on this number in voip.ms.";
@@ -64,10 +66,16 @@ async function check(res) {
 }
 
 // getDIDsInfo's entry for the DID: whether it's on the account, whether SMS
-// is on (unknown when voip.ms doesn't say), and its description.
+// is on (unknown when voip.ms doesn't say), and its description. Numbers
+// are compared by their last 10 digits, so VOIPMS_DID set as 1714... still
+// matches voip.ms's 714... (voip.ms sends from either form).
+const last10 = (v) => String(v ?? "").replace(/\D/g, "").slice(-10);
 function didInfo(data, did) {
-  const entry = (data.dids || []).find((d) => String(d.did).replace(/\D/g, "").endsWith(did));
-  if (!entry) return { found: false };
+  const entry = (data.dids || []).find((d) => last10(d.did) === last10(did));
+  if (!entry) {
+    const listed = (data.dids || []).map((d) => last10(d.did)).filter(Boolean);
+    return { found: false, listed };
+  }
   const sms = entry.sms_enabled == null ? null : String(entry.sms_enabled) === "1";
   return { found: true, sms, description: entry.description || null };
 }
