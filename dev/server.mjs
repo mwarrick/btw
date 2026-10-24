@@ -81,7 +81,7 @@ http.createServer(async (req, res) => {
     return handler(req, res);
   }
   // vercel.json's rewrites and cleanUrls, by hand.
-  const page = url.pathname === "/admin" ? "admin.html" : url.pathname === "/" ? "index.html"
+  const page = url.pathname === "/admin" ? "admin.html" : ["/", "/signup"].includes(url.pathname) ? "profile.html" : url.pathname === "/demo" ? "demo.html"
     : url.pathname.startsWith("/p/") ? "profile.html" : url.pathname;
   const file = path.join(ROOT, "public", page);
   if (!file.startsWith(path.join(ROOT, "public")) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

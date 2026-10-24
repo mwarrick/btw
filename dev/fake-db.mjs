@@ -18,11 +18,13 @@ for (const q of ["name","email","church","country","region","postal","street","c
   keys.push("ask_"+q, "err_"+q, "edit_"+q);
 for (const s of ["name","email","church","country","street","city","state","zip","denom","website","contact","baptism","map"]) keys.push("sum_"+s);
 
-export const tables = { btw_languages: [{ code: "en", name: "English", menu_label: "English", active: true, menu_order: 1 }],
+export const tables = { btw_languages: [{ code: "en", name: "English", menu_label: "English", active: true, menu_order: 1 },
+    { code: "es", name: "Spanish", menu_label: "Español", active: true, menu_order: 2 }],
   btw_prompts: [...keys.map((k) => ({ key: k, lang: "en", text: `<${k}>` })),
     ...Object.entries(KW).map(([k, t]) => ({ key: k, lang: "en", text: t })),
     { key: "resources_url", lang: "en", text: "https://example.org/resources" },
     { key: "done_link", lang: "en", text: "See or update your signup anytime: {link}" },
+    { key: "web_signup_button", lang: "es", text: "Inscribirse" },
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" }],
   btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [] };
 export const files = new Map(); // "bucket/path" -> Buffer

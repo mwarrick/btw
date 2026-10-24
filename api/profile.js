@@ -17,11 +17,19 @@
 //   PATCH ?key=...  { baptisms } -> { baptisms, baptisms_at }: their total so far
 //                      (the Baptisms tab; texting a number does the same)
 //
+//   GET ?part=signup&lang=xx -> { languages: [{ code, name }], lang, dir, text }: no key;
+//                      the site's front page (/) uses the same page as a signup form
+//   POST { lang, phone, consent, name, ... } -> { key } or 400/409 { error, field, message }:
+//                      a signup from that form. It's saved finished, as if texted
+//                      to the end, with a `done` session, so a later text from the
+//                      phone is handled like any finished signup's. The phone isn't
+//                      verified: whoever types a number claims it (docs/gaps.md).
+//
 // Saving records edited_at with edited_by left empty, which /admin shows as
 // "by the pastor". The texts in btw_messages are never changed.
 
 import { EDITABLE, ERROR_PROMPTS, cleanChurchFields } from "../lib/church-fields.js";
-import { isProfileKey } from "../lib/profile-link.js";
+import { isProfileKey, newProfileKey } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
 
 const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
@@ -45,17 +53,25 @@ const TEXT_KEYS = [
   // The Baptisms tab.
   "web_tab_baptisms", "web_baptisms_question", "web_baptisms_hint", "web_baptisms_updated", "web_baptisms_invalid",
   "web_phone", "web_phone_hint",
+  // The signup form (no key).
+  "web_signup_intro", "web_language", "web_phone_signup_hint", "web_signup_consent", "web_signup_button",
+  "web_signed_up", "web_phone_taken", "web_required", "web_phone_invalid",
 ];
+// Answers the signup form must have; state and ZIP only in the US.
+const REQUIRED = ["church_name", "street", "city", "name", "email"];
 const RTL = new Set(["ar", "ur"]);
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  if (req.method !== "GET" && req.method !== "PATCH") {
-    res.setHeader("Allow", "GET, PATCH");
-    res.status(405).json({ error: "Use GET or PATCH." });
+  if (!["GET", "PATCH", "POST"].includes(req.method)) {
+    res.setHeader("Allow", "GET, PATCH, POST");
+    res.status(405).json({ error: "Use GET, PATCH or POST." });
     return;
   }
   try {
+    const params = new URL(req.url, "http://x").searchParams;
+    if (req.method === "GET" && params.get("part") === "signup") return await signupForm(params.get("lang"), res);
+    if (req.method === "POST") return await signup(req.body || {}, res);
     const key = new URL(req.url, "http://x").searchParams.get("key");
     const [church] = isProfileKey(key) ? await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`) : [];
     if (!church) {
@@ -108,6 +124,59 @@ export default async function handler(req, res) {
     console.error("profile:", err.message);
     res.status(500).json({ error: "Something went wrong. Please try again." });
   }
+}
+
+// Switched-on languages, by their own names, and the form's wording.
+async function signupForm(wanted, res) {
+  const languages = await db("btw_languages?active=eq.true&select=code,name,menu_label&order=menu_order");
+  const lang = languages.some((l) => l.code === wanted) ? wanted : "en";
+  res.status(200).json({ languages: languages.map((l) => ({ code: l.code, name: l.menu_label || l.name })),
+    lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
+}
+
+// A signup from the web form (see POST above).
+async function signup(body, res) {
+  const [language] = typeof body.lang === "string" ? await db(`btw_languages?code=${eq(body.lang)}&active=eq.true&select=code`) : [];
+  const lang = language ? language.code : "en";
+  const words = await wording(lang);
+  const refuse = (status, field, prompt, error) => res.status(status).json({ error, field, message: words[prompt] || error });
+
+  const phone = phoneValue(body.phone);
+  if (!phone) return refuse(400, "phone", "web_phone_invalid", "Enter the phone number you text from.");
+  const input = Object.fromEntries(EDITABLE.filter((f) => f in body).map((f) => [f, body[f]]));
+  const { fields, error, field, prompt } = cleanChurchFields({ country: "US", ...input });
+  if (error) return refuse(400, field, prompt || ERROR_PROMPTS[field], error);
+  const us = fields.country === "US";
+  const missing = [...REQUIRED, ...(us ? ["state", "zip"] : [])].find((f) => !fields[f])
+    || ["baptism_same", "public_map"].find((f) => typeof fields[f] !== "boolean")
+    || (fields.baptism_same === false && ["baptism_street", "baptism_city", ...(us ? ["baptism_state", "baptism_zip"] : [])].find((f) => !fields[f]));
+  if (missing) return refuse(400, missing, "web_required", "This one is needed.");
+  if (body.consent !== true) return refuse(400, "consent", "web_required", "Tick the box to sign up.");
+
+  const [taken] = await db(`btw_churches?phone=${eq(phone)}&select=phone`);
+  if (taken) return refuse(409, "phone", "web_phone_taken", "This number is already signed up. Text it to get your link.");
+
+  const now = new Date().toISOString();
+  const key = newProfileKey();
+  await db("btw_churches", { method: "POST", body: { ...fields, phone, lang, status: "complete", completed_at: now, consent_at: now, profile_key: key } });
+  await db("btw_sessions?on_conflict=phone", {
+    method: "POST",
+    body: { phone, lang, phase: "done", queue: [], editing: false },
+    prefer: "resolution=merge-duplicates",
+  });
+  res.status(200).json({ key });
+}
+
+// The number as stored: +1 and 10 digits for the US and Canada, otherwise
+// + and 8 to 15 digits when typed with a + (texts only come in from 10-digit
+// numbers today; see docs/gaps.md).
+function phoneValue(input) {
+  const text = String(input || "").trim();
+  const d = text.replace(/\D/g, "");
+  if (text.startsWith("+") && !d.startsWith("1")) return d.length >= 8 && d.length <= 15 ? `+${d}` : null;
+  if (d.length === 10) return `+1${d}`;
+  if (d.length === 11 && d[0] === "1") return `+${d}`;
+  return null;
 }
 
 // The answers the page can edit; the phone is sent apart, since it can't be

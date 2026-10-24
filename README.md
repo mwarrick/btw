@@ -4,7 +4,8 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 
 | Path | Purpose |
 | --- | --- |
-| `/` | A browser demo of the signup conversation. Nothing is saved or sent. |
+| `/` (also `/signup`) | The signup form: the same form as a church's own page, with the phone typed in, a language picker and the consent box. Saves a finished signup and opens its page (`/p/<key>`). |
+| `/demo` | A browser demo of the signup conversation. Nothing is saved or sent. |
 | `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
 | `/p/<key>` | A pastor's own signup page, linked from the DONE text: see and update their answers on a phone. The key in the link is the only login. |
