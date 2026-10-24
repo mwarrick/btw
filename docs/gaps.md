@@ -34,7 +34,11 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **Short-code texts aren't answered.** Texts from short codes (e.g. WhatsApp's 29283) are only shown in the Log panel; nothing replies to them.
 
 ## Baptism testimonies (`/story`)
-- **No review before the church sees a story.** A saved story shows on the church's Stories tab at once. The team can delete it, but only after the fact.
+- **No review before the church sees a story.** A story shared with the church shows on its Stories tab at once. The team can delete only the ones shared with it, and only after the fact.
+- **Typed only.** No voice or video recording; the phone keyboard's microphone works for speaking a story.
+- **No AI polish.** The guided questions shape the story; nothing rewrites a rambling one (declined earlier).
+- **Featuring is a star.** The team marks stories to feature; getting them onto baptize.org is still by hand.
+- **The 18+ answer is taken on trust,** and so is the parent or guardian's OK.
 - **The phone check proves only the phone.** The link texted to the number shows it's theirs, but anyone can pick any church in the list.
 - **Advice translations need checking.** The seeded advice was translated by hand. "Translate into every language" overwrites every other language with Google drafts, which need a native speaker's eye.
 - **US and Canadian numbers only**, as for churches.

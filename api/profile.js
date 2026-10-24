@@ -13,7 +13,7 @@
 //                      team wrote is not shown. `photos` are the ids of the
 //                      pictures that text brought (still kept), for #photo-<id>.
 //   GET ?key=...&part=stories -> { stories: [{ first_name, body, submitted_at, updated_at }] }:
-//                      baptism stories written for this church (api/story.js), newest first
+//                      baptism stories shared with this church (api/story.js), newest first
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
 //   PATCH ?key=...  { partial: true, <changed answers> } -> { church }: an unfinished
@@ -132,8 +132,8 @@ export default async function handler(req, res) {
       return;
     }
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "stories") {
-      const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&select=first_name,body,submitted_at,updated_at&order=submitted_at.desc`);
-      res.status(200).json({ stories: stories.filter((s) => s.submitted_at) });
+      const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&share=in.(church,baptize)&select=first_name,body,share,submitted_at,updated_at&order=submitted_at.desc`);
+      res.status(200).json({ stories: stories.filter((s) => s.submitted_at && (s.share === "church" || s.share === "baptize")) });
       return;
     }
     if (req.method === "GET") {

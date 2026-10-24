@@ -1,9 +1,13 @@
 // /api/story.js
 // Baptism testimonies (public/story.html at /story and /s/<key>). A baptized
 // person picks a language and their church, types their phone, and is texted
-// a private link; the link is the only login, as for a church's page. Only
-// the team (/admin, api/admin/testimonies.js) and that church (its page's
-// Stories tab, api/profile.js) read the story.
+// a private link; the link is the only login, as for a church's page. They
+// answer a few guided questions (the answers become the story, which they can
+// change) and choose who reads it: only them, their church (its page's
+// Stories tab, api/profile.js), or their church and the team (/admin,
+// api/admin/testimonies.js), who may feature it. Under 18, a parent or
+// guardian's OK is needed before anyone else reads it. The page also makes a
+// picture of the story they post themselves; nothing is published by us.
 //
 //   GET ?part=start&lang=xx  -> { languages, lang, dir, text }: the start page's wording
 //   GET ?part=churches&q=..  -> { churches: [{ id, name, place }] }: finished, real
@@ -14,7 +18,8 @@
 //                               and language picked win). Bots get { sent: true } and
 //                               nothing is sent; limits as for Get my link (lib/web-guard.js).
 //   GET ?key=..              -> { story, lang, dir, text, guide }: the writing page
-//   PATCH ?key=.. { first_name, body, consent } -> { story } or 400 { error, field, message }
+//   PATCH ?key=.. { first_name, answers, body, share, adult, guardian_name, guardian_ok, consent }
+//                            -> { story } or 400 { error, field, message }
 //   DELETE ?key=..           -> { deleted: true }: gone for good
 
 import { logEvent } from "../lib/events.js";
@@ -29,11 +34,18 @@ const TEXT_KEYS = [
   "story_intro", "story_church", "story_church_hint", "story_church_none", "story_phone_hint", "story_send",
   "story_sent", "story_title", "story_name", "story_body", "story_body_hint", "story_consent", "story_save",
   "story_saved", "story_guide", "story_delete", "story_delete_confirm", "story_deleted",
+  "story_questions", "story_questions_hint", "story_q_before", "story_q_why", "story_q_moment", "story_q_advice",
+  "story_q_verse", "story_share", "story_share_me", "story_share_church", "story_share_baptize", "story_age",
+  "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
+  "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
   "j_start_button",
 ];
 const NAME_MAX = 60;
 const BODY_MAX = 4000; // the advice asks for about 250 words; this only stops abuse
-const STORY_FIELDS = "id,phone,church_id,lang,first_name,body,consent_at,submitted_at,updated_at";
+const ANSWER_MAX = 1000;
+const QUESTIONS = ["before", "why", "moment", "advice", "verse"]; // story_q_<name>
+const SHARES = { me: "story_share_me", church: "story_share_church", baptize: "story_share_baptize" };
+const STORY_FIELDS = "id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,guardian_at,consent_at,submitted_at,updated_at";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -144,7 +156,9 @@ async function page(story, res) {
 }
 
 const view = (s, church) => ({
-  first_name: s.first_name || "", body: s.body || "", consent: !!s.consent_at, submitted_at: s.submitted_at,
+  first_name: s.first_name || "", answers: s.answers || {}, body: s.body || "", share: s.share || null,
+  adult: s.adult ?? null, guardian_name: s.guardian_name || "", guardian_ok: !!s.guardian_at,
+  consent: !!s.consent_at, submitted_at: s.submitted_at,
   church: church ? { name: church.church_name, place: place(church) } : null,
 });
 
@@ -155,19 +169,48 @@ async function save(story, body, res) {
   const text = String(body.body ?? "").replace(/\r\n/g, "\n").trim();
   if (!firstName) return refuse("first_name", "web_required", "Enter your first name.");
   if (firstName.length > NAME_MAX) return refuse("first_name", "web_required", `Keep it under ${NAME_MAX} characters.`);
+  const answers = {};
+  for (const q of QUESTIONS) {
+    const a = String(body.answers?.[q] ?? "").replace(/\r\n/g, "\n").trim();
+    if (a.length > ANSWER_MAX) return refuse(`q_${q}`, "story_body_hint", "That's too long.");
+    if (a) answers[q] = a;
+  }
   if (!text) return refuse("body", "web_required", "Write your story.");
   if (text.length > BODY_MAX) return refuse("body", "story_body_hint", "That's too long: about 250 words or less.");
-  if (body.consent !== true) return refuse("consent", "web_required", "Tick the box to save your story.");
+  const share = String(body.share || "");
+  if (!SHARES[share]) return refuse("share", "web_required", "Choose who can read your story.");
 
+  // Anyone else reading it needs their OK, and a parent or guardian's under 18.
   const now = new Date().toISOString();
+  let adult = null, guardian = null;
+  if (share !== "me") {
+    if (body.adult !== true && body.adult !== false) return refuse("adult", "web_required", "Tell us if you're 18 or older.");
+    adult = body.adult;
+    if (!adult) {
+      guardian = String(body.guardian_name ?? "").trim().replace(/\s+/g, " ");
+      if (!guardian || guardian.length > NAME_MAX) return refuse("guardian_name", "web_required", "Enter your parent or guardian's name.");
+      if (body.guardian_ok !== true) return refuse("guardian_ok", "web_required", "Your parent or guardian needs to agree first.");
+    }
+    if (body.consent !== true) return refuse("consent", "web_required", "Tick the box to save your story.");
+  }
+  // What they agreed to, word for word in their language.
+  const consentText = share === "me" ? null : [
+    `${words.story_share || "Who can read your story?"} ${words[SHARES[share]] || share}`,
+    words.story_consent || "",
+    guardian ? `${words.story_guardian || "Parent or guardian"}: ${guardian}. ${words.story_guardian_ok || ""}` : "",
+  ].filter(Boolean).join("\n");
+
   const [saved] = await db(`btw_testimonies?id=eq.${story.id}&select=${STORY_FIELDS}`, {
     method: "PATCH",
     body: {
-      first_name: firstName, body: text,
-      consent_text: words.story_consent || null, consent_at: story.consent_at || now,
+      first_name: firstName, answers, body: text, share, adult,
+      guardian_name: guardian, guardian_at: guardian ? now : null,
+      consent_text: consentText, consent_at: consentText ? now : null,
       submitted_at: story.submitted_at || now,
-      // New for the team again after each change.
+      // New for the team again after each change; only stories shared with
+      // the team can be featured.
       seen_at: null,
+      ...(share === "baptize" ? {} : { featured_at: null }),
     },
     prefer: "return=representation",
   });
