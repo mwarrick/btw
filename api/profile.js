@@ -77,6 +77,7 @@ const TEXT_KEYS = [
   // The Newly baptized tab: people on their first 30 days (api/journey.js).
   "web_tab_journeys", "web_journeys_intro", "web_no_journeys", "web_journey_progress", "web_journey_flag",
   "web_journey_last", "web_journey_qr", "web_journey_qr_hint", "web_print", "j_title",
+  "web_story_qr", "web_story_qr_hint", "story_title",
   "web_journey_talked", "web_journey_next_label", "web_weekly_note", "web_weekly_note_hint",
   "j_good", "j_hard", "j_ask", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_day",
   // The Stories tab: baptism stories from the church's people (api/story.js).
@@ -137,7 +138,11 @@ export default async function handler(req, res) {
     }
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "stories") {
       const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&share=in.(church,baptize)&select=first_name,body,share,submitted_at,updated_at&order=submitted_at.desc`);
-      res.status(200).json({ stories: stories.filter((s) => s.submitted_at && (s.share === "church" || s.share === "baptize")) });
+      res.status(200).json({
+        stories: stories.filter((s) => s.submitted_at && (s.share === "church" || s.share === "baptize")),
+        // The QR code's link: the story form with this church picked.
+        start_url: `${siteUrl(req)}/story?church=${church.id}&lang=${church.lang || "en"}`,
+      });
       return;
     }
     if (req.method === "GET") {

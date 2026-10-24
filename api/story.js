@@ -9,8 +9,9 @@
 // guardian's OK is needed before anyone else reads it. The page also makes a
 // picture of the story they post themselves; nothing is published by us.
 //
-//   GET ?part=start&lang=xx  -> { languages, lang, dir, text, guide }: the start page's wording
-//                               and the advice, read before asking for a link
+//   GET ?part=start&lang=xx[&church=<id>] -> { languages, lang, dir, text, guide, church }: the
+//                               start page's wording and the advice, read before asking for a
+//                               link; `church` is the one picked by its QR code (its page)
 //   GET ?part=churches&q=..  -> { churches: [{ id, name, place }] }: finished, real
 //                               signups whose name or city contains q (2+ letters), up to 20
 //   POST ?part=link { lang, church, phone } -> { sent: true } or 400/429/503
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
   try {
     const params = new URL(req.url, "http://x").searchParams;
     const part = params.get("part");
-    if (req.method === "GET" && part === "start") return await start(params.get("lang"), res);
+    if (req.method === "GET" && part === "start") return await start(params.get("lang"), params.get("church"), res);
     if (req.method === "GET" && part === "churches") return await churches(params.get("q"), res);
     if (req.method === "POST" && part === "link") return await sendLink(req, req.body || {}, res);
 
@@ -83,10 +84,12 @@ export default async function handler(req, res) {
   }
 }
 
-async function start(wanted, res) {
+async function start(wanted, churchId, res) {
   const { languages: list, lang } = await languages(wanted);
-  const [text, guide] = await Promise.all([wording(lang, TEXT_KEYS), advice(lang)]);
-  res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide });
+  // From the church's QR code (simulations too, for the demo).
+  const [text, guide, [qr]] = await Promise.all([wording(lang, TEXT_KEYS), advice(lang),
+    /^[\w-]{1,64}$/.test(churchId || "") ? db(`btw_churches?id=${eq(churchId)}&completed_at=not.is.null&select=id,church_name,city,state,country`) : []]);
+  res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide, church: qr ? { id: qr.id, name: qr.church_name, place: place(qr) } : null });
 }
 
 // The advice in their language, English where it has none.
@@ -118,7 +121,8 @@ async function sendLink(req, body, res) {
   const refuse = (status, field, prompt, error) => res.status(status).json({ error, field, message: words[prompt] || error });
 
   const [church] = body.church ? await db(`btw_churches?id=${eq(body.church)}&select=id,completed_at,simulated`) : [];
-  if (!church || !church.completed_at || church.simulated) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
+  // A simulated church only comes from its QR code (search never shows one): a demo.
+  if (!church || !church.completed_at || (church.simulated && !body.via_qr)) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
   // Any country's number; whether we can text it depends on the provider.
   const phone = anyPhoneValue(body.phone);
   if (!phone) return refuse(400, "phone", "story_phone_invalid", "Enter your mobile number, with + and your country code outside the US and Canada.");
