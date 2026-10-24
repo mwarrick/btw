@@ -5,8 +5,10 @@
 //   GET               -> { conversations: [{ phone, church_name, name, status, lang, phase, step,
 //                        last_at, unread, ... }] } newest activity first; one per phone number;
 //                        unread counts the pastor's team texts nobody has opened
-//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, media, translation, error,
-//                        created_at, sender: { name } }] }
+//   GET ?phone=+1...  -> { church, session, messages: [{ thread, direction, body, media, photos, translation,
+//                        error, created_at, sender: { name } }] }; `photos` are our stored copies
+//                        of a text's pictures ({ id, url, thumb }, signed links), shown instead of
+//                        voip.ms's own links, which don't open in a browser
 //                        the latest messages, oldest first; marks the team texts read
 //   POST ?phone=+1... { body }  -> { message }: texts the pastor from the
 //                        team thread as the logged-in user (refused after STOP;
@@ -27,7 +29,7 @@
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { logEvent } from "../../lib/events.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
-import { deletePhotos } from "../../lib/photos.js";
+import { deletePhotos, listPhotos } from "../../lib/photos.js";
 import { newProfileKey, profileUrl, siteUrl } from "../../lib/profile-link.js";
 import { translate } from "../../lib/translate.js";
 import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
@@ -83,11 +85,15 @@ async function list(res) {
 }
 
 async function thread(phone, res) {
-  const [[church], [session], messages] = await Promise.all([
+  const [[church], [session], messages, photos] = await Promise.all([
     db(`btw_churches?phone=${eq(phone)}&select=*,editor:btw_users(name)`),
     db(`btw_sessions?phone=${eq(phone)}&select=*`),
     db(`btw_messages?phone=${eq(phone)}&select=${MESSAGE_FIELDS}&order=id.desc&limit=${THREAD_LIMIT}`),
+    listPhotos({ phone }),
   ]);
+  for (const m of messages) {
+    m.photos = photos.filter((p) => p.message_id === m.id).map(({ id, url, thumb }) => ({ id, url, thumb }));
+  }
   if (!church && !session && messages.length === 0) {
     res.status(404).json({ error: "No conversation with that number." });
     return;

@@ -1826,7 +1826,7 @@ function renderThread() {
   } else $("thread-messages").replaceChildren(...(shown.length
     ? shown.flatMap((m) => [
       m.body || !m.media?.length ? h("div", { class: `bubble ${m.direction}${m.error ? " failed" : ""}`, text: m.body || "(empty)" }) : null,
-      m.media?.length ? attachments(m) : null,
+      m.photos?.length || m.media?.length ? attachments(m) : null,
       m.translation ? h("span", { class: `bubble-note ${m.direction}`, text: `In English: ${m.translation}` }) : null,
       m.sender ? h("span", { class: "bubble-note out", text: `Sent by ${m.sender.name}` }) : null,
       m.error ? h("span", { class: "bubble-error", text: `Not sent: ${m.error}` }) : null,
@@ -1852,12 +1852,15 @@ function renderThread() {
   if (last) last.scrollIntoView({ block: "end" });
 }
 
-// An MMS's pictures as thumbnails that open full size in a new tab; a file
-// that isn't an image (or no longer loads) shows as a link instead.
+// An MMS's pictures as thumbnails that open full size in a new tab: our
+// stored copies when there are any (voip.ms's own links don't open in a
+// browser), else the links as sent. A file that isn't an image (or no
+// longer loads) shows as a link instead.
 function attachments(m) {
-  return h("div", { class: `attachments ${m.direction}` }, m.media.map((url, i) => {
+  const items = m.photos?.length ? m.photos.map((p) => ({ url: p.url, src: p.thumb || p.url })) : m.media.map((url) => ({ url, src: url }));
+  return h("div", { class: `attachments ${m.direction}` }, items.map(({ url, src }, i) => {
     const link = h("a", { href: url, target: "_blank", rel: "noopener noreferrer", title: "Open full size" });
-    const img = h("img", { src: url, alt: `Attachment ${i + 1}`, loading: "lazy", referrerpolicy: "no-referrer" });
+    const img = h("img", { src, alt: `Attachment ${i + 1}`, loading: "lazy", referrerpolicy: "no-referrer" });
     img.addEventListener("error", () => { link.classList.add("file"); link.replaceChildren(`Attachment ${i + 1}`); });
     link.append(img);
     return link;
