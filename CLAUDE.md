@@ -56,7 +56,7 @@ Live site: https://baptize.app (Vercel project `btw`; also https://btw-dusky.ver
 - `lang_detected` and `kw_menu` (migration `20261023170000`) were translated by hand into all 10 languages; worth a native-speaker check.
 - Prompt text is data: 123 keys, 1203 rows (as of 2026-10-24; read with `dbAll`) in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). All 10 languages were switched on as of 2026-10-23.
 
-Known gaps, kept on purpose for the demo: `docs/gaps.md`. Testimonies are built (above); the earlier plan is `docs/plan-testimonies.md`. Planned, not built: Track 3, the first 30 days of faith after baptism, building on that baptizee area but tracked separately (`docs/plan-discipleship.md`).
+Known gaps, kept on purpose for the demo: `docs/gaps.md`. Testimonies are built (above); the earlier plan is `docs/plan-testimonies.md`. Planned, not built: Track 3, the first 30 days of faith after baptism, online only in this prototype (no texts), with a drafted 30-day outline and four open decisions (`docs/plan-discipleship.md`, revised 2026-10-24).
 
 ## Decisions (the user's; details in docs/session-2026-10-23.md)
 - Any text starts or continues a signup; no keyword.

@@ -1,129 +1,153 @@
-# Plan: Track 3, the first 30 days of faith
+# Plan: the first 30 days of faith
 
-Status: **plan only, not built.** It builds on Track 2, the baptizee portal (`docs/plan-testimonies.md`). It lives in the same baptizee area, but it is tracked here as its own piece of work.
+Status: **plan only, not built.** Revised on 2026-10-24 after the user's decisions:
+- **Online only** in this prototype: no daily texts.
+- **The plan:** a simple 30-day plan found and assembled from common practice (below).
+- **Flags go to the church contact.** People who say "Hard", "I have a question", or go quiet are flagged on the church's page; nobody is texted.
+- **30 days, fixed.**
 
 > How might we help local churches walk a newly baptized person through their first 30 days of following Jesus, so they keep growing and stay rooted in that church?
 
-## The idea in one paragraph
+## In one paragraph
 
-A newly baptized person opts in on their phone and gets **one short text a day for 30 days**, in their language. Each text is a sentence or two plus a link to that day's page: a Bible passage, a few lines, one question and one small step. The steps include praying, telling someone, coming on Sunday, and meeting someone from the church. **Their church stays in the loop** on four check-in days (7, 14, 21, 30). The person is asked a simple question, and the answer goes to the church, not to us. If someone goes quiet, the church is nudged to reach out. The church does the relationship; we do the reminders.
+A newly baptized person starts their **30 days** from the testimony page or the front page. They get a private page, `/j/<key>`, that is theirs alone. One new day opens each day:
+- a short Bible passage (with a link to read it in their language);
+- a few lines on it;
+- one question to think about;
+- one small step to take.
 
-## How it connects to Track 2
+On days **7, 14, 21 and 30** the page asks how it's going. The answer goes to **their church's page** (a new *Newly baptized* tab), where the pastor sees who is on which day and who could use a call. The church does the relationship; the page does the daily rhythm.
 
-- **Shared person record.** Track 2 should store the person (name, language, church, phone if given) in its own table, `btw_baptizees`, with stories attached to it, not as fields on a story. Then a story and a 30-day journey belong to the same person. This is a small change to the Track 2 plan.
-- **Same way in.** The same entry points as Track 2: the church's invite link or QR (`/s/<church code>`), and "I was baptized" on the landing page. After sharing a story, or instead of it, they see: *Want a short message every day for your first 30 days?*
-- **Inviting a story back.** The journey invites a story back: day 30 (or earlier) asks *Would you share your story?*, linking to Track 2's form, already tied to them.
+## The 30 days (draft for the team to review)
 
-## Getting started
+This draft is assembled from common practice for new believers, not taken from a copyrighted plan:
+- Week 1 follows the classic "first lessons" (the Navigators' *Beginning with Christ*: assurance, forgiveness, prayer, guidance, victory).
+- Week 2 reads key moments in **Mark**, the shortest Gospel, which is widely recommended as a first book.
+- Week 3 is about the church, starting from **Acts 2**.
+- Week 4 is about living it out and telling others.
 
-1. **The person opts in.** They give their first name, mobile number and language, and tick consent. The consent is saved word for word, as for photos. Under 18 needs a parent's agreement. A church can also **add someone** from its own page (first name and phone). That only sends an invitation text, and nothing more is sent until the person replies YES. Texting people who didn't ask is both wrong and a carrier violation.
-2. **Day 0** is the welcome text, with a link to their journey page (`/j/<key>`). Like the pastor's page, the private link is the only login. The page shows all days so far, so a missed day can be caught up.
-3. **Delivery time.** Texts go out **once a day around 8 am their time.** The time zone comes from the church's country and state, or is asked when it can't be worked out.
+Passages are references only. Each language links to a free Bible (see *Bible text*). The notes, questions and steps are short, written by us, and edited in `/admin`.
 
-## Day by day
+| Day | Theme | Passage | Small step |
+|---|---|---|---|
+| **Week 1** | **New life** | | |
+| 1 | What your baptism means | Romans 6:3–11 | Write down the date of your baptism. |
+| 2 | You belong to God, for sure | 1 John 5:11–13 | Read verse 13 out loud. |
+| 3 | Forgiven | 1 John 1:5–2:2 | Thank God for one thing he has forgiven you. |
+| 4 | Talking with God | Matthew 6:5–13 | Pray the Lord's Prayer slowly. |
+| 5 | God hears you | John 16:23–24; Philippians 4:6–7 | Tell God one worry today. |
+| 6 | God speaks through the Bible | Psalm 119:105; 2 Timothy 3:14–17 | Pick a time of day for reading. |
+| 7 | Help when tempted | 1 Corinthians 10:13 | **Check-in:** how's it going? |
+| **Week 2** | **Meet Jesus (Mark)** | | |
+| 8 | Jesus calls ordinary people | Mark 1:14–20 | Notice who Jesus calls. |
+| 9 | Jesus forgives and heals | Mark 2:1–12 | Pray for someone who is sick or hurting. |
+| 10 | Peace in the storm | Mark 4:35–41 | Name one fear and give it to God. |
+| 11 | Who is Jesus to you? | Mark 8:27–38 | Answer Jesus' question in your own words. |
+| 12 | The greatest is the servant | Mark 10:42–45 | Do one kind thing quietly. |
+| 13 | The cross | Mark 15:21–39 | Thank Jesus for dying for you. |
+| 14 | He is risen | Mark 16:1–8 | **Check-in:** have you met someone from your church this week? |
+| **Week 3** | **Belonging** | | |
+| 15 | The first church | Acts 2:36–47 | Find out when your church meets this week. |
+| 16 | Don't go it alone | Hebrews 10:23–25 | Go to church or a small group. |
+| 17 | One body, many parts | 1 Corinthians 12:12–27 | Ask your pastor how you could help. |
+| 18 | Love one another | John 13:34–35 | Encourage someone from church. |
+| 19 | Forgiving others | Matthew 18:21–35 | Forgive someone in your heart. |
+| 20 | Carry each other's burdens | Galatians 6:1–2, 9–10 | Ask someone how you can pray for them. |
+| 21 | Use what God gave you | 1 Peter 4:8–11 | **Check-in:** is there something we can pray for? |
+| **Weeks 4–5** | **Living it out** | | |
+| 22 | Led by the Spirit | Galatians 5:16–25 | Pick one fruit of the Spirit to ask for. |
+| 23 | Peace instead of worry | Philippians 4:4–9 | Write down three things you're thankful for. |
+| 24 | Doing what it says | James 1:19–27 | Put one verse you read into practice. |
+| 25 | What you treasure | Matthew 6:19–34 | Trust God with one need today. |
+| 26 | New clothes for a new life | Colossians 3:12–17 | Be patient with someone today. |
+| 27 | Ready to tell your story | 1 Peter 3:15–16 | **Share your story** (link to `/s/<key>` or `/story`). |
+| 28 | Go and make disciples | Matthew 28:18–20 | Tell one person what Jesus did for you. |
+| 29 | Nothing can separate you | Romans 8:31–39 | Read verse 38–39 to yourself again. |
+| 30 | Keep going | Philippians 1:6; 3:12–14 | **Check-in:** what's your next step at your church? |
 
-| Days | Focus (suggested, content to be decided) | Church touchpoint |
-|---|---|---|
-| 1–7 | What baptism meant; prayer; reading the Bible (one Gospel) | **Day 7 check-in:** *How's it going? Reply 1 Good, 2 Hard, 3 Have a question* |
-| 8–14 | Following Jesus day to day; the church as family; Sunday | **Day 14:** *Have you met someone from {church} this week?*; also invites their story (Track 2) |
-| 15–21 | Prayer and Scripture habits; forgiveness; serving | **Day 21:** *Is there something we can pray for?* |
-| 22–30 | Telling others; generosity; what's next (small group, class) | **Day 30:** celebration; *What's your next step at {church}?*; invite to share their story |
+Before anything ships, the team (or a pastor they trust) reviews the themes, passages and every note. The organizers decide the theology and the tone.
 
-- **Each day's text** stays under 160 characters (one SMS) and carries the link. In non-Latin scripts that limit is 70 characters, so the text is short and the link does the work.
-- **Each day's page** is where the content lives: passage reference and text, about 100 words, one question and one step. It should load fast on a weak connection, like the pastor's page. It also has an optional **"This week at {church}"** line that the church fills in once (service time, address, a contact name), so every day points back to that church.
+## How it works
 
-## Replies and keywords
+- **Starting.**
+  - From the testimony page (`/s/<key>`): after saving their story, **Start my first 30 days**. Their first name, church and language carry over, and the testimony link already proved their phone.
+  - From the front page: the *I was baptized* card also gets a **First 30 days** button: pick a language and church, enter a first name, tick consent. No phone is needed, since nothing is texted.
 
-- **Replies go to the church.** Any reply goes to **their church**, shown on the church's page in a new **Newly baptized** tab. The church sees each person's day, last reply and a "needs a call" flag. Our team sees it all in `/admin` but doesn't answer on the church's behalf.
-- **Check-in answers** are kept as data (1/2/3, yes/no), so the church and `/admin` can see who is struggling.
-- **Keywords**, in all 10 languages, hand-written as the existing `kw_*` lists:
-  - PAUSE stops texts for 7 days;
-  - STOP ends the journey;
-  - START resumes;
-  - HELP;
-  - TODAY re-sends today's link.
+  Either way they get `/j/<key>`, a private link, which is the only login, like the church page. The page says plainly: *bookmark this*. If they started from a testimony, the link is also on that page.
+- **Reminders without texts.**
+  - The page offers **Add to my calendar**: a downloaded `.ics` file with a daily event at a time they pick (8 am by default) for 30 days, each linking to their page.
+  - It also offers **Add to home screen**: a small web-app manifest, so the page opens like an app.
 
-## Keeping them rooted: nudges to the church
+  Both work offline-first and cost nothing. They're optional.
+- **One day a day.** Day N opens on the Nth calendar day after starting, in the phone's time zone. Missed days stay open to catch up; future days stay closed. Each day has **Done**. The page shows a simple 30-dot progress row.
+- **Check-ins (days 7, 14, 21, 30).** Three big buttons: **Going well**, **It's hard**, **I have a question**, plus an optional note. Day 30 also asks **What's your next step?**:
+  - join a small group;
+  - serve;
+  - take a class;
+  - not sure yet.
+- **Bible text.** Each day shows the reference and a **Read it** button that opens the passage in a free online Bible in their language. In `/admin`, each language's Bible link is a setting (a URL pattern with `{book}`, `{chapter}`). Public-domain translations exist for several languages, which matters if we later show the text on the page itself; we haven't checked a version for every language yet:
+  - World English Bible (en);
+  - Reina-Valera 1909 (es);
+  - Louis Segond 1910 (fr).
+- **Language.** The page and the day content are in their language, with English where a translation is missing. The texts are hand-checked, like the prompts.
 
-Texts go to the church's contact (the pastor, or a **mentor** the church names for that person). Each one carries their link to the Newly baptized tab:
-- **Day 1:** *Maria started her first 30 days. Mentor: you. Say hi this week.*
-- After a check-in answered **Hard** or **Have a question**, or **two check-ins with no reply**: *Maria could use a call.*
-- **Day 30:** *Maria finished her 30 days. What's her next step?* The church marks one of:
-  - joined a group;
-  - attending;
-  - not connected.
+## For the church (its page, new *Newly baptized* tab)
 
-  This answers "stay rooted" with data, not a guess.
+- **The list.** Everyone doing the 30 days who picked this church: first name, today's day, last check-in and their note.
+- **Could use a call.** This flag is set when someone answers *It's hard* or *I have a question*, or misses a check-in by 3 days. It shows on the tab, and as a count on the tab name.
+- **Contact details.** A phone number shows only if the person ticked **My church may contact me** and gave one. If they came from a testimony, the number is their verified one.
+- **Marking next steps.** **Mark: talked with them** clears the flag. On day 30 the pastor can mark the person's next step (*joined a group*, *attending*, *not connected*), which answers "stayed rooted" with data.
+- **This week at {church}.** One line the church writes, such as the service time or a contact name, shown on every day's page. It's optional.
 
-## Screens
+## For the team (`/admin`)
 
-- **Baptizee:** `/j/<key>`, the journey page (today, past days, pause/stop, link to share their story).
-- **Church page** (`/p/<key>`):
-  - a **Newly baptized** tab: list, add a person (invitation only), assign a mentor, mark next step;
-  - **"This week at {church}"** text;
-  - the invite QR, shared with Track 2.
-- **/admin** gets a **Discipleship** screen:
-  - enrolled, active, paused, finished;
-  - reply rate per check-in;
-  - where people drop off (by day);
-  - per church;
-  - a list of anyone flagged with no church action for 3 days.
-- **/admin Prompts:** the daily texts and keywords are edited like other prompts. Day pages are longer than 160 characters, so they get their own editor, with the same English-first, translate-then-fix workflow.
+- **Discipleship screen:**
+  - started, active this week, finished;
+  - check-in answers by day;
+  - where people stop (by day);
+  - a per-church list;
+  - everyone flagged with no church action for 3 days.
+- **The plan editor:** one day at a time, per language: theme, passage, note, question, step. It works like the testimony advice: edit the English, **Translate into every language** for drafts, then check each one.
 
-## Sending: one number or two?
+## Data (all `btw_`)
 
-The signup number assumes any unknown text is a church signing up. A baptizee's reply must not start a church signup.
-- **Recommended: a second voip.ms number for baptizees** (about $1/month). Routing is then trivial, the 10DLC campaign can describe this use honestly, and it can be paused without touching church signups.
-- **Alternative: one number.** `sms-inbound` checks `btw_baptizees` for the phone before the church flow. This is cheaper, but it mixes two audiences and two kinds of message on one number and one 10DLC campaign.
-
-## Scheduling
-
-- **The daily send** needs a scheduler: **Vercel Cron** calling `api/cron/journeys.js` every hour. It sends whatever is due at about 8 am in each person's time zone. This needs Vercel Pro (Hobby allows only daily cron jobs), unless the n8n relay's scheduler calls the endpoint hourly instead.
-- **Sends are idempotent:** each day is recorded as sent, so a retry or a duplicate run never texts twice.
-- **Volume:** each person gets about 34 texts plus church nudges. At 10,000 people that's about 350,000 texts. Check voip.ms pricing and limits, and 10DLC throughput, before launch.
-
-## Data (all `btw_`-prefixed)
-
-- **`btw_baptizees`** (shared with Track 2):
-  - `id`, `church_phone`, `first_name`, `phone`, `lang`, `tz`;
-  - `minor`, `guardian_consent_at`;
-  - `journey_key`, `journey_consent_text`, `journey_consent_at`;
-  - `started_on`, `day`, `paused_until`, `stopped_at`, `finished_at`;
-  - `mentor_name`, `mentor_phone`, `next_step`, `next_step_at`.
-- **`btw_journey_days`**: `day`, `lang`, `text` (the SMS, at most 160 characters), `title`, `passage`, `body`, `question`, `step`, `updated_at`.
-- **`btw_journey_sends`**: `baptizee_id`, `day`, `kind` ('day' | 'checkin' | 'nudge'), `sent_at`, `message_id`; unique (`baptizee_id`, `day`, `kind`).
-- **`btw_checkins`**: `baptizee_id`, `day`, `answer`, `raw`, `at`.
-- **Texts** stay in `btw_messages` (phone-keyed, as now), with `thread = 'journey'`.
-- **`btw_churches.weekly_note`**, for "This week at {church}".
+- **`btw_journeys`:**
+  - identity and links: `id`, `key` (the private link), `church_id`, `testimony_id` (if started from a story);
+  - the person: `first_name`, `lang`, `phone` (optional), `contact_ok`, `consent_text`, `consent_at`;
+  - progress: `started_on` (date), `tz`, `done_days int[]`, `next_step`, `next_step_at`;
+  - church follow-up: `flag_at`, `church_seen_at`;
+  - `created_at`.
+- **`btw_journey_days`:** `day`, `lang`, `theme`, `passage`, `note`, `question`, `step`, `updated_at`, `updated_by`. Seeded with the English draft above, then hand-translated.
+- **`btw_checkins`:** `journey_id`, `day`, `answer` (`good` / `hard` / `question`), `note`, `created_at`, `seen_at`.
+- **`btw_churches.weekly_note`.**
+- **Bible links per language:** a setting in `btw_prompts` (English-only style keys `bible_url_<lang>`) or a small table.
 
 ## Build order
 
-1. **Content first:** 30 days in English, then translated. Nothing else is worth building until this exists, and it's the long pole: 30 days × 10 languages, plus a native-speaker check.
-2. The person record (`btw_baptizees`), the opt-in on the Track 2 form, and the journey page `/j/<key>`.
-3. The hourly sender, daily texts and keywords (PAUSE/STOP/START/TODAY), on the second number.
-4. Check-ins, and replies routed to the church's Newly baptized tab.
-5. Church nudges, mentors and the next step on day 30.
-6. The /admin Discipleship screen and its numbers.
+1. **The 30 days.** Review and finalize the English content (the table above, plus a note, question and step for each day), then translate. This is the long pole; nothing else is useful without it.
+2. **The journey page `/j/<key>`.** Start from a testimony and from the front page; one day a day; Done; Bible links; calendar file.
+3. **Check-ins**, and the church's *Newly baptized* tab with flags and next steps.
+4. **The `/admin` screens.** The Discipleship numbers and the plan editor.
 
-Rough size: steps 2–6 are about 3–4 sessions, after Track 2 and once the content exists.
+Rough size: steps 2–4 are about 2 sessions, similar to testimonies. Step 1 depends on the review.
 
-## Decisions needed before building
+## Decisions still open
 
-1. **Who writes the 30 days?**
-   - Options: the organizers, an existing published plan licensed for this, or churches choosing from a few plans.
-   - Theology and tone are the organizers' call, not ours.
-2. **Can churches add their own content?** Their own note per day, or only the weekly "This week at {church}" line?
-   - Recommended: the weekly line only, to start.
-3. **A second number for baptizees?**
-   - Recommended: yes.
-4. **Who gets the nudges:** the church's contact, a named mentor per person, or both?
-5. **Is 30 days fixed,** or can it run longer (e.g. a weekly text until Pentecost 2027)?
-6. **Countries where this is risky:** should texts there use discreet wording (no "Jesus", "baptism" in the SMS itself, only on the page), or not be offered?
-   - Recommended: offer discreet wording as an opt-in.
+1. **The plan above:** approve it, change it, or have a pastor review it first? Also, who signs off on the notes?
+2. **How the days open:** one new day per calendar day (recommended: steady rhythm, matches "first 30 days"), or self-paced (next day opens when they press Done)?
+3. **Bible text:** link out to a free online Bible per language (recommended, light), or show the passage on the page from public-domain texts (heavier: needs a vetted version for each of the 10 languages)?
+4. **Who can start:** only people who wrote a testimony (their phone is verified), or anyone from the front page too (recommended; nothing is texted, so there's nothing to abuse)?
 
 ## Gaps this would add (for `docs/gaps.md` when built)
 
-- **Safety.** A text about faith can put someone at risk if the wrong person reads their phone. There is only an opt-in for discreet wording, and no stronger protection.
-- **Opt-in rests on the person's YES.** A church can add a wrong number, so the YES requirement must hold everywhere.
-- **Scheduling depends on an hourly job.** If it fails, a day is late, not lost, because sends are recorded per day.
-- **"Rooted" is only what the church reports** on day 30.
+- **No reminders unless they set them up.** Without texts, someone who doesn't bookmark the page or add the calendar reminders may not come back. The church tab shows who has gone quiet.
+- **The plan needs review.** A draft written by us needs a pastor's review and native-speaker checks in 10 languages.
+- **Links to an outside Bible site** depend on that site staying up.
+
+## Sources consulted
+
+- [Navigators: Growing in Christ series](https://www.navigators.org/?p=1594) and [The Next Steps guide](https://navadmin.tyndale.com/wp-content/uploads/The-Next-Steps_Explore-God.pdf): the classic first lessons (assurance, answered prayer, victory, forgiveness, guidance).
+- [Every Nation's One-2-One plan on Bible.com](https://my.bible.com/reading-plans/20-one-2-one/day/2): trusting Christ, small group, weekly worship, daily reading, telling others.
+- [Evansville Christian: Discipling new believers](https://www.evansvillechristian.org/discipling-new-believers/): start in Mark or John; connect them to a local church.
+- [Disciplepair: Discipleship for new believers](https://www.disciplepair.com/blog/discipleship-for-new-believers): the first 90 days set the rhythms of Scripture, prayer and church.
+- [World English Bible copyright (public domain)](https://ebible.org/eng-web/copyright.htm) and [Louis Segond 1910 (public domain)](https://eBible.org/fraLSG/copyright.htm).
