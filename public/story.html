@@ -81,6 +81,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <!-- /story: pick the church, get the link -->
 <section id="start" hidden>
   <div class="lang"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
+  <details class="card guide" id="startguide" open><summary id="startguidetitle"></summary><div id="startguidebody"></div></details>
   <form class="card" id="startform" novalidate>
     <div id="f-church">
       <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
@@ -230,6 +231,10 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("phonelabel", "web_phone", "Phone");
       put("phonehint", "story_phone_hint");
       put("send", "story_send", "Text me a link");
+      // The advice comes first, before they ask for a link.
+      put("startguidetitle", "story_guide", "How to share your story");
+      $("startguidebody").replaceChildren.apply($("startguidebody"), renderGuide(d.guide));
+      $("startguide").hidden = !d.guide;
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
       }));
@@ -428,8 +433,9 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("guidetitle", "story_guide", "How to share your story");
       $("guidebody").replaceChildren.apply($("guidebody"), renderGuide(d.guide));
       $("guide").hidden = !d.guide;
-      // Once written, the advice folds away so the story comes first.
-      $("guide").open = !s.submitted_at;
+      // They read the advice before asking for the link; here it stays
+      // folded, to open again if they want it.
+      $("guide").open = false;
       put("namelabel", "story_name", "Your first name");
       put("bodylabel", "story_body", "Your story");
       put("bodyhint", "story_body_hint");
