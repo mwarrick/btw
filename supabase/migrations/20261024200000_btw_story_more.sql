@@ -10,7 +10,8 @@ insert into btw_prompt_keys (key, section, description, placeholders, sort_order
   ('story_cant_text', 'system', 'Testimony start page: our texting provider can''t reach that country yet.', '{}', 791),
   ('story_speak', 'system', 'Testimony page: the microphone button beside each question.', '{}', 792),
   ('story_listening', 'system', 'Testimony page: the microphone button while it listens.', '{}', 793),
-  ('story_card_pick', 'system', 'Testimony page: above the lines they can put on their picture.', '{}', 794)
+  ('story_name_label', 'system', 'Testimony page: label of the name box (any name they''d like on their story).', '{}', 794),
+  ('story_card_pick', 'system', 'Testimony page: above the lines they can put on their picture.', '{}', 795)
 on conflict (key) do nothing;
 
 insert into btw_prompts (key, lang, text) values
@@ -54,6 +55,16 @@ insert into btw_prompts (key, lang, text) values
   ('story_listening', 'bn', 'শুনছি… থামাতে ট্যাপ করুন'),
   ('story_listening', 'ru', 'Слушаю… нажмите, чтобы остановить'),
   ('story_listening', 'ur', 'سن رہے ہیں… روکنے کے لیے ٹیپ کریں'),
+  ('story_name_label', 'en', 'Your first name, or the name you''d like on your story'),
+  ('story_name_label', 'es', 'Su nombre, o el nombre que quiere en su historia'),
+  ('story_name_label', 'fr', 'Votre prénom, ou le nom que vous voulez sur votre histoire'),
+  ('story_name_label', 'pt', 'Seu primeiro nome, ou o nome que quer na sua história'),
+  ('story_name_label', 'zh', '您的名字，或您希望在故事上显示的名字'),
+  ('story_name_label', 'ar', 'اسمك الأول، أو الاسم الذي تريده على قصتك'),
+  ('story_name_label', 'hi', 'आपका पहला नाम, या वह नाम जो आप अपनी कहानी पर चाहते हैं'),
+  ('story_name_label', 'bn', 'আপনার প্রথম নাম, বা যে নামটি আপনার গল্পে চান'),
+  ('story_name_label', 'ru', 'Ваше имя или имя, которое вы хотите видеть в истории'),
+  ('story_name_label', 'ur', 'آپ کا پہلا نام، یا وہ نام جو آپ اپنی کہانی پر چاہتے ہیں'),
   ('story_card_pick', 'en', 'Tap the line you want on your picture:'),
   ('story_card_pick', 'es', 'Toque la frase que quiere en su imagen:'),
   ('story_card_pick', 'fr', 'Touchez la phrase à mettre sur votre image :'),

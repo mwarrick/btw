@@ -39,7 +39,7 @@ const TEXT_KEYS = [
   "story_q_verse", "story_share", "story_share_me", "story_share_church", "story_share_baptize", "story_age",
   "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
   "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
-  "story_phone_invalid", "story_cant_text", "story_speak", "story_listening", "story_card_pick",
+  "story_phone_invalid", "story_cant_text", "story_speak", "story_listening", "story_card_pick", "story_name_label",
   "j_start_button",
 ];
 const NAME_MAX = 60;
