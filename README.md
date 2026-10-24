@@ -34,7 +34,7 @@ Only `public/` is published as the website (see `vercel.json`). Everything else 
 | `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
 | `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
 | `WEB_TEXTS_PER_DAY` | Optional: the most texts the signup form and Get my link may send in 24 hours (default 300). Past it they stop sending and an error shows in the Log panel. |
-| `PUBLIC_SITE_URL` | Optional: the address used in pastors' page links, e.g. `https://btw-dusky.vercel.app`. Unset: the address the request came in on. |
+| `PUBLIC_SITE_URL` | Optional: the address used in links texted to pastors. Unset: `https://baptize.app` (on Vercel). |
 
 ## Database
 
