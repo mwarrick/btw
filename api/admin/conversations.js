@@ -31,7 +31,7 @@ import { requireAdmin } from "../../lib/admin-auth.js";
 import { logEvent } from "../../lib/events.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
 import { deletePhotos, listPhotos } from "../../lib/photos.js";
-import { newProfileKey, profileUrl, siteUrl } from "../../lib/profile-link.js";
+import { linkText, newProfileKey, siteUrl } from "../../lib/profile-link.js";
 import { translate } from "../../lib/translate.js";
 import { MMS_MAX, explainStatus, sendText } from "../../lib/voipms.js";
 
@@ -140,7 +140,7 @@ async function post(phone, body, user, res, site) {
       res.status(404).json({ error: "This number hasn't started a signup, so there's no page to link to." });
       return;
     }
-    text = await linkMessage(phone, church, lang, site);
+    text = await linkText(phone, church, lang, site);
   }
   if (!text) {
     res.status(400).json({ error: "Write a message first." });
@@ -196,24 +196,6 @@ async function finish(phone, session, church, res) {
     }),
   ]);
   res.status(200).json({ finished: true });
-}
-
-// login_link ("Upload photos, change your profile, record baptism counts
-// here: {link}") in the pastor's language, with their link (done_link, the
-// thank-you's wording, where login_link is missing); makes and saves the key
-// if there isn't one.
-async function linkMessage(phone, church, lang, site) {
-  let key = church.profile_key;
-  if (!key) {
-    key = newProfileKey();
-    await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: { profile_key: key } });
-  }
-  const link = profileUrl(site, key);
-  const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
-  const rows = await db(`btw_prompts?key=in.(login_link,done_link)&lang=in.${langs}&select=key,lang,text`);
-  const pick = (key, l) => rows.find((r) => r.key === key && r.lang === l)?.text;
-  const template = pick("login_link", lang) || pick("login_link", "en") || pick("done_link", lang) || pick("done_link", "en") || "{link}";
-  return template.includes("{link}") ? template.replace("{link}", link) : `${template}\n${link}`;
 }
 
 async function remove(phone, res) {

@@ -19,6 +19,14 @@
 //
 //   GET ?part=signup&lang=xx -> { languages: [{ code, name }], lang, dir, text }: no key;
 //                      the site's front page (/) uses the same page as a signup form
+//   GET ?part=landing&lang=xx -> { languages, lang, dir, text, number }: the front
+//                      page's (/, public/index.html) wording, and the signup number
+//                      to text, e.g. "+1 714-716-5116" (null when VOIPMS_DID isn't set)
+//   POST ?part=link { phone, lang } -> { sent: true }: Get my link on the front
+//                      page. When the number has a signup (not opted out, not
+//                      simulated) it's texted its page link (login_link), at most
+//                      once per 10 minutes; the answer is the same either way, so
+//                      the page doesn't tell who has signed up.
 //   POST { lang, phone, consent, name, ... } -> { key } or 400/409 { error, field, message }:
 //                      a signup from that form. It's saved finished, as if texted
 //                      to the end, with a `done` session, so a later text from the
@@ -29,8 +37,10 @@
 // "by the pastor". The texts in btw_messages are never changed.
 
 import { EDITABLE, ERROR_PROMPTS, cleanChurchFields } from "../lib/church-fields.js";
-import { isProfileKey, newProfileKey } from "../lib/profile-link.js";
+import { logEvent } from "../lib/events.js";
+import { isProfileKey, linkText, newProfileKey, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
+import { explainStatus, sendText } from "../lib/voipms.js";
 
 const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
@@ -57,6 +67,13 @@ const TEXT_KEYS = [
   "web_signup_intro", "web_language", "web_phone_signup_hint", "web_signup_consent", "web_signup_button",
   "web_signed_up", "web_phone_taken", "web_required", "web_phone_invalid",
 ];
+// The front page's wording (public/index.html).
+const LANDING_KEYS = ["web_title", "web_language", "web_phone", "web_phone_invalid",
+  "land_intro", "land_church_title", "land_church_text", "land_signup", "land_text_us", "land_link_title",
+  "land_link_hint", "land_link_button", "land_link_sent", "land_baptized_title", "land_baptized_text",
+  "land_coming_soon", "land_team_title", "land_team_text", "land_team_button"];
+// Get my link texts a number at most this often.
+const LINK_EVERY_MS = 10 * 60 * 1000;
 // Answers the signup form must have; state and ZIP only in the US.
 const REQUIRED = ["church_name", "street", "city", "name", "email"];
 const RTL = new Set(["ar", "ur"]);
@@ -71,6 +88,8 @@ export default async function handler(req, res) {
   try {
     const params = new URL(req.url, "http://x").searchParams;
     if (req.method === "GET" && params.get("part") === "signup") return await signupForm(params.get("lang"), res);
+    if (req.method === "GET" && params.get("part") === "landing") return await signupForm(params.get("lang"), res, LANDING_KEYS);
+    if (req.method === "POST" && params.get("part") === "link") return await sendLink(req.body || {}, res, siteUrl(req));
     if (req.method === "POST") return await signup(req.body || {}, res);
     const key = new URL(req.url, "http://x").searchParams.get("key");
     const [church] = isProfileKey(key) ? await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`) : [];
@@ -127,11 +146,46 @@ export default async function handler(req, res) {
 }
 
 // Switched-on languages, by their own names, and the form's wording.
-async function signupForm(wanted, res) {
+// (The front page uses it too, with its own wording and the number to text.)
+async function signupForm(wanted, res, keys = TEXT_KEYS) {
   const languages = await db("btw_languages?active=eq.true&select=code,name,menu_label&order=menu_order");
   const lang = languages.some((l) => l.code === wanted) ? wanted : "en";
+  const did = (process.env.VOIPMS_DID || "").replace(/\D/g, "").slice(-10);
   res.status(200).json({ languages: languages.map((l) => ({ code: l.code, name: l.menu_label || l.name })),
-    lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
+    lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang, keys),
+    ...(keys === LANDING_KEYS ? { number: did.length === 10 ? `+1 ${did.slice(0, 3)}-${did.slice(3, 6)}-${did.slice(6)}` : null } : {}) });
+}
+
+// Get my link (see POST ?part=link above).
+async function sendLink(body, res, site) {
+  const phone = phoneValue(body.phone);
+  if (!phone) {
+    const [language] = typeof body.lang === "string" ? await db(`btw_languages?code=${eq(body.lang)}&select=code`) : [];
+    const words = await wording(language ? language.code : "en", ["web_phone_invalid"]);
+    res.status(400).json({ error: "Enter the phone number you signed up with.", field: "phone", message: words.web_phone_invalid });
+    return;
+  }
+  const since = new Date(Date.now() - LINK_EVERY_MS).toISOString();
+  const [[church], [session], recent] = await Promise.all([
+    db(`btw_churches?phone=${eq(phone)}&select=phone,lang,profile_key,simulated`),
+    db(`btw_sessions?phone=${eq(phone)}&select=phase`),
+    db(`btw_events?phone=${eq(phone)}&source=eq.get-link&created_at=gte.${encodeURIComponent(since)}&select=id&limit=1`),
+  ]);
+  if (church && !church.simulated && session?.phase !== "stopped" && !recent.length) {
+    const text = await linkText(phone, church, church.lang || "en", site);
+    let error = null;
+    try {
+      await sendText(phone.slice(2), text);
+    } catch (err) {
+      error = err.status ? explainStatus(err.status) : `Couldn't send: ${err.message}`;
+    }
+    // The text in their thread, and a note that also spaces out repeats.
+    await Promise.all([
+      db("btw_messages", { method: "POST", body: { phone, direction: "out", thread: "signup", body: text, error } }),
+      logEvent(error ? "error" : "info", "get-link", error ? `Get my link wasn't sent: ${error}` : "Texted their page link (Get my link on the front page).", { phone }),
+    ]);
+  }
+  res.status(200).json({ sent: true });
 }
 
 // A signup from the web form (see POST above).
@@ -204,9 +258,9 @@ function formatPhone(phone) {
   return /^\d{10}$/.test(d) ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : phone;
 }
 
-// TEXT_KEYS in `lang`, English where a translation is missing.
-async function wording(lang) {
-  const list = encodeURIComponent(`(${TEXT_KEYS.join(",")})`);
+// `keys` in `lang`, English where a translation is missing.
+async function wording(lang, keys = TEXT_KEYS) {
+  const list = encodeURIComponent(`(${keys.join(",")})`);
   const langs = encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`);
   const rows = await db(`btw_prompts?key=in.${list}&lang=in.${langs}&select=key,lang,text`);
   const out = {};

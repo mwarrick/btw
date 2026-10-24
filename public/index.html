@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b6ea8">
+<meta name="description" content="Baptize 2027: sign up your church, share your baptism story, or log in as a team member.">
+<title>Baptize 2027</title>
+<style>
+/* The front page: three ways in. One small file, like the church's page, for weak phone signals. */
+:root{--brand:#0b6ea8;--ink:#13212d;--muted:#5b6977;--line:#cfd8e1;--bg:#f3f6f9;--card:#fff;--bad:#b3261e;--ok:#1c7a45}
+@media (prefers-color-scheme:dark){:root{--brand:#3fa6dd;--ink:#e5ecf2;--muted:#94a3b0;--line:#2a3846;--bg:#0b1117;--card:#141d26;--bad:#f08a80;--ok:#5ccc8f}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center}
+header .logo{display:block;flex:0 0 auto;border-radius:8px}
+header p{margin:0;font-size:16px}
+main{max-width:560px;margin:0 auto;padding:4px 16px 32px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.card h2{font-size:20px;margin:0 0 4px}
+.card p{margin:0 0 12px;color:var(--muted);font-size:16px}
+.lang{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:12px 0 0;font-size:15px;color:var(--muted)}
+select{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:42px}
+a.button,button{display:block;width:100%;text-align:center;font:inherit;font-weight:700;border:0;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;min-height:48px;cursor:pointer;text-decoration:none}
+a.button.quiet,button.quiet{background:transparent;color:var(--brand);border:1px solid var(--line)}
+button:disabled{opacity:.5}
+.small{font-size:15px;color:var(--muted);margin:10px 0 0}
+.small a{color:var(--brand);font-weight:600}
+details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;color:var(--brand);min-height:32px;padding:4px 0}
+label{display:block;margin-top:8px;font-weight:600;font-size:15px}
+.hint{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:3px}
+input{display:block;width:100%;margin:6px 0 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:46px}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
+#linkstatus{font-size:15px;margin:10px 0 0}
+#linkstatus.ok{color:var(--ok)}#linkstatus.bad{color:var(--bad)}
+.soon{display:inline-block;font-size:13px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.team{display:flex;align-items:center;gap:12px}
+.team div{flex:1}
+.team h2{font-size:17px}
+.team p{margin:0}
+.team a.button{width:auto;flex:0 0 auto}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture><p id="intro"></p></header>
+<main>
+<div class="lang" id="langrow" hidden><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
+
+<section class="card" id="church">
+  <h2 id="church-title">Church organizers</h2>
+  <p id="church-text"></p>
+  <a class="button" href="/signup" id="signup">Sign up your church</a>
+  <p class="small" id="textus" hidden></p>
+  <details id="getlink">
+    <summary id="link-title">Already signed up?</summary>
+    <form id="linkform" novalidate>
+      <label for="phone"><span id="phone-label">Phone</span><span class="hint" id="link-hint"></span></label>
+      <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
+      <button type="submit" class="quiet" id="link-button">Text me my link</button>
+      <p id="linkstatus" role="status"></p>
+    </form>
+  </details>
+</section>
+
+<section class="card" id="baptized">
+  <h2 id="baptized-title">I was baptized</h2>
+  <p id="baptized-text"></p>
+  <span class="soon" id="soon">Coming soon</span>
+</section>
+
+<section class="card team" id="team">
+  <div><h2 id="team-title">Team</h2><p id="team-text"></p></div>
+  <a class="button quiet" href="/admin" id="team-button">Log in</a>
+</section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var T = {};
+  // A word from the prompts; the English in the page stays where one is missing.
+  function put(id, key) { if (T[key]) $(id).textContent = T[key]; }
+
+  function load(lang) {
+    return fetch("/api/profile?part=landing&lang=" + encodeURIComponent(lang)).then(function (r) { return r.json(); }).then(function (d) {
+      T = d.text || {};
+      document.documentElement.lang = d.lang;
+      document.documentElement.dir = d.dir;
+      put("intro", "land_intro");
+      put("church-title", "land_church_title"); put("church-text", "land_church_text"); put("signup", "land_signup");
+      put("link-title", "land_link_title"); put("link-hint", "land_link_hint"); put("link-button", "land_link_button");
+      put("phone-label", "web_phone");
+      put("baptized-title", "land_baptized_title"); put("baptized-text", "land_baptized_text"); put("soon", "land_coming_soon");
+      put("team-title", "land_team_title"); put("team-text", "land_team_text"); put("team-button", "land_team_button");
+      put("langlabel", "web_language");
+      // "Or text +1 714-716-5116 ...", with the number as a link that opens their texting app.
+      var tx = $("textus");
+      tx.replaceChildren();
+      if (d.number && T.land_text_us) {
+        var parts = T.land_text_us.split("{number}");
+        var a = document.createElement("a");
+        a.href = "sms:" + d.number.replace(/[^\d+]/g, "");
+        a.textContent = d.number;
+        a.dir = "ltr";
+        tx.append(parts[0], a, parts.slice(1).join(""));
+        tx.hidden = false;
+      } else tx.hidden = true;
+      // The signup form opens in the language picked here.
+      $("signup").href = "/signup?lang=" + encodeURIComponent(d.lang);
+      $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
+        var o = document.createElement("option");
+        o.value = l.code; o.textContent = l.name; o.selected = l.code === d.lang;
+        return o;
+      }));
+      $("langrow").hidden = (d.languages || []).length < 2;
+      return d;
+    });
+  }
+
+  // Their browser's language when it's one we have, else English.
+  var wanted = (navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); });
+  load("en").then(function (d) {
+    var codes = (d.languages || []).map(function (l) { return l.code; });
+    var pick = wanted.filter(function (c) { return codes.indexOf(c) >= 0; })[0];
+    if (pick && pick !== "en") load(pick);
+  }).catch(function () { /* the English in the page still works */ });
+  $("lang").addEventListener("change", function () { load($("lang").value); });
+
+  // Get my link: the same answer whether or not the number has signed up.
+  $("linkform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var s = $("linkstatus");
+    $("link-button").disabled = true; s.textContent = "…"; s.className = "";
+    fetch("/api/profile?part=link", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: $("phone").value, lang: $("lang").value || "en" }) })
+      .then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
+      .then(function (x) {
+        if (x[0] === 200) { s.textContent = T.land_link_sent || "If that number is signed up, the link is on its way by text."; s.className = "ok"; }
+        else { s.textContent = x[1].message || x[1].error || "!"; s.className = "bad"; $("phone").focus(); }
+      })
+      .catch(function () { s.textContent = "Couldn't connect. Try again."; s.className = "bad"; })
+      .then(function () { $("link-button").disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

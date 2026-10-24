@@ -46,10 +46,6 @@
   ],
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/profile"
-    },
-    {
       "source": "/signup",
       "destination": "/profile"
     },
