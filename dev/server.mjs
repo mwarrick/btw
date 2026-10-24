@@ -59,7 +59,7 @@ for (const m of ["Hi! Saw the flyer", "Maria Lopez", "maria@gracechurch.org", "G
   "Can someone call me about the location?"]) await text("5125550111", m);
 for (const m of ["hello", "1", "Tom", "tom@x"]) await text("5125550122", m);
 
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".avif": "image/avif" };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   // Signed Storage links (photos).
