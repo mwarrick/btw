@@ -4,9 +4,10 @@
 // a church's page. Their church follows along on its page's Newly baptized
 // tab (api/profile.js); the team on Discipleship in /admin.
 //
-//   GET ?part=start&lang=xx[&story=<testimony key>] -> { languages, lang, dir, text, from }:
-//                         the start page's wording; `from` prefills first name and
-//                         church when they come from their saved story
+//   GET ?part=start&lang=xx[&story=<testimony key>][&church=<id>] -> { languages, lang, dir,
+//                         text, from, church }: the start page's wording; `from` prefills
+//                         first name and church when they come from their saved story;
+//                         `church` is the church picked by its QR code (their page)
 //   GET ?part=churches&q=..  -> as api/story.js (finished, real signups)
 //   POST ?part=start { lang, church | story, first_name, consent, contact_ok, phone, tz }
 //                         -> { key } or 400 { error, field, message }; one journey per story
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
   try {
     const params = new URL(req.url, "http://x").searchParams;
     const part = params.get("part");
-    if (req.method === "GET" && part === "start") return await startPage(params.get("lang"), params.get("story"), res);
+    if (req.method === "GET" && part === "start") return await startPage(params.get("lang"), params.get("story"), params.get("church"), res);
     if (req.method === "GET" && part === "churches") return await churches(params.get("q"), res);
     if (req.method === "POST" && part === "start") return await start(req, req.body || {}, res);
 
@@ -70,7 +71,7 @@ async function storyFor(key) {
   return s || null;
 }
 
-async function startPage(wanted, storyKey, res) {
+async function startPage(wanted, storyKey, churchId, res) {
   const story = await storyFor(storyKey);
   const { languages: list, lang } = await languages(wanted || story?.lang);
   let from = null;
@@ -78,7 +79,11 @@ async function startPage(wanted, storyKey, res) {
     const [c] = story.church_id ? await db(`btw_churches?id=eq.${story.church_id}&select=id,church_name,city,state,country`) : [];
     from = { first_name: story.first_name || "", church: c ? { id: c.id, name: c.church_name, place: place(c) } : null };
   }
-  res.status(200).json({ languages: list, lang, dir: dir(lang), text: await wording(lang, TEXT_KEYS), from });
+  // From the church's QR code (simulations too, for the demo).
+  const [qr] = !story && /^[\w-]{1,64}$/.test(churchId || "")
+    ? await db(`btw_churches?id=${eq(churchId)}&completed_at=not.is.null&select=id,church_name,city,state,country`) : [];
+  res.status(200).json({ languages: list, lang, dir: dir(lang), text: await wording(lang, TEXT_KEYS), from,
+    church: qr ? { id: qr.id, name: qr.church_name, place: place(qr) } : null });
 }
 
 // The same search as the testimony form's.
@@ -107,7 +112,8 @@ async function start(req, body, res) {
   }
   const churchId = story ? story.church_id : body.church;
   const [church] = churchId ? await db(`btw_churches?id=${eq(churchId)}&select=id,completed_at,simulated`) : [];
-  if (!church || !church.completed_at || church.simulated) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
+  // A simulated church only comes from its QR code (search never shows one): a demo.
+  if (!church || !church.completed_at || (church.simulated && !body.via_qr)) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
   const firstName = String(body.first_name ?? "").trim().replace(/\s+/g, " ");
   if (!firstName || firstName.length > 60) return refuse(400, "first_name", "web_required", "Enter your first name.");
   const contactOk = body.contact_ok === true;

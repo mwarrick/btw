@@ -577,7 +577,7 @@
 
     <section class="block" data-screen="discipleship">
       <h2>Discipleship</h2>
-      <p class="hint">The first 30 days of faith (<b>baptize.app/journey</b>): one reading a day, online only. Check-ins on days 7, 14, 21 and 30 go to the person's church, on the <b>Newly baptized</b> tab of its page. <b>Could use a call</b> means they answered "It's hard" or "I have a question", or missed a check-in by 3 days, since the church last pressed We talked.</p>
+      <p class="hint">The first 30 days of faith (<b>baptize.app/journey</b>): one reading a day, online only. Check-ins on days 7, 14, 21 and 30 go to the person's church, on the <b>Newly baptized</b> tab of its page. <b>Could use a call</b> means they answered "It's hard" or "I have a question", went quiet (3 days without opening their page), or missed a check-in by 3 days, since the church last pressed We talked. Each church's page has a QR code that starts the 30 days with that church picked. <b>+1 day</b> moves someone a day further along, for demos. Sample people come and go with the simulations (Conversations).</p>
       <div class="convo-bar">
         <span class="meter" id="journey-meter"></span>
         <span class="spacer"></span>
@@ -2140,7 +2140,8 @@ $("guide-translate").addEventListener("click", async () => {
 
 const ANSWERS = { good: ["Going well", "ok"], hard: ["It's hard", "bad"], question: ["Has a question", "warn"] };
 const NEXT_STEPS = { group: "Join a small group", serve: "Serve", class: "Take a class", unsure: "Not sure yet" };
-const FLAG_WHY = { hard: "said it's hard", question: "has a question", missed: "missed a check-in" };
+const FLAG_WHY = { hard: "said it's hard", question: "has a question", missed: "missed a check-in", quiet: "gone quiet" };
+const daysAgo = (iso) => { const d = Math.round((Date.now() - Date.parse(iso)) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; };
 
 async function loadJourneysAdmin() {
   try {
@@ -2152,12 +2153,24 @@ async function loadJourneysAdmin() {
       return `day ${d}: ${a.good} well, ${a.hard} hard, ${a.question} question`;
     }).join(" · ");
     $("journey-rows").replaceChildren(...(journeys.length ? journeys.map((j) => h("tr", {},
-      h("td", {}, h("span", { class: "who", text: j.first_name }), j.flag ? chip(`Could use a call: ${FLAG_WHY[j.flag.reason]} (day ${j.flag.day})`, "bad") : null,
+      h("td", {}, h("span", { class: "who", text: j.first_name }), j.simulated ? chip("Simulation", "muted") : null,
+        j.flag ? chip(`Could use a call: ${FLAG_WHY[j.flag.reason]} (${j.flag.reason === "quiet" ? `${j.flag.days} days` : `day ${j.flag.day}`})`, "bad") : null,
         h("span", { class: "sub", text: [j.lang !== "en" ? langNameAll(j.lang) : null, j.contact_ok && j.phone ? formatPhone(j.phone) : null, j.testimony_id ? "wrote a story" : null].filter(Boolean).join(" · ") })),
       h("td", {}, j.church_phone
         ? h("button", { class: "linkish", type: "button", text: j.church_name || "(church)", onclick: () => openThread(j.church_phone, "signup") })
         : h("span", { class: "sub", text: "Church no longer signed up" })),
-      h("td", { class: "count", text: j.finished ? "Finished" : `${j.day} (${j.done} done)` }),
+      h("td", { class: "count" }, j.finished ? "Finished" : `${j.day} (${j.done} done)`,
+        h("span", { class: "sub", text: `Last active ${daysAgo(j.last_active)}` }),
+        j.finished ? null : h("button", { class: "btn small", type: "button", text: "+1 day", title: "Demo: move them a day further along", onclick: async (e) => {
+          e.target.disabled = true;
+          try {
+            await api(`/api/admin/journeys?part=skip&id=${j.id}`, { method: "POST", body: {} });
+            loadJourneysAdmin();
+          } catch (err) {
+            e.target.disabled = false;
+            if (!err.silent) toast(err.message, "bad");
+          }
+        } })),
       h("td", {}, ...(j.checkins.length ? j.checkins.map((c) => h("div", {}, chip(`Day ${c.day}`, "muted"), " ", chip(ANSWERS[c.answer][0], ANSWERS[c.answer][1]), c.note ? h("span", { class: "sub", text: c.note }) : null)) : [h("span", { class: "sub", text: "—" })])),
       h("td", { text: j.next_step ? NEXT_STEPS[j.next_step] : "" }),
     )) : [h("tr", {}, h("td", { colspan: "5", class: "empty", text: "No one has started yet. People start at baptize.app/journey, or from their saved story." }))]));
@@ -2425,8 +2438,9 @@ $("sim-add").addEventListener("click", async (e) => {
   button.textContent = "Adding...";
   try {
     const { added } = await api("/api/admin/simulations", { method: "POST" });
-    toast(`Added ${added} simulations.`);
+    toast(`Added ${added} simulations, with 6 newly baptized people on Discipleship.`);
     loadConversations();
+    loadJourneysAdmin();
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   } finally {
@@ -2435,11 +2449,12 @@ $("sim-add").addEventListener("click", async (e) => {
   }
 });
 $("sim-remove").addEventListener("click", async () => {
-  if (!confirm("Remove every simulated signup, with its texts and messages? Real signups aren't touched.")) return;
+  if (!confirm("Remove every simulated signup, with its texts and messages, and the sample newly baptized people? Real signups aren't touched.")) return;
   try {
     const { removed } = await api("/api/admin/simulations", { method: "DELETE" });
     toast(`Removed ${removed} simulations.`);
     loadConversations();
+    loadJourneysAdmin();
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   }
