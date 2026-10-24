@@ -2,20 +2,21 @@
 // The Photos part of the pastor's page (/p/<key>#photos). The key from the
 // signup link is the only login, as for api/profile.js.
 //
-//   GET ?key=...                 -> { photos: [{ id, url, thumb, created_at, waiting, ... }] } newest
-//                                   first; links expire after an hour; `waiting`: no
-//                                   permission yet (texted photos)
-//   PATCH ?key=... { consent: true } -> { allowed }: permission (the web_consent box) for
-//                                   every photo still without it
-//   POST ?key=... { image, thumb, width, height, consent: true }
+//   GET ?key=...                 -> { photos: [{ id, url, thumb, created_at, waiting, declined }],
+//                                   allowed }: newest first, links expire after an
+//                                   hour; `allowed` is the church's sharing choice
+//                                   (true, false, or null: not chosen yet)
+//   POST ?key=... { image, thumb, width, height }
 //                                -> { photo }: one photo, base64 JPEG resized in the
-//                                   browser; refused without consent. The permission
-//                                   text they agreed to (web_consent in their
-//                                   language) is saved with it.
+//                                   browser; it follows the church's choice
+//   PATCH ?key=... { allow: true | false }
+//                                -> { allowed }: Opt in (the web_consent text, in
+//                                   their language, is saved as what they agreed to)
+//                                   or Opt out; applies to all their photos
 //   DELETE ?key=...&id=...       -> { deleted }: removes that photo for good
 
 import { isProfileKey } from "../lib/profile-link.js";
-import { allowPhotos, deletePhotos, listPhotos, savePhoto } from "../lib/photos.js";
+import { churchChoice, deletePhotos, listPhotos, savePhoto, setPhotoChoice } from "../lib/photos.js";
 import { logEvent } from "../lib/events.js";
 import { db, eq } from "../lib/supabase.js";
 
@@ -29,16 +30,16 @@ export default async function handler(req, res) {
   try {
     const params = new URL(req.url, "http://x").searchParams;
     const key = params.get("key");
-    const [church] = isProfileKey(key) ? await db(`btw_churches?profile_key=${eq(key)}&select=phone,lang`) : [];
+    const [church] = isProfileKey(key) ? await db(`btw_churches?profile_key=${eq(key)}&select=phone,lang,photos_allowed`) : [];
     if (!church) {
       res.status(404).json({ error: "not_found" });
       return;
     }
 
     if (req.method === "GET") {
-      const photos = (await listPhotos({ phone: church.phone }))
-        .map(({ id, url, thumb, width, height, created_at, consent_at }) => ({ id, url, thumb, width, height, created_at, waiting: !consent_at }));
-      res.status(200).json({ photos });
+      const photos = (await listPhotos({ phone: church.phone })).map(({ id, url, thumb, width, height, created_at, consent_at, declined_at }) =>
+        ({ id, url, thumb, width, height, created_at, waiting: !consent_at && !declined_at, declined: !!declined_at }));
+      res.status(200).json({ photos, allowed: church.photos_allowed ?? null });
       return;
     }
 
@@ -49,20 +50,22 @@ export default async function handler(req, res) {
     }
 
     const body = req.body || {};
-    if (body.consent !== true) {
-      res.status(400).json({ error: "consent" });
-      return;
-    }
-    const lang = church.lang || "en";
-    const rows = await db(`btw_prompts?key=eq.web_consent&lang=in.${encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`)}&select=lang,text`);
-    const consentText = (rows.find((r) => r.lang === lang) || rows.find((r) => r.lang === "en"))?.text || "consent given";
     if (req.method === "PATCH") {
-      const allowed = await allowPhotos(church.phone, consentText);
-      res.status(200).json({ allowed: allowed?.length ?? 0 });
+      if (typeof body.allow !== "boolean") {
+        res.status(400).json({ error: "Send { allow: true } or { allow: false }." });
+        return;
+      }
+      const lang = church.lang || "en";
+      const rows = await db(`btw_prompts?key=eq.web_consent&lang=in.${encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`)}&select=lang,text`);
+      const consentText = (rows.find((r) => r.lang === lang) || rows.find((r) => r.lang === "en"))?.text || "consent given";
+      await setPhotoChoice(church.phone, body.allow, `${consentText}\n→ Opt in on their page`);
+      res.status(200).json({ allowed: body.allow });
       return;
     }
+
     try {
-      const photo = await savePhoto({ phone: church.phone, image: body.image, thumb: body.thumb, width: body.width, height: body.height, source: "web", consentText });
+      const photo = await savePhoto({ phone: church.phone, image: body.image, thumb: body.thumb, width: body.width, height: body.height,
+        source: "web", choice: await churchChoice(church.phone) });
       res.status(200).json({ photo: { id: photo.id, created_at: photo.created_at } });
     } catch (err) {
       if (err.status !== 400) throw err;

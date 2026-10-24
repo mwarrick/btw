@@ -19,8 +19,11 @@
 // text (photo_ask) once the signup is finished: with the first picture of a
 // batch, or right after finishing for pictures sent while signing up. A YES
 // or NO to it, while photos are waiting, answers for all of them
-// (photo_yes / photo_no, with the page link). A picture with no words while
-// a signup question is open gets that question again; after finishing, its
+// (photo_yes / photo_no, with the page link) and is the church's sharing
+// choice (btw_churches.photos_allowed, also Opt in / Opt out on the page);
+// once it has chosen, new photos follow it and the question isn't asked.
+// A picture with no words while a signup question is open gets that
+// question again; after finishing, its
 // message also goes to the team thread like any text, and each picture gets
 // a receipt (photo_received / photos_received) linking to it on their page.
 //
@@ -46,7 +49,7 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts, straighten } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
-import { answerPhotos, pendingPhotos, savePhotosFromText } from "../lib/photos.js";
+import { churchChoice, pendingPhotos, savePhotosFromText, setPhotoChoice } from "../lib/photos.js";
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
@@ -136,7 +139,8 @@ async function converse(sms, site) {
     const permission = before.phase === "done" && !sms.media.length ? engine.yesNo(lang, sms.message) : null;
 
     if (permission !== null && (await pendingPhotos(phone)).length) {
-      await answerPhotos(phone, permission, engine.say(lang, "photo_ask"), sms.message.trim());
+      // Their answer is the church's choice, as Opt in / Opt out on the page.
+      await setPhotoChoice(phone, permission, `${engine.say(lang, "photo_ask")}\n→ ${sms.message.trim()}`);
       replies = [engine.say(lang, permission ? "photo_yes" : "photo_no", { link: `${link}#photos` })];
     } else if (pictureOnly && ["collect", "lang", "summary"].includes(before.phase) && session) {
       // Just a picture while a question is open (signing up, or changing an
@@ -180,15 +184,16 @@ async function converse(sms, site) {
   }
 
   // Pictures go into storage (after the text is handled, so a retry can't
-  // copy them twice). Once the signup is finished, the first picture of a
-  // batch, or finishing with pictures already waiting, brings the
-  // permission question.
+  // copy them twice), following the church's sharing choice. While it hasn't
+  // chosen, once the signup is finished, the first picture of a batch, or
+  // finishing with pictures already waiting, brings the permission question.
   if (sms.media.length || justFinished) {
     try {
       const waiting = (await pendingPhotos(phone)).length;
+      const choice = await churchChoice(phone);
       let saved = 0;
       if (sms.media.length) {
-        const out = await savePhotosFromText({ phone, messageId: logged.id, urls: sms.media });
+        const out = await savePhotosFromText({ phone, messageId: logged.id, urls: sms.media, choice });
         saved = out.saved;
         if (out.skipped.length) {
           await logEvent("warning", "sms-inbound", `Some of a text's attachments weren't kept as photos: ${out.skipped.join("; ")}`, { phone });
@@ -200,7 +205,7 @@ async function converse(sms, site) {
             : engine.say(lang, "photos_received", { link: `${link}#photos` }));
         }
       }
-      if (finished && !stopped && ((saved && !waiting) || (justFinished && waiting))) {
+      if (choice.allowed === null && finished && !stopped && ((saved && !waiting) || (justFinished && waiting))) {
         replies.push(engine.say(lang, "photo_ask"));
       }
     } catch (err) {

@@ -8,6 +8,8 @@
 //                      prompt is missing)
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
+//   PATCH ?key=...  { baptisms } -> { baptisms, baptisms_at }: their total so far
+//                      (the Baptisms tab; texting a number does the same)
 //
 // Saving records edited_at with edited_by left empty, which /admin shows as
 // "by the pastor". The texts in btw_messages are never changed.
@@ -16,7 +18,7 @@ import { EDITABLE, ERROR_PROMPTS, cleanChurchFields } from "../lib/church-fields
 import { isProfileKey } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
 
-const FIELDS = ["phone", "lang", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
+const FIELDS = ["phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
 // and its own wording.
 const TEXT_KEYS = [
@@ -29,8 +31,11 @@ const TEXT_KEYS = [
   "web_uploading", "web_uploaded", "web_upload_failed", "web_delete", "web_delete_confirm", "web_no_photos", "web_photos_temporary",
   // The Resources tab: a button to the organizer's folder (resources_url).
   "resources_url", "web_tab_resources", "web_resources_intro", "web_resources_open",
-  // Texted photos waiting for permission, given on the page.
-  "web_photos_waiting", "web_allow_sharing", "web_waiting_label",
+  "web_waiting_label", "web_not_shared_label",
+  // The church's sharing choice.
+  "web_opt_in", "web_opt_out", "web_opted_in", "web_opt_out_confirm",
+  // The Baptisms tab.
+  "web_tab_baptisms", "web_baptisms_question", "web_baptisms_hint", "web_baptisms_updated", "web_baptisms_invalid",
   "web_phone", "web_phone_hint",
 ];
 const RTL = new Set(["ar", "ur"]);
@@ -53,7 +58,24 @@ export default async function handler(req, res) {
     const lang = church.lang || "en";
 
     if (req.method === "GET") {
-      res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
+      res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), baptisms: church.baptisms, baptisms_at: church.baptisms_at,
+        lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
+      return;
+    }
+
+    if (req.body && "baptisms" in req.body) {
+      const n = Number(req.body.baptisms);
+      if (!Number.isInteger(n) || n < 0 || n > 100000) {
+        const words = await wording(lang);
+        res.status(400).json({ error: "Enter a whole number.", field: "baptisms", message: words.web_baptisms_invalid || "Enter a whole number." });
+        return;
+      }
+      const [saved] = await db(`btw_churches?profile_key=${eq(key)}&select=baptisms,baptisms_at`, {
+        method: "PATCH",
+        body: { baptisms: n, baptisms_at: new Date().toISOString() },
+        prefer: "return=representation",
+      });
+      res.status(200).json(saved);
       return;
     }
 
@@ -79,7 +101,7 @@ export default async function handler(req, res) {
 // The answers the page can edit; the phone is sent apart, since it can't be
 // changed (it's the signup's identity).
 function publicFields(church) {
-  const { phone, lang, ...rest } = church;
+  const { phone, lang, baptisms, baptisms_at, ...rest } = church;
   return rest;
 }
 
