@@ -21,7 +21,13 @@
 // or NO to it, while photos are waiting, answers for all of them
 // (photo_yes / photo_no, with the page link). A picture with no words while
 // a signup question is open gets that question again; after finishing, its
-// message also goes to the team thread like any text.
+// message also goes to the team thread like any text, and each picture gets
+// a receipt (photo_received / photos_received) linking to it on their page.
+//
+// After finishing, a text that's only a number is the church's baptism
+// count (btw_churches.baptisms, the latest wins; count_saved). Any other
+// text the bot doesn't understand goes to the team thread and also gets
+// info_reply (what they can send), at most once a day.
 //
 // Sources disagree on whether voip.ms sends GET with placeholders (sometimes
 // separated by ";" instead of "&") or POST with a JSON body, so this accepts both.
@@ -44,6 +50,9 @@ import { answerPhotos, pendingPhotos, savePhotosFromText } from "../lib/photos.j
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
+
+// info_reply goes out at most once in this long.
+const INFO_EVERY_MS = 24 * 60 * 60 * 1000;
 
 // A first text is only trusted to name a language when Google is at least
 // this sure and it has this many letters; "hi" or "ok" gets the menu.
@@ -145,8 +154,16 @@ async function converse(sms, site) {
       // Once the signup has been finished (even if an answer is being changed
       // since), anything that isn't a command is for the reviewers: it joins
       // the team thread in /admin, and the bot stays quiet.
-      if (finished && result.unhandled) {
+      const count = finished && result.unhandled ? baptismCount(sms.message) : null;
+      if (count !== null) {
+        await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: { baptisms: count, baptisms_at: new Date().toISOString() } });
+        replies = [engine.say(lang, "count_saved", { count })];
+      } else if (finished && result.unhandled) {
         await toTeam(logged, phone);
+        // Pictures get their own receipt below.
+        if (!sms.media.length && !(await infoSentRecently(phone, engine.say(lang, "info_reply")))) {
+          replies = [engine.say(lang, "info_reply")];
+        }
       } else {
         await save(phone, before, result.state, church, key);
         replies = result.replies;
@@ -176,6 +193,12 @@ async function converse(sms, site) {
         if (out.skipped.length) {
           await logEvent("warning", "sms-inbound", `Some of a text's attachments weren't kept as photos: ${out.skipped.join("; ")}`, { phone });
         }
+        // A receipt linking to the photo (or, for several, the Photos tab).
+        if (saved && finished && !stopped && !justFinished) {
+          replies.push(saved === 1
+            ? engine.say(lang, "photo_received", { link: `${link}#photo-${out.ids[0]}` })
+            : engine.say(lang, "photos_received", { link: `${link}#photos` }));
+        }
       }
       if (finished && !stopped && ((saved && !waiting) || (justFinished && waiting))) {
         replies.push(engine.say(lang, "photo_ask"));
@@ -183,6 +206,13 @@ async function converse(sms, site) {
     } catch (err) {
       await logEvent("error", "sms-inbound", `Couldn't keep a text's photos: ${err.message}`, { phone });
     }
+  }
+
+  // A prompt missing in the database would send nothing (voip.ms refuses an
+  // empty text); say so in the Log instead.
+  if (replies.some((r) => !r?.trim())) {
+    await logEvent("error", "sms-inbound", "A reply came out empty, so it wasn't sent. A prompt is probably missing in btw_prompts.", { phone });
+    replies = replies.filter((r) => r?.trim());
   }
 
   // The state is already saved, so a failed send isn't retried: that would
@@ -203,6 +233,28 @@ async function converse(sms, site) {
       .catch((err) => console.error("sms-inbound: couldn't record a reply:", err.message));
     if (error) break;
   }
+}
+
+// A text that's only a number (any script's digits, with spaces, commas or
+// dots between thousands), as a count from 0 to 100000; null otherwise.
+function baptismCount(text) {
+  const t = String(text || "").trim().replace(/[.!。]$/, "");
+  if (!/^\p{Nd}[\p{Nd}\s,.]*$/u.test(t)) return null;
+  const digits = [...t].filter((c) => /\p{Nd}/u.test(c)).map((c) => {
+    const code = c.codePointAt(0);
+    // Each script's digits run 0-9 in a row, so the value is the distance from its zero.
+    for (let zero = code; zero >= code - 9; zero--) if (!/\p{Nd}/u.test(String.fromCodePoint(zero - 1)) || zero === code - 9) return code - zero;
+    return 0;
+  }).join("");
+  const n = Number(digits);
+  return digits.length <= 6 && n <= 100000 ? n : null;
+}
+
+// Whether info_reply already went to this number in the last day.
+async function infoSentRecently(phone, text) {
+  const since = new Date(Date.now() - INFO_EVERY_MS).toISOString();
+  const rows = await db(`btw_messages?phone=${eq(phone)}&direction=eq.out&created_at=gte.${encodeURIComponent(since)}&body=${eq(text)}&select=id&limit=1`);
+  return rows.length > 0;
 }
 
 // Moves an incoming text to the team thread, unread, with an English

@@ -52,6 +52,8 @@ button:disabled{opacity:.5}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
 .grid figure{margin:0;position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .grid img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.viewer img{display:block;width:100%;border-radius:8px;margin-top:12px}
+.note{color:var(--muted);font-size:14px;margin:8px 0 0}
 .grid .del{position:absolute;right:6px;bottom:6px;min-height:34px;padding:6px 10px;font-size:13px;background:rgba(0,0,0,.65)}
 [hidden]{display:none!important}
 </style>
@@ -61,7 +63,8 @@ button:disabled{opacity:.5}
 <nav class="tabs" id="tabs" hidden><button type="button" id="tab-signup"></button><button type="button" id="tab-photos"></button></nav>
 <main><p class="msg" id="msg">…</p><form id="form" hidden novalidate></form>
 <section id="photos" hidden>
-<div class="card"><p id="pintro"></p>
+<div class="card viewer" id="viewer" hidden></div>
+<div class="card"><p id="pintro"></p><p class="note" id="ptemp"></p>
 <label class="consent"><input type="checkbox" id="consent"><span id="consent-text"></span></label>
 <label class="add"><input type="file" id="file" accept="image/*" multiple><span id="add-text"></span></label>
 <p id="pstatus" role="status"></p></div>
@@ -167,20 +170,23 @@ button:disabled{opacity:.5}
     $("tab-signup").textContent = T.web_tab_signup || "Your signup";
     $("tab-photos").textContent = T.web_tab_photos || "Photos";
     $("pintro").textContent = T.web_photos_intro || "";
+    $("ptemp").textContent = T.web_photos_temporary || "";
     $("consent-text").textContent = T.web_consent || "Everyone in these photos agrees they may be shared publicly.";
     $("add-text").textContent = T.web_add_photos || "Add photos";
-    show(location.hash === "#photos" ? "photos" : "signup");
+    // #photos opens the tab; #photo-<id> (from a texted photo's receipt) also
+    // shows that photo.
+    show(/^#photos?(-\d+)?$/.test(location.hash) ? "photos" : "signup", true);
   }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
 
   // ---------- tabs: the answers, or photos ----------
   var photosLoaded = false;
-  function show(which) {
+  function show(which, keepHash) {
     var signup = which === "signup";
     $("form").hidden = $("bar").hidden = !signup;
     $("photos").hidden = signup;
     $("tab-signup").setAttribute("aria-pressed", String(signup));
     $("tab-photos").setAttribute("aria-pressed", String(!signup));
-    history.replaceState(null, "", location.pathname + location.search + (signup ? "" : "#photos"));
+    if (!keepHash) history.replaceState(null, "", location.pathname + location.search + (signup ? "" : "#photos"));
     if (!signup && !photosLoaded) loadPhotos();
   }
   $("tab-signup").addEventListener("click", function () { show("signup"); });
@@ -202,6 +208,14 @@ button:disabled{opacity:.5}
         });
         grid.append(el("figure", {}, [el("a", { href: p.url, target: "_blank", rel: "noopener" }, [el("img", { src: p.thumb, alt: "", loading: "lazy" })]), del]));
       });
+      // The photo a receipt linked to, large, with the limited-time note.
+      var want = (location.hash.match(/^#photo-(\d+)$/) || [])[1];
+      var shown = d.photos.filter(function (p) { return String(p.id) === want; })[0];
+      $("viewer").hidden = !shown;
+      if (shown) {
+        $("viewer").replaceChildren(el("a", { href: shown.url, target: "_blank", rel: "noopener" }, [el("img", { src: shown.url, alt: "" })]),
+          el("p", { class: "note" }, [T.web_photos_temporary || ""]));
+      }
     }).catch(function () { pstatus("Couldn't connect. Check your signal and try again.", "bad"); });
   }
 

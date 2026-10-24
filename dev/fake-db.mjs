@@ -12,7 +12,7 @@ import zlib from "node:zlib";
 
 const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", kw_done: "DONE",
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
-const keys = ["photo_ask","photo_yes","photo_no","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
+const keys = ["photo_ask","photo_yes","photo_no","info_reply","count_saved","photo_received","photos_received","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
   "summary_hint","edit_saved","edit_invalid","sum_intro","sum_outro","val_you","val_same","val_yes","val_no"];
 for (const q of ["name","email","church","country","region","postal","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
   keys.push("ask_"+q, "err_"+q, "edit_"+q);
@@ -78,7 +78,8 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   const u = new URL(url); const table = u.pathname.split("/").pop();
   const rows = tables[table]; const method = opts.method || "GET";
-  const filters = [...u.searchParams].filter(([k]) => !["select","order","on_conflict"].includes(k));
+  const filters = [...u.searchParams].filter(([k]) => !["select","order","on_conflict","limit","offset"].includes(k));
+  const page = (list) => { const off = Number(u.searchParams.get("offset") || 0); const lim = u.searchParams.get("limit"); return lim ? list.slice(off, off + Number(lim)) : list.slice(off); };
   const match = (r) => filters.every(([k, v]) => {
     if (v.startsWith("eq.")) return String(r[k]) === v.slice(3);
     if (v.startsWith("in.")) return v.slice(4, -1).split(",").map((x) => x.replace(/^"|"$/g, "")).includes(String(r[k]));
@@ -90,7 +91,7 @@ globalThis.fetch = async (url, opts = {}) => {
   const embed = (list) => list.map((r) => ({ ...r,
     ...(sel.includes("sender:btw_users") ? { sender: person(r.sent_by) } : {}),
     ...(sel.includes("editor:btw_users") ? { editor: person(r.edited_by) } : {}) }));
-  if (method === "GET") return json(embed(rows.filter(match)));
+  if (method === "GET") return json(embed(page(rows.filter(match))));
   if (method === "DELETE") { tables[table] = rows.filter((r) => !match(r)); return json(); }
   if (method === "PATCH") { const b = JSON.parse(opts.body); const hit = rows.filter(match); for (const r of hit) Object.assign(r, b); return json((opts.headers?.Prefer || "").includes("return=representation") ? embed(hit) : undefined); }
   const parsed = JSON.parse(opts.body); const prefer = opts.headers?.Prefer || "";

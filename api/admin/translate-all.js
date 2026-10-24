@@ -12,7 +12,7 @@
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { ENGLISH_ONLY_KEYS, PROMPT_MAX, missingPlaceholders } from "../../lib/prompts.js";
-import { db, eq } from "../../lib/supabase.js";
+import { db, dbAll, eq } from "../../lib/supabase.js";
 import { translate } from "../../lib/translate.js";
 
 export default async function handler(req, res) {
@@ -44,7 +44,7 @@ async function translateAll(req, res) {
     db(`btw_prompt_keys?key=${eq(key)}&select=placeholders`),
     db(`btw_prompts?key=${eq(key)}&lang=eq.en&select=text`),
     db("btw_languages?select=code,name,active&order=menu_order"),
-    db("btw_prompts?select=lang"),
+    dbAll("btw_prompts?select=lang&order=key,lang"),
   ]);
   if (!keyRow) {
     res.status(404).json({ error: "No such prompt." });
