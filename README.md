@@ -5,7 +5,7 @@ Church signup for Baptize 2027, entirely by text message through [voip.ms](https
 | Path | Purpose |
 | --- | --- |
 | `/` | The front page: Church organizers (sign up, text us, Get my link), I was baptized (coming soon), Team (`/admin`). |
-| `/signup` | The signup form: the same form as a church's own page, with the phone typed in, a language picker and the consent box. Saves a finished signup and opens its page (`/p/<key>`). |
+| `/signup` | The signup form: the same form as a church's own page, with the phone typed in, a language picker and the consent box. Confirms the phone with a texted 6-digit code, saves a finished signup, texts the thank-you with the page link and opens the page (`/p/<key>`). |
 | `/demo` | A browser demo of the signup conversation. Nothing is saved or sent. |
 | `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
 | `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
@@ -33,6 +33,7 @@ Only `public/` is published as the website (see `vercel.json`). Everything else 
 | `ADMIN_PASSWORD` | Signs the `/admin` session cookies, so changing it logs everyone out. Before any user exists it's also the setup password that logs in to add the first one. |
 | `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
 | `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
+| `WEB_TEXTS_PER_DAY` | Optional: the most texts the signup form and Get my link may send in 24 hours (default 300). Past it they stop sending and an error shows in the Log panel. |
 | `PUBLIC_SITE_URL` | Optional: the address used in pastors' page links, e.g. `https://btw-dusky.vercel.app`. Unset: the address the request came in on. |
 
 ## Database
