@@ -116,6 +116,9 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   // Signing up: when the page opened (a form sent back in under 3 seconds is
   // a bot's), and whether the texted code is being asked for.
   var opened = Date.now(), codeStep = false;
+  // A signup still being answered by text, opened from the link sent after
+  // the language question: the page finishes it, and has no tabs until then.
+  var finishing = false;
   var api = "/api/profile?key=" + encodeURIComponent(key);
   var photosApi = "/api/profile-photos?key=" + encodeURIComponent(key);
   var $ = function (id) { return document.getElementById(id); };
@@ -172,10 +175,14 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
       });
       form.append(card);
     });
-    if (signingUp) {
+    // Signing up, or finishing a signup begun by text: the same promise as
+    // the last text question.
+    if (signingUp || finishing) {
       var agree = el("input", { type: "checkbox", name: "consent" });
       agree.checked = !!data.consent;
       form.append(el("div", { class: "card", id: "f-consent" }, [el("label", { class: "agree" }, [agree, el("span", {}, [T.web_signup_consent || ""])])]));
+    }
+    if (signingUp) {
       // A field people never see: a bot that fills it in is turned away.
       form.append(el("div", { class: "hp", "aria-hidden": "true" }, [el("label", {}, ["Company", el("input", { name: "company_hp", tabindex: "-1", autocomplete: "off" })])]));
       // The code texted to their phone, asked for after the first Sign up.
@@ -267,8 +274,9 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
     document.documentElement.dir = x[1].dir;
     // The logo is the heading; web_title names the browser tab.
     document.title = T.web_title || "Baptize 2027";
-    $("intro").textContent = T.web_intro || "";
-    $("save").textContent = T.web_save || "Save";
+    finishing = !x[1].completed;
+    $("intro").textContent = finishing ? T.web_finish_intro || "" : T.web_intro || "";
+    $("save").textContent = finishing ? T.web_finish_button || "Finish my signup" : T.web_save || "Save";
     // No country: a US signup from before the country question.
     render(Object.assign({}, x[1].church, { phone: x[1].phone, country: x[1].church.country || "US" }));
     $("msg").hidden = true; $("tabs").hidden = false;
@@ -300,6 +308,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
       history.replaceState(null, "", location.pathname + location.hash);
     }
     loadHistory();
+    if (finishing) { $("tabs").hidden = true; return show("signup", true); }
     show(/^#photos?(-\d+)?$/.test(location.hash) ? "photos" : location.hash === "#baptisms" ? "baptisms" : location.hash === "#stories" ? "stories"
       : location.hash === "#resources" && !$("tab-resources").hidden ? "resources" : "signup", true);
   }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
@@ -485,6 +494,8 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
       .then(function (x) {
         // Signed up: their own page, from now on their link.
         if (signingUp && x[0] === 200) { location.href = "/p/" + x[1].key + "?welcome=1"; return; }
+        // Finished: the whole page, with the thank-you on top.
+        if (finishing && x[0] === 200) { location.replace(location.pathname + "?welcome=1"); return; }
         // The code is on its way: ask for it.
         if (signingUp && x[0] === 202) {
           codeStep = true;

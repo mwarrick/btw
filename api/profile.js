@@ -46,7 +46,7 @@ import { RTL, phoneValue, wording as words } from "../lib/web-text.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
-const FIELDS = ["id", "phone", "lang", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
+const FIELDS = ["id", "phone", "lang", "completed_at", "consent_at", "profile_key", "simulated", "baptisms", "baptisms_at", "church_name", ...EDITABLE.filter((f) => f !== "church_name")].join(",");
 // The page's wording (TEXT_KEYS unless told otherwise).
 const wording = (lang, keys = TEXT_KEYS) => words(lang, keys);
 // Prompts the page needs: labels, yes/no, the explanations for bad answers,
@@ -69,6 +69,8 @@ const TEXT_KEYS = [
   // The Baptisms tab.
   "web_tab_baptisms", "web_baptisms_question", "web_baptisms_hint", "web_baptisms_updated", "web_baptisms_invalid",
   "web_phone", "web_phone_hint",
+  // Finishing a signup begun by text (web_form_link).
+  "web_finish_intro", "web_finish_button",
   // The Stories tab: baptism stories from the church's people (api/story.js).
   "web_tab_stories", "web_stories_intro", "web_no_stories",
   // The signup form (no key).
@@ -117,7 +119,8 @@ export default async function handler(req, res) {
       return;
     }
     if (req.method === "GET") {
-      res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), baptisms: church.baptisms, baptisms_at: church.baptisms_at,
+      res.status(200).json({ church: publicFields(church), phone: formatPhone(church.phone), completed: !!church.completed_at,
+        baptisms: church.baptisms, baptisms_at: church.baptisms_at,
         lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang) });
       return;
     }
@@ -145,6 +148,9 @@ export default async function handler(req, res) {
       res.status(400).json({ error, field, message: words[prompt || ERROR_PROMPTS[field]] || error });
       return;
     }
+    // A signup still being answered by text (opened from web_form_link) is
+    // finished here: every answer and the consent, like the signup form.
+    if (!church.completed_at) return await finish(church, fields, req.body || {}, res, siteUrl(req));
     const [saved] = await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`, {
       method: "PATCH",
       body: { ...fields, edited_by: null, edited_at: new Date().toISOString() },
@@ -227,10 +233,7 @@ async function signup(req, body, res, site) {
   const input = Object.fromEntries(EDITABLE.filter((f) => f in body).map((f) => [f, body[f]]));
   const { fields, error, field, prompt } = cleanChurchFields({ country: "US", ...input });
   if (error) return refuse(400, field, prompt || ERROR_PROMPTS[field], error);
-  const us = fields.country === "US";
-  const missing = [...REQUIRED, ...(us ? ["state", "zip"] : [])].find((f) => !fields[f])
-    || ["baptism_same", "public_map"].find((f) => typeof fields[f] !== "boolean")
-    || (fields.baptism_same === false && ["baptism_street", "baptism_city", ...(us ? ["baptism_state", "baptism_zip"] : [])].find((f) => !fields[f]));
+  const missing = missingAnswer(fields);
   if (missing) return refuse(400, missing, "web_required", "This one is needed.");
   if (body.consent !== true) return refuse(400, "consent", "web_required", "Tick the box to sign up.");
 
@@ -270,22 +273,71 @@ async function signup(req, body, res, site) {
     body: { phone, lang, phase: "done", queue: [], editing: false },
     prefer: "resolution=merge-duplicates",
   });
-  // The thank-you a signup by text ends with: done and the page link. It
-  // doesn't wait on the daily cap: the number was just verified.
-  const link = profileUrl(site, key);
+  // The thank-you doesn't wait on the daily cap: the number was just verified.
+  await record("welcome", ip, phone);
+  await sendThanks(phone, words, profileUrl(site, key));
+  res.status(200).json({ key });
+}
+
+// Finishes a signup begun by text: the answers so far plus the page's, the
+// consent, then the church is complete and the session done (the text
+// questions stop; later texts are handled like any finished signup's), and
+// the usual thank-you with the page link is texted.
+async function finish(church, fields, body, res, site) {
+  const lang = church.lang || "en";
+  const words = await wording(lang, [...TEXT_KEYS, "done", "done_link"]);
+  const refuse = (field, error) => res.status(400).json({ error, field, message: words.web_required || error });
+  const answers = { ...church, ...fields };
+  const missing = missingAnswer(answers);
+  if (missing) return refuse(missing, "This one is needed.");
+  if (body.consent !== true) return refuse("consent", "Tick the box to finish your signup.");
+
+  const now = new Date().toISOString();
+  const [[saved], [session]] = await Promise.all([
+    db(`btw_churches?id=eq.${church.id}&select=${FIELDS}`, {
+      method: "PATCH",
+      body: { ...fields, status: "complete", completed_at: now, consent_at: church.consent_at || now, edited_by: null, edited_at: now },
+      prefer: "return=representation",
+    }),
+    db(`btw_sessions?phone=${eq(church.phone)}&select=phase`),
+  ]);
+  const stopped = session?.phase === "stopped";
+  if (!stopped) {
+    await db("btw_sessions?on_conflict=phone", {
+      method: "POST",
+      body: { phone: church.phone, lang, phase: "done", queue: [], editing: false },
+      prefer: "resolution=merge-duplicates",
+    });
+    // Simulated numbers are fictional: nothing is texted.
+    if (!church.simulated) await sendThanks(church.phone, words, profileUrl(site, saved.profile_key || ""));
+  }
+  res.status(200).json({ church: publicFields(saved), completed: true });
+}
+
+// The first answer a finished signup still lacks (the web forms' rule; by
+// text, SKIP leaves the optional ones out): null when it has them all.
+function missingAnswer(fields) {
+  const us = !fields.country || fields.country === "US";
+  return [...REQUIRED, ...(us ? ["state", "zip"] : [])].find((f) => !fields[f])
+    || ["baptism_same", "public_map"].find((f) => typeof fields[f] !== "boolean")
+    || (fields.baptism_same === false && ["baptism_street", "baptism_city", ...(us ? ["baptism_state", "baptism_zip"] : [])].find((f) => !fields[f]))
+    || null;
+}
+
+// The thank-you a signup by text ends with (done and the page link), texted
+// and kept in their conversation.
+async function sendThanks(phone, words, link) {
   const linkLine = (words.done_link || "").includes("{link}") ? words.done_link.replace("{link}", link) : link;
   const thanks = [words.done, linkLine].filter(Boolean).join("\n");
-  await record("welcome", ip, phone);
   const failed = await send(phone, thanks);
   await db("btw_messages", { method: "POST", body: { phone, direction: "out", thread: "signup", body: thanks, error: failed } });
-  if (failed) await logEvent("error", "web-signup", `The thank-you after a web signup wasn't sent: ${failed}`, { phone });
-  res.status(200).json({ key });
+  if (failed) await logEvent("error", "web-signup", `The thank-you after finishing on the web wasn't sent: ${failed}`, { phone });
 }
 
 // The answers the page can edit; the phone is sent apart, since it can't be
 // changed (it's the signup's identity).
 function publicFields(church) {
-  const { id, phone, lang, baptisms, baptisms_at, ...rest } = church;
+  const { id, phone, lang, completed_at, consent_at, profile_key, simulated, baptisms, baptisms_at, ...rest } = church;
   return rest;
 }
 
