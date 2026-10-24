@@ -12,7 +12,7 @@ Live site: https://baptize.app (Vercel project `btw`; also https://btw-dusky.ver
     - **Code first.** The first Sign up checks the answers and texts a 6-digit code (`web_code_text`), answering 202 `{ needCode }`. The form then asks for the code and sends everything again with `{ code }`. Only then is the signup saved, and it is texted the thank-you `done` + `done_link`, like a signup by text. `{ resend: true }` sends a new code.
     - **Codes:** stored as a salted hash, valid 10 minutes, 5 tries.
     - **Numbers:** US/Canada only, since those are the only ones our number can text.
-    - **Bots** (the hidden `company_hp` field filled in, or `elapsed` under 3 s) get the normal answer, and nothing is sent or saved.
+    - **Bots** (the hidden box filled in, or `elapsed` under 3 s) get the normal answer, and nothing is sent or saved. The box is labeled "Leave this box empty" with id/name `hpx` (sent as `company_hp`, or `hpx` from the signup form): until 2026-10-24 it was labeled "Company", and browser autofill filled it from the person's contact card, so a real person starting the 30 days got a dead link ("This link doesn't work anymore").
     - **Limits** (`btw_web_requests`, IP stored as a salted hash):
       - codes: 1 per number per minute, 3 per hour; 10 per visitor per hour, 30 per day;
       - Get my link: 1 per number per 10 minutes; 5 per visitor per hour, 20 per day.
