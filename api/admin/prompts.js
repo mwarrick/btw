@@ -10,7 +10,7 @@
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { ENGLISH_ONLY_KEYS, PROMPT_MAX, missingPlaceholders, straighten } from "../../lib/prompts.js";
-import { db, eq } from "../../lib/supabase.js";
+import { db, dbAll, eq } from "../../lib/supabase.js";
 
 export default async function handler(req, res) {
   if (!(await requireAdmin(req, res))) return;
@@ -28,7 +28,7 @@ async function list(res) {
   const [languages, keys, prompts] = await Promise.all([
     db("btw_languages?select=*&order=menu_order"),
     db("btw_prompt_keys?select=*&order=sort_order"),
-    db("btw_prompts?select=key,lang,text,updated_at"),
+    dbAll("btw_prompts?select=key,lang,text,updated_at&order=key,lang"),
   ]);
   res.status(200).json({ languages, keys, prompts, englishOnly: [...ENGLISH_ONLY_KEYS] });
 }
