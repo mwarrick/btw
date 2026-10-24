@@ -15,8 +15,9 @@
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:96px}
 header{background:var(--brand);color:#fff;padding:14px 16px}
-header h1{margin:0;font-size:19px}
-header p{margin:4px 0 0;font-size:15px;opacity:.9}
+header{display:flex;gap:12px;align-items:center}
+header .logo{display:block;flex:0 0 auto;border-radius:8px}
+header p{margin:0;font-size:15px;opacity:.9}
 main{max-width:560px;margin:0 auto;padding:12px 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 14px 14px;margin:12px 0}
 .card h2{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 0}
@@ -62,7 +63,7 @@ a.add{text-decoration:none}
 </style>
 </head>
 <body>
-<header><h1 id="title">Baptize 2027</h1><p id="intro"></p></header>
+<header><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture><p id="intro"></p></header>
 <nav class="tabs" id="tabs" hidden><button type="button" id="tab-signup"></button><button type="button" id="tab-photos"></button><button type="button" id="tab-resources" hidden></button></nav>
 <main><p class="msg" id="msg">…</p><form id="form" hidden novalidate></form>
 <section id="photos" hidden>
@@ -166,7 +167,8 @@ a.add{text-decoration:none}
     if (x[0] !== 200) return fail(T.web_bad_link || "This link doesn't work anymore.");
     document.documentElement.lang = x[1].lang;
     document.documentElement.dir = x[1].dir;
-    document.title = $("title").textContent = T.web_title || "Baptize 2027";
+    // The logo is the heading; web_title names the browser tab.
+    document.title = T.web_title || "Baptize 2027";
     $("intro").textContent = T.web_intro || "";
     $("save").textContent = T.web_save || "Save";
     // No country: a US signup from before the country question.
