@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b6ea8">
+<title>Baptize 2027</title>
+<style>
+/* Baptism stories: /story (pick a church, get a link by text) and /s/<key>
+   (write). One small file, like the church's page, for weak phone signals. */
+:root{--brand:#0b6ea8;--ink:#13212d;--muted:#5b6977;--line:#cfd8e1;--bg:#f3f6f9;--card:#fff;--bad:#b3261e;--ok:#1c7a45}
+@media (prefers-color-scheme:dark){:root{--brand:#3fa6dd;--ink:#e5ecf2;--muted:#94a3b0;--line:#2a3846;--bg:#0b1117;--card:#141d26;--bad:#f08a80;--ok:#5ccc8f}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center}
+header .logo{display:block;flex:0 0 auto;border-radius:8px}
+header .home{display:block;flex:0 0 auto;border-radius:8px}
+header .home:focus-visible{outline:2px solid #fff;outline-offset:2px}
+header p{margin:0;font-size:15px}
+main{max-width:600px;margin:0 auto;padding:4px 16px 40px}
+h1{font-size:22px;margin:16px 0 4px}
+.church{color:var(--muted);margin:0 0 4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+label{display:block;font-weight:600;font-size:15px;margin-top:10px}
+label:first-child{margin-top:0}
+.hint{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:3px}
+input,select,textarea{display:block;width:100%;margin-top:6px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 12px;min-height:46px}
+textarea{min-height:16em;resize:vertical;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:1px}
+.lang{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:12px 0 0;font-size:15px;color:var(--muted)}
+.lang select{width:auto;margin:0;background:var(--card);min-height:42px;padding:8px 10px}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;min-height:48px;cursor:pointer;width:100%;margin-top:12px}
+button:disabled{opacity:.5}
+button.quiet{background:transparent;color:var(--brand);border:1px solid var(--line)}
+button.danger{background:transparent;color:var(--bad);border:1px solid var(--line);font-weight:600}
+.results{list-style:none;margin:6px 0 0;padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.results:empty{display:none}
+.results li+li{border-top:1px solid var(--line)}
+.results button{margin:0;width:100%;text-align:start;background:var(--card);color:var(--ink);font-weight:600;border-radius:0;min-height:52px;padding:10px 12px}
+.results small{display:block;font-weight:400;color:var(--muted)}
+.results .none{padding:12px;color:var(--muted);font-size:15px}
+.picked{display:flex;gap:10px;align-items:center;margin-top:6px;padding:10px 12px;border:1px solid var(--brand);border-radius:9px;background:var(--bg)}
+.picked div{flex:1;font-weight:600}.picked small{display:block;font-weight:400;color:var(--muted)}
+.picked button{width:auto;margin:0;min-height:38px;padding:6px 12px}
+.agree{display:flex;gap:10px;align-items:flex-start;font-weight:400}
+.agree input{width:22px;height:22px;min-height:0;margin:2px 0 0;padding:0;flex:0 0 auto}
+.count{color:var(--muted);font-size:14px;text-align:end;margin-top:4px}
+.err{display:block;color:var(--bad);font-weight:400;font-size:14px;margin-top:4px}
+.bad input,.bad textarea{border-color:var(--bad)}
+.status{font-size:15px;margin:10px 0 0;min-height:1.4em}
+.status.ok{color:var(--ok);font-weight:600}.status.bad{color:var(--bad)}
+.msg{text-align:center;color:var(--muted);padding:40px 8px}
+details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--brand);min-height:32px}
+.guide h3{font-size:16px;margin:16px 0 4px}
+.guide p{margin:6px 0}
+.guide ul{margin:6px 0;padding-inline-start:20px}
+.guide li{margin:4px 0}
+.hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header><a class="home" href="/"><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture></a><p id="intro"></p></header>
+<main>
+<p class="msg" id="msg">…</p>
+
+<!-- /story: pick the church, get the link -->
+<section id="start" hidden>
+  <div class="lang"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
+  <form class="card" id="startform" novalidate>
+    <div id="f-church">
+      <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
+      <input id="q" type="search" autocomplete="off" enterkeyhint="search">
+      <div class="picked" id="picked" hidden><div><span id="pickedname"></span><small id="pickedplace"></small></div><button type="button" class="quiet" id="change">✕</button></div>
+      <ul class="results" id="results"></ul>
+    </div>
+    <div id="f-phone">
+      <label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label>
+      <input id="phone" type="tel" inputmode="tel" autocomplete="tel">
+    </div>
+    <div class="hp" aria-hidden="true"><label>Company <input id="company_hp" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit" id="send"></button>
+    <p class="status" id="startstatus" role="status"></p>
+  </form>
+</section>
+
+<!-- /s/<key>: write -->
+<section id="write" hidden>
+  <h1 id="title"></h1>
+  <p class="church" id="church"></p>
+  <details class="card guide" id="guide" open><summary id="guidetitle"></summary><div id="guidebody"></div></details>
+  <form class="card" id="storyform" novalidate>
+    <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" name="first_name" maxlength="60" autocomplete="given-name"></div>
+    <div id="f-body">
+      <label for="body"><span id="bodylabel"></span><span class="hint" id="bodyhint"></span></label>
+      <textarea id="body" name="body" maxlength="4000"></textarea>
+      <p class="count" id="count"></p>
+    </div>
+    <div id="f-consent"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
+    <button type="submit" id="save"></button>
+    <p class="status" id="savestatus" role="status"></p>
+    <button type="button" class="danger" id="delete" hidden></button>
+  </form>
+</section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var key = (location.pathname.match(/\/s\/([A-Za-z0-9_-]+)/) || [])[1] || "";
+  var T = {};
+  var opened = Date.now(); // a form sent back in under 3 seconds is a bot's
+  function put(id, k, fallback) { $(id).textContent = T[k] || fallback || ""; }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    for (var a in attrs) if (attrs[a] != null) e.setAttribute(a, attrs[a]);
+    (kids || []).forEach(function (c) { if (c != null) e.append(c); });
+    return e;
+  }
+  function getJSON(url, opts) {
+    return fetch(url, opts).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); });
+  }
+  function fail(text) { $("start").hidden = $("write").hidden = true; $("msg").hidden = false; $("msg").textContent = text; }
+  function setLang(d) {
+    document.documentElement.lang = d.lang;
+    document.documentElement.dir = d.dir;
+    document.title = T.story_title || "Baptize 2027";
+    put("intro", "story_intro");
+  }
+  // A field's error under it, in their language.
+  function showError(field, message) {
+    var box = $("f-" + field);
+    if (!box) return false;
+    box.classList.add("bad");
+    box.append(el("span", { class: "err" }, [message]));
+    box.scrollIntoView({ block: "center" });
+    var i = box.querySelector("input,textarea"); if (i) i.focus();
+    return true;
+  }
+  function clearErrors(form) {
+    form.querySelectorAll(".err").forEach(function (n) { n.remove(); });
+    form.querySelectorAll(".bad").forEach(function (n) { n.classList.remove("bad"); });
+  }
+
+  // The advice: "## " headings, "• " or "- " bullets, **bold**, blank lines
+  // between paragraphs. Built as text, never as HTML.
+  function inline(text) {
+    return text.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map(function (part) {
+      return /^\*\*[^*]+\*\*$/.test(part) ? el("strong", {}, [part.slice(2, -2)]) : document.createTextNode(part);
+    });
+  }
+  function renderGuide(text) {
+    var out = [], para = [], list = null;
+    function flush() {
+      if (para.length) { out.push(el("p", {}, inline(para.join(" ")))); para = []; }
+      list = null;
+    }
+    String(text || "").split("\n").forEach(function (line) {
+      var t = line.trim();
+      if (!t) return flush();
+      if (/^## /.test(t)) { flush(); return out.push(el("h3", {}, inline(t.slice(3)))); }
+      if (/^[•-] /.test(t)) {
+        if (para.length) { out.push(el("p", {}, inline(para.join(" ")))); para = []; }
+        if (!list) { list = el("ul", {}, []); out.push(list); }
+        return list.append(el("li", {}, inline(t.slice(2))));
+      }
+      list = null;
+      para.push(t);
+    });
+    flush();
+    return out;
+  }
+
+  // ---------- /story ----------
+  var church = null, searchTimer = null, searchSeq = 0;
+  function loadStart(lang) {
+    return getJSON("/api/story?part=start&lang=" + encodeURIComponent(lang)).then(function (x) {
+      var d = x[1];
+      T = d.text || {};
+      setLang(d);
+      put("langlabel", "web_language", "Language");
+      put("churchlabel", "story_church", "The church that baptized you");
+      put("churchhint", "story_church_hint");
+      put("phonelabel", "web_phone", "Phone");
+      put("phonehint", "story_phone_hint");
+      put("send", "story_send", "Text me a link");
+      $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
+        var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
+      }));
+      $("lang").parentNode.hidden = (d.languages || []).length < 2;
+      $("msg").hidden = true; $("start").hidden = false;
+      return d;
+    });
+  }
+  function pick(c) {
+    church = c;
+    $("pickedname").textContent = c ? c.name : "";
+    $("pickedplace").textContent = c ? c.place : "";
+    $("picked").hidden = !c; $("q").hidden = !!c;
+    $("results").replaceChildren();
+    if (!c) { $("q").value = ""; $("q").focus(); }
+  }
+  $("change").addEventListener("click", function () { pick(null); });
+  $("q").addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    var q = $("q").value.trim();
+    if (q.length < 2) return $("results").replaceChildren();
+    searchTimer = setTimeout(function () {
+      var mine = ++searchSeq;
+      getJSON("/api/story?part=churches&q=" + encodeURIComponent(q)).then(function (x) {
+        if (mine !== searchSeq) return; // a later search is on its way
+        var list = x[1].churches || [];
+        $("results").replaceChildren.apply($("results"), list.length ? list.map(function (c) {
+          var b = el("button", { type: "button" }, [c.name, el("small", {}, [c.place])]);
+          b.addEventListener("click", function () { pick(c); });
+          return el("li", {}, [b]);
+        }) : [el("li", { class: "none" }, [T.story_church_none || "No church found."])]);
+      });
+    }, 250);
+  });
+  $("startform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = $("startform"), s = $("startstatus");
+    clearErrors(f);
+    s.textContent = ""; s.className = "status";
+    $("send").disabled = true;
+    getJSON("/api/story?part=link", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lang: $("lang").value || "en", church: church && church.id, phone: $("phone").value,
+        company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
+      .then(function (x) {
+        if (x[0] === 200) { s.textContent = T.story_sent || "Check your texts."; s.className = "status ok"; return; }
+        if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }
+      })
+      .catch(function () { s.textContent = "Couldn't connect. Try again."; s.className = "status bad"; })
+      .then(function () { $("send").disabled = false; });
+  });
+
+  // ---------- /s/<key> ----------
+  var api = "/api/story?key=" + encodeURIComponent(key);
+  function words(text) { return (String(text).trim().match(/\S+/g) || []).length; }
+  function count() {
+    var n = words($("body").value);
+    $("count").textContent = n ? n + " / 250" : "";
+  }
+  $("body").addEventListener("input", count);
+  function loadWrite() {
+    return getJSON(api).then(function (x) {
+      T = x[1].text || {};
+      if (x[0] !== 200) return fail(T.web_bad_link || "This link doesn't work anymore.");
+      var d = x[1], s = d.story;
+      setLang(d);
+      put("title", "story_title", "Your baptism story");
+      $("church").textContent = s.church ? s.church.name + (s.church.place ? " · " + s.church.place : "") : "";
+      put("guidetitle", "story_guide", "How to share your story");
+      $("guidebody").replaceChildren.apply($("guidebody"), renderGuide(d.guide));
+      $("guide").hidden = !d.guide;
+      // Once written, the advice folds away so the story comes first.
+      $("guide").open = !s.submitted_at;
+      put("namelabel", "story_name", "Your first name");
+      put("bodylabel", "story_body", "Your story");
+      put("bodyhint", "story_body_hint");
+      put("consentlabel", "story_consent");
+      put("save", "story_save", "Save my story");
+      put("delete", "story_delete", "Delete my story");
+      $("first_name").value = s.first_name; $("body").value = s.body; $("consent").checked = s.consent;
+      $("delete").hidden = !s.submitted_at;
+      count();
+      $("msg").hidden = true; $("write").hidden = false;
+    });
+  }
+  $("storyform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = $("storyform"), s = $("savestatus");
+    clearErrors(f);
+    s.textContent = "…"; s.className = "status";
+    $("save").disabled = true;
+    getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name: $("first_name").value, body: $("body").value, consent: $("consent").checked }) })
+      .then(function (x) {
+        if (x[0] === 200) { s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; return; }
+        if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
+        s.textContent = "";
+        if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }
+      })
+      .catch(function () { s.textContent = "Couldn't connect. Try again."; s.className = "status bad"; })
+      .then(function () { $("save").disabled = false; });
+  });
+  $("delete").addEventListener("click", function () {
+    if (!confirm(T.story_delete_confirm || "Delete your story for good?")) return;
+    $("delete").disabled = true;
+    getJSON(api, { method: "DELETE" }).then(function (x) {
+      if (x[0] === 200) fail(T.story_deleted || "Your story was deleted.");
+      else $("delete").disabled = false;
+    }, function () { $("delete").disabled = false; });
+  });
+
+  if (key) {
+    loadWrite().catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+  } else {
+    // The language picked on the front page (?lang=), else the browser's
+    // when it's one we have, else English.
+    var wanted = [new URLSearchParams(location.search).get("lang") || ""].concat((navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); }));
+    loadStart("en").then(function (d) {
+      var codes = (d.languages || []).map(function (l) { return l.code; });
+      var pickLang = wanted.filter(function (c) { return codes.indexOf(c) >= 0; })[0];
+      if (pickLang && pickLang !== "en") return loadStart(pickLang);
+    }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+    $("lang").addEventListener("change", function () { loadStart($("lang").value); });
+  }
+})();
+</script>
+</body>
+</html>

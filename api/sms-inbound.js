@@ -129,6 +129,15 @@ async function converse(sms, site) {
       db(`btw_churches?phone=${eq(phone)}&select=*`),
       loadPrompts(),
     ]);
+    // Someone who only wrote a baptism story (api/story.js) isn't signing up
+    // a church: their text is kept and shown in the Log panel, unanswered.
+    if (!session && !church) {
+      const [writer] = await db(`btw_testimonies?phone=${eq(phone)}&select=id`);
+      if (writer) {
+        await logEvent("info", "story", `Text from someone who wrote a baptism story, not answered: ${sms.message || "(no words)"}`, { phone });
+        return;
+      }
+    }
     engine = createEngine({ prompts, languages });
     const before = toState(session, church);
     lang = before.lang || church?.lang || "en";

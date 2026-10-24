@@ -1,6 +1,6 @@
 # Plan: testimony sharing and a three-portal landing page
 
-Status: **plan only, not built.**
+Status: **built 2026-10-24, simpler than planned.** Only the team and the church read stories (no public share page, gallery or Feature); first name only, with no anonymous option; no photo. See CLAUDE.md for what was built. The rest of this plan is kept for later.
 
 > How might we help someone who was just baptized tell their story in their own words and share it, without anyone at their church having to produce it, so that one baptism invites the next?
 
