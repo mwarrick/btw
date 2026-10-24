@@ -250,6 +250,8 @@
   .photo-card figcaption .btn { margin-left: auto; }
   .linkish { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
   .linkish:hover { text-decoration: underline; }
+  .convo-table th .linkish { color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; }
+  .convo-table td.count { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .prompt {
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 14px; display: grid; gap: 8px; min-width: 0;
@@ -430,6 +432,7 @@
     <button class="screen-tab" type="button" data-screen="conversations">Conversations <span id="unread-total"></span></button>
     <button class="screen-tab" type="button" data-screen="churches">Churches</button>
     <button class="screen-tab" type="button" data-screen="photos">Photos <span id="photos-unseen"></span></button>
+    <button class="screen-tab" type="button" data-screen="baptisms">Baptisms</button>
     <button class="screen-tab" type="button" data-screen="prompts">Prompts</button>
     <button class="screen-tab" type="button" data-screen="languages">Languages</button>
     <button class="screen-tab" type="button" data-screen="log">Log</button>
@@ -496,6 +499,24 @@
             <tr><th>Church</th><th>Contact</th><th>Address</th><th>Signed up</th><th></th></tr>
           </thead>
           <tbody id="church-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block" data-screen="baptisms">
+      <h2>Baptisms</h2>
+      <p class="hint">Each church's total so far, as the church reported it: by texting just a number, or on the Baptisms tab of its page (the latest one counts). Click a column title to sort.</p>
+      <div class="convo-bar">
+        <span class="meter" id="baptism-total"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="baptism-refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-scroll">
+        <table class="convo-table">
+          <thead>
+            <tr><th><button class="linkish" type="button" data-sort="church">Church</button></th><th><button class="linkish" type="button" data-sort="count">Baptisms</button></th><th>Reported</th><th></th></tr>
+          </thead>
+          <tbody id="baptism-rows"></tbody>
         </table>
       </div>
     </section>
@@ -1510,7 +1531,7 @@ $("result-dialog").addEventListener("click", (e) => {
 
 // ---------- screens ----------
 
-const SCREENS = ["conversations", "churches", "photos", "prompts", "languages", "log", "users", "connection"];
+const SCREENS = ["conversations", "churches", "photos", "baptisms", "prompts", "languages", "log", "users", "connection"];
 const screenFromHash = () => (SCREENS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "conversations");
 
 function showScreen(name) {
@@ -1595,6 +1616,7 @@ async function loadConversations() {
 
 function renderConversations() {
   renderChurches();
+  renderBaptisms();
   const unread = convos.list.reduce((n, c) => n + (c.unread || 0), 0);
   $("unread-total").replaceChildren(...(unread ? [chip(String(unread), "bad")] : []));
   const count = (status) => convos.list.filter((c) => inStatus(c, status)).length;
@@ -1638,6 +1660,47 @@ function messageButton(c) {
   return h("button", { class: "btn small", type: "button", onclick: (e) => { e.stopPropagation(); openThread(c.phone, "team"); } },
     "Message", c.unread ? chip(`${c.unread} new`, "bad") : null);
 }
+
+// ---------- baptisms ----------
+
+// Every finished signup (and any church that reported a count anyway), with
+// its total; sorted by church name or count, either way. Churches without a
+// count sort last.
+const baptismSort = { key: "count", dir: -1 };
+function renderBaptisms() {
+  const list = convos.list.filter((c) => c.completed_at || c.baptisms != null);
+  const name = (c) => (c.church_name || "").toLowerCase();
+  list.sort((a, b) => {
+    if (baptismSort.key === "count") {
+      if (a.baptisms == null || b.baptisms == null) return (a.baptisms == null) - (b.baptisms == null);
+      return (a.baptisms - b.baptisms) * baptismSort.dir || name(a).localeCompare(name(b));
+    }
+    return name(a).localeCompare(name(b)) * baptismSort.dir;
+  });
+  const reported = list.filter((c) => c.baptisms != null);
+  const total = reported.reduce((n, c) => n + c.baptisms, 0);
+  $("baptism-total").textContent = `${total.toLocaleString()} baptized · ${reported.length} of ${list.length} churches reported`;
+  for (const b of document.querySelectorAll("[data-sort]")) {
+    b.textContent = `${b.dataset.sort === "count" ? "Baptisms" : "Church"}${baptismSort.key === b.dataset.sort ? (baptismSort.dir > 0 ? " ▲" : " ▼") : ""}`;
+  }
+  $("baptism-rows").replaceChildren(...(list.length ? list.map((c) => h("tr", {},
+    h("td", {}, h("span", { class: "who", text: c.church_name || "(no name)" }), c.simulated ? chip("Simulation", "draft") : null,
+      h("span", { class: "sub", text: [c.city, c.state, c.country && c.country !== "US" ? c.country : null].filter(Boolean).join(", ") })),
+    h("td", { class: "count", text: c.baptisms != null ? c.baptisms.toLocaleString() : "—" }),
+    h("td", { class: "when", text: c.baptisms_at ? when(c.baptisms_at) : "" }),
+    h("td", {}, h("button", { class: "btn small", type: "button", text: "Conversation", onclick: () => openThread(c.phone, "signup") })),
+  )) : [h("tr", {}, h("td", { colspan: "4", class: "empty", text: "No church has finished signing up yet." }))]));
+}
+for (const b of document.querySelectorAll("[data-sort]")) {
+  b.addEventListener("click", () => {
+    const key = b.dataset.sort;
+    // A new column starts A to Z for names, highest first for counts.
+    baptismSort.dir = baptismSort.key === key ? -baptismSort.dir : key === "count" ? -1 : 1;
+    baptismSort.key = key;
+    renderBaptisms();
+  });
+}
+$("baptism-refresh").addEventListener("click", () => loadConversations());
 
 function renderChurches() {
   const q = $("church-search").value.trim().toLowerCase();
