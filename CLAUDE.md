@@ -39,7 +39,7 @@ Live site: https://btw-dusky.vercel.app (Vercel project `btw`). Database: Supaba
 - `lang_detected` and `kw_menu` (migration `20261023170000`) were translated by hand into all 10 languages; worth a native-speaker check.
 - Prompt text is data: 123 keys, 1203 rows (as of 2026-10-24; read with `dbAll`) in `btw_prompt_keys`, text per language in `btw_prompts`. Field order, validation and branching stay in code. Keys `menu_intro`, `menu_footer` and `menu_invalid` are English only (sent before a language is picked). All 10 languages were switched on as of 2026-10-23.
 
-Known gaps, kept on purpose for the demo: `docs/gaps.md`. Planned, not built: testimony sharing for people who were baptized, plus a landing page for the three portals (`docs/plan-testimonies.md`).
+Known gaps, kept on purpose for the demo: `docs/gaps.md`. Planned, not built: testimony sharing for people who were baptized, plus a landing page for the three portals (`docs/plan-testimonies.md`); Track 3, the first 30 days of faith after baptism, building on that baptizee area but tracked separately (`docs/plan-discipleship.md`).
 
 ## Decisions (the user's; details in docs/session-2026-10-23.md)
 - Any text starts or continues a signup; no keyword.

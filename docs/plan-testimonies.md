@@ -60,9 +60,10 @@ Status: **plan only, not built.**
 - **/admin**: a new **Stories** screen lists every church's stories, newest first. It shows status, language and a translation. Reviewers can **Hide** (abuse, safety) and **Feature** (for a public gallery or social posts). Stories in "Only my church" mode never appear publicly.
 
 ### Data (all `btw_`-prefixed, in the shared Supabase project)
+- `btw_baptizees`: the person (first name, language, church, phone if given). Stories hang off it, so Track 3's 30-day journey (`docs/plan-discipleship.md`) can share it.
 - `btw_churches.invite_code`: short and random (about 8 characters), made the first time the Stories tab or QR is shown.
 - `btw_stories`:
-  - `id`, `church_phone` (nullable, for "not sure"), `lang`, `first_name`;
+  - `id`, `baptizee_id`, `church_phone` (nullable, for "not sure"), `lang`, `first_name`;
   - `answers jsonb` (the three prompts), `photo_path`;
   - `visibility` ('public' | 'church' | 'anonymous'), `minor`;
   - `consent_text`, `consent_at`, `guardian_consent_at`;
