@@ -16,6 +16,8 @@
 //                      baptism stories written for this church (api/story.js), newest first
 //   PATCH ?key=...  { name, email, ... } -> { church } or 400 { error, field, message }
 //                      where message is the explanation in their language
+//   PATCH ?key=...  { partial: true, <changed answers> } -> { church }: an unfinished
+//                      signup's answers, kept as they're entered (no consent, not finished)
 //   PATCH ?key=...  { baptisms } -> { baptisms, baptisms_at }: their total so far
 //                      (the Baptisms tab; texting a number does the same)
 //
@@ -141,8 +143,12 @@ export default async function handler(req, res) {
       return;
     }
 
+    // The page sends only the answers changed on it: the rest keep their
+    // latest value, which may have come by text since the page opened (the
+    // last entry, by web or by text, is the one that counts). The saved
+    // country still decides how a changed state or ZIP is checked.
     const body = Object.fromEntries(EDITABLE.filter((f) => req.body && f in req.body).map((f) => [f, req.body[f]]));
-    const { fields, error, field, prompt } = cleanChurchFields(body);
+    const { fields, error, field, prompt } = cleanChurchFields({ country: church.country ?? null, ...body });
     if (error) {
       const words = await wording(lang);
       res.status(400).json({ error, field, message: words[prompt || ERROR_PROMPTS[field]] || error });
@@ -150,7 +156,10 @@ export default async function handler(req, res) {
     }
     // A signup still being answered by text (opened from web_form_link) is
     // finished here: every answer and the consent, like the signup form.
-    if (!church.completed_at) return await finish(church, fields, req.body || {}, res, siteUrl(req));
+    if (!church.completed_at && !req.body?.partial) return await finish(church, fields, req.body || {}, res, siteUrl(req));
+    // Otherwise each answer is kept as it's entered on the page (partial, while
+    // a signup is unfinished, so nothing is lost if the connection drops and
+    // they carry on by text), or saved with Save once it's finished.
     const [saved] = await db(`btw_churches?profile_key=${eq(key)}&select=${FIELDS}`, {
       method: "PATCH",
       body: { ...fields, edited_by: null, edited_at: new Date().toISOString() },

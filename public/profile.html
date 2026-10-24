@@ -196,7 +196,46 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
     sync();
   }
   $("form").addEventListener("input", function () { sync(); });
-  $("form").addEventListener("change", function () { sync(); });
+  $("form").addEventListener("change", function (e) {
+    sync();
+    // An unfinished signup keeps each answer as it's entered.
+    if (finishing && e.target.name && e.target.name !== "consent") { clearTimeout(autoTimer); autoTimer = setTimeout(autosave, 800); }
+  });
+
+  // The answers as last saved, so only what's changed here is sent: the
+  // rest keep their latest value, which may have come by text meanwhile (the
+  // last entry, by web or by text, is the one that counts).
+  var savedValues = {}, autoTimer = null;
+  function changedValues() {
+    var now = values(), out = {};
+    Object.keys(now).forEach(function (k) {
+      if (k === "consent" || k === "company_hp" || k === "code") return;
+      if (JSON.stringify(now[k]) !== JSON.stringify(savedValues[k])) out[k] = now[k];
+    });
+    return out;
+  }
+  function showFieldError(x) {
+    var box = x[1].field && $("f-" + x[1].field);
+    if (!box) return false;
+    box.classList.add("bad");
+    box.append(el("span", { class: "err" }, [x[1].message || x[1].error]));
+    return true;
+  }
+  function autosave() {
+    var changed = changedValues();
+    if (!Object.keys(changed).length) return;
+    Object.keys(changed).forEach(function (k) {
+      var box = $("f-" + k);
+      if (box) { box.classList.remove("bad"); box.querySelectorAll(".err").forEach(function (n) { n.remove(); }); }
+    });
+    fetch(api, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ partial: true }, changed)) })
+      .then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
+      .then(function (x) {
+        if (x[0] === 200) { Object.assign(savedValues, changed); return status(T.web_saved || "Saved.", "ok"); }
+        if (!showFieldError(x)) status(x[1].message || x[1].error || "!", "bad");
+      })
+      .catch(function () { /* offline: Finish sends it again, or they carry on by text */ });
+  }
   // Show the contact's phone only with a contact name, and the baptism
   // address only when it isn't the church's.
   function sync() {
@@ -279,6 +318,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
     $("save").textContent = finishing ? T.web_finish_button || "Finish my signup" : T.web_save || "Save";
     // No country: a US signup from before the country question.
     render(Object.assign({}, x[1].church, { phone: x[1].phone, country: x[1].church.country || "US" }));
+    savedValues = values();
     $("msg").hidden = true; $("tabs").hidden = false;
     $("tab-signup").textContent = T.web_tab_signup || "Your signup";
     $("tab-photos").textContent = T.web_tab_photos || "Photos";
@@ -479,7 +519,9 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   $("form").addEventListener("submit", function (e) { e.preventDefault(); submit({}); });
   // Saves the answers, or (signing up) asks for the code and then signs up.
   function submit(extra) {
-    var f = $("form"), body = Object.assign(values(), extra);
+    // Signing up sends every answer; the church's page only what's changed.
+    var f = $("form"), body = Object.assign(signingUp ? values() : changedValues(), extra);
+    if (finishing) body.consent = values().consent;
     f.querySelectorAll(".err").forEach(function (n) { n.remove(); });
     f.querySelectorAll(".bad").forEach(function (n) { n.classList.remove("bad"); });
     if (signingUp) {
@@ -507,7 +549,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
           f.code.focus();
           return;
         }
-        if (x[0] === 200) { fill(x[1].church); return status(T.web_saved || "Saved.", "ok"); }
+        if (x[0] === 200) { fill(x[1].church); savedValues = values(); return status(T.web_saved || "Saved.", "ok"); }
         if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
         var box = x[1].field && $("f-" + x[1].field);
         status("", "");

@@ -140,6 +140,13 @@ async function converse(sms, site) {
     }
     engine = createEngine({ prompts, languages });
     const before = toState(session, church);
+    // Answers given on their page since the last text: questions further on
+    // that are answered there aren't asked by text. The one on their phone
+    // (the head of the queue) still is: their reply answers it, and the latest
+    // entry, by web or by text, is the one that counts.
+    if (before.phase === "collect" && before.queue.length > 1) {
+      before.queue = [before.queue[0], ...before.queue.slice(1).filter((q) => !answeredOnPage(q, before.data))];
+    }
     lang = before.lang || church?.lang || "en";
     // The pastor's own page, linked from the DONE message; the key is kept
     // once the signup is complete.
@@ -314,6 +321,24 @@ async function guessLanguage(message, languages, phone) {
     await logEvent("warning", "sms-inbound", `Couldn't detect the language of a first text, so it got the menu: ${err.message}`, { phone });
     return null;
   }
+}
+
+// Which answer each text question fills (consent is only given by text or
+// by finishing on the page).
+const QUESTION_COLUMN = {
+  name: "name", email: "email", church: "church_name", country: "country", street: "street", city: "city",
+  state: "state", zip: "zip", denom: "denomination", website: "website", contact: "contact_name",
+  contact_phone: "contact_phone", map: "public_map", b_street: "baptism_street", b_city: "baptism_city",
+  b_state: "baptism_state", b_zip: "baptism_zip",
+};
+function answeredOnPage(question, data) {
+  const has = (col) => data[col] != null && data[col] !== "";
+  // "Somewhere else" only counts once that place is filled in too, since
+  // its questions follow from this one.
+  if (question === "baptism") {
+    return data.baptism_same === true || (data.baptism_same === false && ["baptism_street", "baptism_city"].every(has));
+  }
+  return QUESTION_COLUMN[question] ? has(QUESTION_COLUMN[question]) : false;
 }
 
 // The engine's state from the two rows; a number with no session is new.
