@@ -1736,7 +1736,7 @@ function renderChurches() {
         h("span", { class: "sub", text: [c.city, [c.state, c.zip].filter(Boolean).join(" "), abroad(c)].filter(Boolean).join(", ") })),
       h("td", {}, h("span", { class: "when", text: when(c.completed_at) }),
         c.edited_at ? h("span", { class: "sub", text: `Edited ${when(c.edited_at)} by ${c.editor?.name || "the pastor"}` }) : null,
-        c.baptisms != null ? h("span", { class: "sub", text: `${c.baptisms} baptized (texted ${when(c.baptisms_at)})` }) : null),
+        c.baptisms != null ? h("span", { class: "sub", text: `${c.baptisms} baptized (reported ${when(c.baptisms_at)})` }) : null),
       h("td", {}, h("div", { class: "row-actions" },
         h("button", { class: "btn small ghost", type: "button", onclick: () => editChurch(c.phone) }, "Edit"),
         h("button", { class: "btn small ghost", type: "button", onclick: () => openThread(c.phone, "signup") }, "Conversations"),
@@ -1764,7 +1764,7 @@ function answerList(c) {
     ["First text", when(c.created_at)],
     ["Last edited", c.edited_at ? `${when(c.edited_at)} by ${c.editor?.name || "the pastor"}` : null],
     // Texted by the church after signup; the latest number counts.
-    ["Baptisms", c.baptisms != null ? `${c.baptisms} (texted ${when(c.baptisms_at)})` : null],
+    ["Baptisms", c.baptisms != null ? `${c.baptisms} (reported ${when(c.baptisms_at)})` : null],
     ["Pastor's page", c.profile_key ? `${location.origin}/p/${c.profile_key}` : null],
   ].filter(([, v]) => v);
 }
@@ -2104,7 +2104,7 @@ $("thread-dialog").addEventListener("close", () => { convos.open = null; convos.
 
 // ---------- editing a signup's answers ----------
 
-// [column, label, width, kind]; kind: text | email | state | zip | tel | yesno
+// [column, label, width, kind]; kind: text | email | state | zip | tel | number | yesno
 const CHURCH_FIELDS = [
   ["group", "Church"],
   ["church_name", "Church name", "", "text"],
@@ -2116,6 +2116,7 @@ const CHURCH_FIELDS = [
   ["name", "Name", "half", "text"], ["email", "Email", "half", "email"],
   ["contact_name", "Main contact, if someone else", "half", "text"], ["contact_phone", "Main contact's phone", "half", "tel"],
   ["group", "Baptisms"],
+  ["baptisms", "Baptisms so far (blank if not reported)", "half", "number"],
   ["baptism_same", "Baptisms at the church address?", "half", "yesno"], ["public_map", "Show on the public map?", "half", "yesno"],
   ["baptism_street", "Baptism street", "", "text"],
   ["baptism_city", "Baptism city", "third-ish", "text"], ["baptism_state", "State / region", "third-ish", "state"], ["baptism_zip", "ZIP / postal code", "third-ish", "zip"],
@@ -2144,7 +2145,9 @@ async function editChurch(phone) {
     } else {
       input = h("input", {
         name: key,
-        type: kind === "email" ? "email" : kind === "tel" ? "tel" : "text",
+        type: kind === "email" ? "email" : kind === "tel" ? "tel" : kind === "number" ? "number" : "text",
+        min: kind === "number" ? "0" : null,
+        inputmode: kind === "number" ? "numeric" : null,
         // Outside the US: any region, postal codes up to 10.
         maxlength: kind === "state" ? "60" : kind === "zip" ? "10" : "200",
         autocomplete: "off",
