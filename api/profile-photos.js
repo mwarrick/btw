@@ -2,8 +2,11 @@
 // The Photos part of the pastor's page (/p/<key>#photos). The key from the
 // signup link is the only login, as for api/profile.js.
 //
-//   GET ?key=...                 -> { photos: [{ id, url, thumb, created_at, ... }] } newest first;
-//                                   links expire after an hour
+//   GET ?key=...                 -> { photos: [{ id, url, thumb, created_at, waiting, ... }] } newest
+//                                   first; links expire after an hour; `waiting`: no
+//                                   permission yet (texted photos)
+//   PATCH ?key=... { consent: true } -> { allowed }: permission (the web_consent box) for
+//                                   every photo still without it
 //   POST ?key=... { image, thumb, width, height, consent: true }
 //                                -> { photo }: one photo, base64 JPEG resized in the
 //                                   browser; refused without consent. The permission
@@ -12,15 +15,15 @@
 //   DELETE ?key=...&id=...       -> { deleted }: removes that photo for good
 
 import { isProfileKey } from "../lib/profile-link.js";
-import { deletePhotos, listPhotos, savePhoto } from "../lib/photos.js";
+import { allowPhotos, deletePhotos, listPhotos, savePhoto } from "../lib/photos.js";
 import { logEvent } from "../lib/events.js";
 import { db, eq } from "../lib/supabase.js";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  if (!["GET", "POST", "DELETE"].includes(req.method)) {
-    res.setHeader("Allow", "GET, POST, DELETE");
-    res.status(405).json({ error: "Use GET, POST or DELETE." });
+  if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method)) {
+    res.setHeader("Allow", "GET, POST, PATCH, DELETE");
+    res.status(405).json({ error: "Use GET, POST, PATCH or DELETE." });
     return;
   }
   try {
@@ -33,7 +36,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      const photos = (await listPhotos({ phone: church.phone })).map(({ id, url, thumb, width, height, created_at }) => ({ id, url, thumb, width, height, created_at }));
+      const photos = (await listPhotos({ phone: church.phone }))
+        .map(({ id, url, thumb, width, height, created_at, consent_at }) => ({ id, url, thumb, width, height, created_at, waiting: !consent_at }));
       res.status(200).json({ photos });
       return;
     }
@@ -52,6 +56,11 @@ export default async function handler(req, res) {
     const lang = church.lang || "en";
     const rows = await db(`btw_prompts?key=eq.web_consent&lang=in.${encodeURIComponent(`(${[...new Set(["en", lang])].join(",")})`)}&select=lang,text`);
     const consentText = (rows.find((r) => r.lang === lang) || rows.find((r) => r.lang === "en"))?.text || "consent given";
+    if (req.method === "PATCH") {
+      const allowed = await allowPhotos(church.phone, consentText);
+      res.status(200).json({ allowed: allowed?.length ?? 0 });
+      return;
+    }
     try {
       const photo = await savePhoto({ phone: church.phone, image: body.image, thumb: body.thumb, width: body.width, height: body.height, source: "web", consentText });
       res.status(200).json({ photo: { id: photo.id, created_at: photo.created_at } });
