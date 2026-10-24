@@ -502,7 +502,7 @@
 
     <section class="block" data-screen="photos">
       <h2>Photos</h2>
-      <p class="hint">Photos churches shared from their page, newest first. Each was uploaded with the church confirming permission to share it publicly, including on social media. Click one to open it full size; the church's name opens its conversation.</p>
+      <p class="hint">Photos churches shared, from their page or by text, newest first. Page uploads come with permission to share them publicly, including on social media; texted ones are asked by text and show <b>Awaiting permission</b> until the church replies YES, or <b>Not for sharing</b> if it says NO. Click one to open it full size; the church's name opens its conversation.</p>
       <div class="convo-bar">
         <span class="spacer"></span>
         <button class="btn" id="photos-refresh" type="button">Refresh</button>
@@ -1822,7 +1822,9 @@ function photoCard(p, withChurch) {
       withChurch ? h("button", { class: "linkish", type: "button", text: p.church_name || formatPhone(p.phone), onclick: () => openThread(p.phone, "photos") }) : null,
       h("span", { class: "when", text: when(p.created_at) }),
       p.seen_at ? null : chip("New", "bad"),
-      p.consent_at ? null : chip("No permission", "warn"),
+      p.source === "sms" ? chip("By text", "muted") : null,
+      // Texted photos wait for a YES to the permission question.
+      p.consent_at ? null : p.declined_at ? chip("Not for sharing", "bad") : chip("Awaiting permission", "warn"),
       del));
 }
 
