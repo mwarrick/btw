@@ -66,6 +66,11 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
 fieldset{border:0;margin:14px 0 0;padding:0}
 legend{font-weight:600;font-size:15px;padding:0}
 .bad .choice{border-color:var(--bad)}
+.mic{width:auto;min-height:38px;margin:6px 0 0;padding:6px 14px;font-weight:600}
+.mic.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.picks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.picks button{margin:0;text-align:start;font-weight:400;font-size:15px;min-height:0;padding:8px 12px}
+.picks button[aria-pressed="true"]{border-color:var(--brand);background:var(--bg);font-weight:600}
 .preview{display:block;width:100%;max-width:280px;margin:12px auto 0;border-radius:12px;border:1px solid var(--line)}
 .row{display:flex;gap:8px;flex-wrap:wrap}.row button{flex:1 1 140px}
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
@@ -145,6 +150,8 @@ legend{font-weight:600;font-size:15px;padding:0}
     <h2 style="font-size:18px;margin:0" id="cardtitle"></h2>
     <p class="hint" id="cardhint"></p>
     <img class="preview" id="preview" alt="">
+    <p class="hint" id="picklabel" style="margin-top:12px"></p>
+    <div class="picks" id="picks"></div>
     <button type="button" id="sharebtn"></button>
     <div class="row"><button type="button" class="quiet" id="savepic"></button><button type="button" class="quiet" id="copy"></button></div>
     <p class="status" id="cardstatus" role="status"></p>
@@ -328,9 +335,27 @@ legend{font-weight:600;font-size:15px;padding:0}
   // ---------- the picture they post themselves ----------
   var story = null, church = null, pic = null;
   // A short quote: the moment, else what they'd tell someone, else the start.
+  var picked = "";
   function quote() {
     var a = story.answers || {};
-    return a.moment || a.advice || a.why || story.body;
+    return picked || a.moment || a.advice || a.why || story.body;
+  }
+  // The story's sentences, for them to pick the line on their picture.
+  function sentences(text) {
+    return (String(text || "").match(/[^.!?。！？؟।\n]+[.!?。！？؟।]*/g) || []).map(function (x) { return x.trim(); })
+      .filter(function (x) { return x.length > 3; }).slice(0, 15);
+  }
+  function showPicks() {
+    var list = sentences(story.body);
+    if (picked && list.indexOf(picked) < 0) picked = "";
+    var now = quote();
+    $("picklabel").textContent = T.story_card_pick || "Tap the line you want on your picture:";
+    $("picklabel").hidden = list.length < 2;
+    $("picks").replaceChildren.apply($("picks"), list.length < 2 ? [] : list.map(function (line) {
+      var b = el("button", { type: "button", class: "quiet", "aria-pressed": String(line === now) }, [line]);
+      b.addEventListener("click", function () { picked = line; showCard(); });
+      return b;
+    }));
   }
   // Lines that fit `width`: by words, or by characters where a script has no spaces.
   function wrap(ctx, text, width) {
@@ -398,6 +423,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     if ($("card").hidden) return;
     var logo = $("cardlogo");
     if (!logo.complete) { logo.onload = logo.onerror = showCard; return; }
+    showPicks();
     var c = drawCard();
     $("preview").src = c.toDataURL("image/png");
     pic = new Promise(function (ok) { c.toBlob(ok, "image/png"); });
@@ -421,6 +447,41 @@ legend{font-weight:600;font-size:15px;padding:0}
     var done = function () { $("cardstatus").textContent = T.story_copied || "Copied."; $("cardstatus").className = "status ok"; };
     if (navigator.clipboard) navigator.clipboard.writeText(shareText()).then(done, function () {});
   });
+
+  // Speaking instead of typing, where the browser can turn speech into text
+  // (mostly Chrome, on Android and computers). The words are added to the box.
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, listening = null;
+  var SPEECH = { en: "en-US", es: "es-419", fr: "fr-FR", pt: "pt-BR", zh: "zh-CN", ar: "ar", hi: "hi-IN", bn: "bn-IN", ru: "ru-RU", ur: "ur-PK" };
+  function addMics() {
+    if (!SR) return;
+    QS.forEach(function (q) {
+      var box = $("f-q_" + q), field = $("q_" + q), old = box.querySelector(".mic");
+      if (old) old.remove();
+      var b = el("button", { type: "button", class: "quiet mic", "aria-controls": "q_" + q }, ["🎤 " + (T.story_speak || "Speak")]);
+      b.addEventListener("click", function () {
+        if (listening) { var was = listening; listening.rec.stop(); if (was.button === b) return; }
+        var rec = new SR();
+        rec.lang = SPEECH[document.documentElement.lang] || document.documentElement.lang || "en-US";
+        rec.continuous = true; rec.interimResults = false;
+        rec.onresult = function (ev) {
+          for (var i = ev.resultIndex; i < ev.results.length; i++) {
+            if (!ev.results[i].isFinal) continue;
+            var said = ev.results[i][0].transcript.trim();
+            if (said) field.value = (field.value.trim() ? field.value.trim() + " " : "") + said;
+          }
+          field.dispatchEvent(new Event("input"));
+        };
+        rec.onend = function () {
+          b.classList.remove("on"); b.textContent = "🎤 " + (T.story_speak || "Speak");
+          if (listening && listening.rec === rec) listening = null;
+        };
+        listening = { rec: rec, button: b };
+        b.classList.add("on"); b.textContent = "● " + (T.story_listening || "Listening… tap to stop");
+        try { rec.start(); } catch (e) { rec.onend(); }
+      });
+      box.append(b);
+    });
+  }
 
   function loadWrite() {
     return getJSON(api).then(function (x) {
@@ -466,6 +527,7 @@ legend{font-weight:600;font-size:15px;padding:0}
       $("guardian_name").value = s.guardian_name; $("guardian_ok").checked = s.guardian_ok;
       showSharing();
       story = s; church = s.church;
+      addMics();
       $("delete").hidden = !s.submitted_at;
       // Once their story is saved: their first 30 days, with church and name carried over.
       put("journey", "j_start_button", "Start my first 30 days");

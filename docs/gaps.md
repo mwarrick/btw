@@ -41,7 +41,9 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **The 18+ answer is taken on trust,** and so is the parent or guardian's OK.
 - **The phone check proves only the phone.** The link texted to the number shows it's theirs, but anyone can pick any church in the list.
 - **Advice translations need checking.** The seeded advice was translated by hand. "Translate into every language" overwrites every other language with Google drafts, which need a native speaker's eye.
-- **US and Canadian numbers only**, as for churches.
+- **Texting the link reaches US and Canadian numbers only.** The form takes any country's number; the provider (voip.ms) can't text the rest yet, and the page says so. Another provider changes only `canText` and `sendText` in `lib/voipms.js`.
+- **No short video.** Typed or spoken (where the browser supports it) only.
+- **Speaking needs a browser with speech recognition,** mostly Chrome; elsewhere the 🎤 buttons don't show and the keyboard's microphone still works.
 
 ## The first 30 days (`/journey`)
 - **The plan is a draft.** We wrote the 30 days. A pastor should review them, and the translations are Google drafts until someone checks them ("Translate into every language" on the Discipleship screen).

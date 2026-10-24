@@ -9,6 +9,7 @@
 //                                sent but nothing written yet
 //   PATCH ?id= { seen: true } -> { ok }: no longer New
 //   PATCH ?id= { featured }   -> { ok }: starred to feature, or not
+//   POST ?part=samples        -> { added }: replaces the three sample stories (lib/simulations.js)
 //   POST ?id= { translate: true } -> { text }: the story in English (not saved)
 //   DELETE ?id=               -> { deleted: true }
 //   GET ?part=guide           -> { guides: [{ lang, body, updated_at, editor }], languages }
@@ -20,6 +21,7 @@
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
+import { addSampleStoriesToSimulation } from "../../lib/simulations.js";
 import { translate } from "../../lib/translate.js";
 
 const GUIDE = "testimony";
@@ -35,6 +37,10 @@ export default async function handler(req, res) {
     if (part === "guide" && req.method === "GET") return await guides(res);
     if (part === "guide" && req.method === "PUT") return await saveGuide(req.body || {}, user, res);
     if (part === "guide-translate" && req.method === "POST") return await translateGuide(user, res);
+    if (part === "samples" && req.method === "POST") {
+      const added = await addSampleStoriesToSimulation();
+      return added ? res.status(200).json({ added }) : res.status(400).json({ error: "Add simulations first (Conversations): the sample stories belong to a simulated church." });
+    }
     if (req.method === "GET") return await list(res);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Send ?id= of a testimony." });
     if (req.method === "PATCH" && typeof req.body?.featured === "boolean") {
@@ -68,7 +74,7 @@ export default async function handler(req, res) {
 
 async function list(res) {
   const rows = await dbAll("btw_testimonies?select=id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,"
-    + "guardian_at,submitted_at,updated_at,seen_at,featured_at&order=id");
+    + "guardian_at,submitted_at,updated_at,seen_at,featured_at,simulated&order=id");
   const written = rows.filter((t) => t.submitted_at);
   const saved = written.filter((t) => t.share === "baptize");
   const ids = [...new Set(saved.map((t) => t.church_id).filter(Boolean))];

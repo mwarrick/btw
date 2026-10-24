@@ -291,6 +291,7 @@
   .story-head .who { font-weight: 700; }
   .story-body { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
   .story-english { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); white-space: pre-wrap; }
+  .story-english .sub { display: block; margin-top: 6px; }
   .story-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .guide-title { margin: 28px 0 4px; font-size: 16px; }
   .jd-fields { display: grid; gap: 8px; }
@@ -557,6 +558,7 @@
         <div class="tabs" id="story-tabs"><button type="button" class="tab" aria-pressed="true" data-filter="all">All</button><button type="button" class="tab" aria-pressed="false" data-filter="featured">Featured</button></div>
         <span class="meter" id="story-meter"></span>
         <span class="spacer"></span>
+        <button class="btn" id="story-samples" type="button" title="Three made-up stories at a simulated church; replaces earlier ones">Add sample stories</button>
         <button class="btn" id="story-refresh" type="button">Refresh</button>
       </div>
       <div id="story-list"></div>
@@ -2004,7 +2006,7 @@ function storyCard(t) {
       e.target.disabled = true;
       try {
         const { text } = await api(`/api/admin/testimonies?id=${t.id}`, { method: "POST", body: { translate: true } });
-        english.textContent = text;
+        english.replaceChildren(text, h("span", { class: "sub", text: "Machine translation (Google), may be wrong." }));
         english.hidden = false;
         e.target.remove();
       } catch (err) {
@@ -2051,6 +2053,7 @@ function storyCard(t) {
       t.lang && t.lang !== "en" ? chip(langName(t.lang), "muted") : null,
       t.seen_at ? null : chip("New", "bad"),
       t.featured_at ? chip("Featured", "ok") : null,
+      t.simulated ? chip("Simulation", "muted") : null,
       t.adult === false ? chip(`Under 18 · OK from ${t.guardian_name || "a parent or guardian"}`, "muted") : null,
       h("span", { class: "sub", text: formatPhone(t.phone) })),
     h("p", { class: "story-body", text: t.body || "" }),
@@ -2075,6 +2078,18 @@ async function loadTestimonies() {
   }
 }
 $("story-refresh").addEventListener("click", loadTestimonies);
+$("story-samples").addEventListener("click", async (e) => {
+  e.target.disabled = true;
+  try {
+    const { added } = await api("/api/admin/testimonies?part=samples", { method: "POST", body: {} });
+    toast(`Added ${added} sample stories.`);
+    loadTestimonies();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    e.target.disabled = false;
+  }
+});
 let storyFilter = "all";
 $("story-tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-filter]");
@@ -2451,9 +2466,10 @@ $("sim-add").addEventListener("click", async (e) => {
   button.textContent = "Adding...";
   try {
     const { added } = await api("/api/admin/simulations", { method: "POST" });
-    toast(`Added ${added} simulations, with 6 newly baptized people on Discipleship.`);
+    toast(`Added ${added} simulations, with 6 newly baptized people and 3 sample stories.`);
     loadConversations();
     loadJourneysAdmin();
+    loadTestimonies();
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   } finally {
@@ -2462,12 +2478,13 @@ $("sim-add").addEventListener("click", async (e) => {
   }
 });
 $("sim-remove").addEventListener("click", async () => {
-  if (!confirm("Remove every simulated signup, with its texts and messages, and the sample newly baptized people? Real signups aren't touched.")) return;
+  if (!confirm("Remove every simulated signup, with its texts and messages, the sample newly baptized people and the sample stories? Real signups aren't touched.")) return;
   try {
     const { removed } = await api("/api/admin/simulations", { method: "DELETE" });
     toast(`Removed ${removed} simulations.`);
     loadConversations();
     loadJourneysAdmin();
+    loadTestimonies();
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   }
