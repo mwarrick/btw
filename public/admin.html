@@ -538,8 +538,9 @@
 
     <section class="block" data-screen="testimonies">
       <h2>Testimonies</h2>
-      <p class="hint">Baptism stories from <b>baptize.app/story</b>. A person picks their church and gets a private link by text, which proves the phone is theirs. Only the team and that church read these: each church sees its own on the Stories tab of its page. A story is <b>New</b> until marked read, and again after the writer changes it.</p>
+      <p class="hint">Baptism stories from <b>baptize.app/story</b>. A person picks their church, gets a private link by text (which proves the phone is theirs), answers a few questions and chooses who reads the story: only them, their church (the Stories tab of its page), or their church and this team. Only that last kind shows here, and only those can be <b>featured</b>; the others are just counted. Under 18, a parent or guardian agreed before it was shared. A story is <b>New</b> until marked read, and again after the writer changes it.</p>
       <div class="convo-bar">
+        <div class="tabs" id="story-tabs"><button type="button" class="tab" aria-pressed="true" data-filter="all">All</button><button type="button" class="tab" aria-pressed="false" data-filter="featured">Featured</button></div>
         <span class="meter" id="story-meter"></span>
         <span class="spacer"></span>
         <button class="btn" id="story-refresh" type="button">Refresh</button>
@@ -1970,6 +1971,15 @@ function storyCard(t) {
         if (!err.silent) toast(err.message, "bad");
       }
     } }) : null,
+    h("button", { class: "btn small", type: "button", text: t.featured_at ? "★ Featured" : "☆ Feature",
+      title: t.featured_at ? "Click to stop featuring it" : "Star it to feature (they agreed)", onclick: async () => {
+      try {
+        await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { featured: !t.featured_at } });
+        loadTestimonies();
+      } catch (err) {
+        if (!err.silent) toast(err.message, "bad");
+      }
+    } }),
     t.seen_at ? null : h("button", { class: "btn small", type: "button", text: "Mark read", onclick: async () => {
       try {
         await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { seen: true } });
@@ -1999,6 +2009,8 @@ function storyCard(t) {
       h("span", { class: "when", text: when(t.updated_at) }),
       t.lang && t.lang !== "en" ? chip(langName(t.lang), "muted") : null,
       t.seen_at ? null : chip("New", "bad"),
+      t.featured_at ? chip("Featured", "ok") : null,
+      t.adult === false ? chip(`Under 18 · OK from ${t.guardian_name || "a parent or guardian"}`, "muted") : null,
       h("span", { class: "sub", text: formatPhone(t.phone) })),
     h("p", { class: "story-body", text: t.body || "" }),
     english,
@@ -2007,17 +2019,29 @@ function storyCard(t) {
 
 async function loadTestimonies() {
   try {
-    const { testimonies, unseen, waiting } = await api("/api/admin/testimonies");
+    const { testimonies, unseen, featured, waiting, private: kept, church_only } = await api("/api/admin/testimonies");
     $("stories-unseen").replaceChildren(...(unseen ? [chip(String(unseen), "bad")] : []));
-    $("story-meter").textContent = `${testimonies.length} ${testimonies.length === 1 ? "story" : "stories"}`
-      + (unseen ? ` · ${unseen} new` : "") + (waiting ? ` · ${waiting} link${waiting === 1 ? "" : "s"} sent, nothing written yet` : "");
-    $("story-list").replaceChildren(...(testimonies.length ? testimonies.map(storyCard)
-      : [h("p", { class: "empty", text: "No stories yet. People share theirs at baptize.app/story (I was baptized on the front page)." })]));
+    $("story-meter").textContent = `${testimonies.length} shared with the team`
+      + (unseen ? ` · ${unseen} new` : "") + (featured ? ` · ${featured} featured` : "")
+      + (church_only ? ` · ${church_only} for their church only` : "") + (kept ? ` · ${kept} kept private` : "")
+      + (waiting ? ` · ${waiting} link${waiting === 1 ? "" : "s"} sent, nothing written yet` : "");
+    const shown = storyFilter === "featured" ? testimonies.filter((t) => t.featured_at) : testimonies;
+    $("story-list").replaceChildren(...(shown.length ? shown.map(storyCard)
+      : [h("p", { class: "empty", text: storyFilter === "featured" ? "Nothing featured yet. Star a story with ☆ Feature."
+        : "No stories shared with the team yet. People share theirs at baptize.app/story (I was baptized on the front page)." })]));
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   }
 }
 $("story-refresh").addEventListener("click", loadTestimonies);
+let storyFilter = "all";
+$("story-tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-filter]");
+  if (!b) return;
+  storyFilter = b.dataset.filter;
+  $("story-tabs").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  loadTestimonies();
+});
 
 // The advice beside the story box (btw_guides), one language at a time.
 const guide = { loaded: false, rows: [], languages: [] };

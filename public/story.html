@@ -58,6 +58,16 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
 .guide p{margin:6px 0}
 .guide ul{margin:6px 0;padding-inline-start:20px}
 .guide li{margin:4px 0}
+.qs label{margin-top:14px}
+.qs textarea{min-height:5.5em}
+.choice{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);cursor:pointer}
+.choice input{width:22px;height:22px;min-height:0;margin:1px 0 0;padding:0;flex:0 0 auto}
+.choice:has(input:checked){border-color:var(--brand)}
+fieldset{border:0;margin:14px 0 0;padding:0}
+legend{font-weight:600;font-size:15px;padding:0}
+.bad .choice{border-color:var(--bad)}
+.preview{display:block;width:100%;max-width:280px;margin:12px auto 0;border-radius:12px;border:1px solid var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row button{flex:1 1 140px}
 .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 [hidden]{display:none!important}
 </style>
@@ -66,6 +76,7 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
 <header><a class="home" href="/"><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture></a><p id="intro"></p></header>
 <main>
 <p class="msg" id="msg">…</p>
+<img id="cardlogo" src="/img/b-mark.png" alt="" hidden>
 
 <!-- /story: pick the church, get the link -->
 <section id="start" hidden>
@@ -94,17 +105,49 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
   <details class="card guide" id="guide" open><summary id="guidetitle"></summary><div id="guidebody"></div></details>
   <form class="card" id="storyform" novalidate>
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" name="first_name" maxlength="60" autocomplete="given-name"></div>
+    <div class="qs">
+      <h2 style="font-size:18px;margin:18px 0 0" id="qtitle"></h2>
+      <p class="hint" id="qhint"></p>
+      <div id="f-q_before"><label for="q_before" id="qlabel_before"></label><textarea id="q_before" maxlength="1000"></textarea></div>
+      <div id="f-q_why"><label for="q_why" id="qlabel_why"></label><textarea id="q_why" maxlength="1000"></textarea></div>
+      <div id="f-q_moment"><label for="q_moment" id="qlabel_moment"></label><textarea id="q_moment" maxlength="1000"></textarea></div>
+      <div id="f-q_advice"><label for="q_advice" id="qlabel_advice"></label><textarea id="q_advice" maxlength="1000"></textarea></div>
+      <div id="f-q_verse"><label for="q_verse" id="qlabel_verse"></label><input id="q_verse" maxlength="1000"></div>
+    </div>
     <div id="f-body">
       <label for="body"><span id="bodylabel"></span><span class="hint" id="bodyhint"></span></label>
       <textarea id="body" name="body" maxlength="4000"></textarea>
       <p class="count" id="count"></p>
     </div>
-    <div id="f-consent"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
+    <fieldset id="f-share"><legend id="sharelabel"></legend>
+      <label class="choice"><input type="radio" name="share" value="me"><span id="share_me"></span></label>
+      <label class="choice"><input type="radio" name="share" value="church"><span id="share_church"></span></label>
+      <label class="choice"><input type="radio" name="share" value="baptize"><span id="share_baptize"></span></label>
+    </fieldset>
+    <div id="others" hidden>
+      <fieldset id="f-adult"><legend id="agelabel"></legend>
+        <label class="choice"><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label>
+        <label class="choice"><input type="radio" name="adult" value="no"><span id="age_no"></span></label>
+      </fieldset>
+      <div id="minor" hidden>
+        <div id="f-guardian_name"><label for="guardian_name" id="guardianlabel"></label><input id="guardian_name" maxlength="60" autocomplete="off"></div>
+        <div id="f-guardian_ok" style="margin-top:10px"><label class="agree"><input type="checkbox" id="guardian_ok"><span id="guardianoklabel"></span></label></div>
+      </div>
+      <div id="f-consent" style="margin-top:14px"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
+    </div>
     <button type="submit" id="save"></button>
     <p class="status" id="savestatus" role="status"></p>
     <a class="button" id="journey" href="#" hidden style="display:block;text-align:center;text-decoration:none;font-weight:700;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;margin-top:12px"></a>
     <button type="button" class="danger" id="delete" hidden></button>
   </form>
+  <div class="card" id="card" hidden>
+    <h2 style="font-size:18px;margin:0" id="cardtitle"></h2>
+    <p class="hint" id="cardhint"></p>
+    <img class="preview" id="preview" alt="">
+    <button type="button" id="sharebtn"></button>
+    <div class="row"><button type="button" class="quiet" id="savepic"></button><button type="button" class="quiet" id="copy"></button></div>
+    <p class="status" id="cardstatus" role="status"></p>
+  </div>
 </section>
 </main>
 <script>
@@ -246,6 +289,134 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
     $("count").textContent = n ? n + " / 250" : "";
   }
   $("body").addEventListener("input", count);
+
+  // The guided answers become the story. Until they edit the story by hand,
+  // it follows the answers; after that, their own words stay.
+  var QS = ["before", "why", "moment", "advice", "verse"];
+  var built = "";
+  function answers() {
+    var a = {};
+    QS.forEach(function (q) { var v = $("q_" + q).value.trim(); if (v) a[q] = v; });
+    return a;
+  }
+  function build(a) {
+    return ["before", "why", "moment", "advice"].map(function (q) { return a[q]; }).filter(Boolean).join("\n\n")
+      + (a.verse ? (a.before || a.why || a.moment || a.advice ? "\n\n" : "") + a.verse : "");
+  }
+  QS.forEach(function (q) {
+    $("q_" + q).addEventListener("input", function () {
+      var follows = !$("body").value.trim() || $("body").value === built;
+      built = build(answers());
+      if (follows) { $("body").value = built; count(); }
+    });
+  });
+  function chosen(name) { var c = document.querySelector('input[name="' + name + '"]:checked'); return c ? c.value : ""; }
+  // Only them: nothing else to ask. Anyone else: their age and OK, and a
+  // parent or guardian's under 18.
+  function showSharing() {
+    var share = chosen("share");
+    $("others").hidden = !share || share === "me";
+    $("minor").hidden = chosen("adult") !== "no";
+  }
+  document.querySelectorAll('input[name="share"],input[name="adult"]').forEach(function (i) { i.addEventListener("change", showSharing); });
+
+  // ---------- the picture they post themselves ----------
+  var story = null, church = null, pic = null;
+  // A short quote: the moment, else what they'd tell someone, else the start.
+  function quote() {
+    var a = story.answers || {};
+    return a.moment || a.advice || a.why || story.body;
+  }
+  // Lines that fit `width`: by words, or by characters where a script has no spaces.
+  function wrap(ctx, text, width) {
+    var lines = [];
+    String(text).split(/\n+/).forEach(function (para) {
+      var tokens = /\s/.test(para.trim()) ? para.trim().split(/(\s+)/) : Array.from(para.trim());
+      var line = "";
+      tokens.forEach(function (t) {
+        var next = line + t;
+        if (line.trim() && ctx.measureText(next.trim()).width > width) { lines.push(line.trim()); line = /^\s+$/.test(t) ? "" : t; }
+        else line = next;
+      });
+      if (line.trim()) lines.push(line.trim());
+    });
+    return lines;
+  }
+  function drawCard() {
+    var W = 1080, H = 1920, pad = 110, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d"), font = 'system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif';
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#0b6ea8"); g.addColorStop(1, "#063f61");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.direction = document.documentElement.dir === "rtl" ? "rtl" : "ltr";
+    ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+    var logo = $("cardlogo");
+    if (logo.complete && logo.naturalWidth) ctx.drawImage(logo, (W - 144) / 2, 160, 144, 144);
+    // The quote: as large as fits, cut short with … if it never does.
+    var text = quote(), size = 72, lines, box = 900;
+    for (; size >= 40; size -= 4) {
+      ctx.font = "600 " + size + "px " + font;
+      lines = wrap(ctx, text, W - 2 * pad);
+      if (lines.length * size * 1.35 <= box) break;
+    }
+    var most = Math.floor(box / (size * 1.35));
+    if (lines.length > most) { lines = lines.slice(0, most); lines[most - 1] = lines[most - 1].replace(/\s*\S*$/, "") + "…"; }
+    // The quote, name and church together, centered under the logo.
+    var textH = lines.length * size * 1.35, top = Math.max(560, 380 + (1100 - textH - (church ? 230 : 110)) / 2);
+    ctx.font = "700 180px Georgia,serif"; ctx.globalAlpha = .35;
+    ctx.fillText("\u201C", W / 2, top - 20); ctx.globalAlpha = 1;
+    ctx.font = "600 " + size + "px " + font;
+    lines.forEach(function (l, i) { ctx.fillText(l, W / 2, top + (i + .8) * size * 1.35); });
+    var y = top + textH + 110;
+    ctx.font = "700 56px " + font;
+    ctx.fillText("\u2014 " + story.first_name, W / 2, y);
+    if (church) {
+      ctx.font = "400 40px " + font; ctx.globalAlpha = .85;
+      wrap(ctx, (T.story_card_church || "Baptized at {church}").replace("{church}", church.name), W - 2 * pad).slice(0, 2)
+        .forEach(function (l, i) { ctx.fillText(l, W / 2, y + 70 + i * 52); });
+      ctx.globalAlpha = 1;
+    }
+    var verse = (story.answers || {}).verse;
+    if (verse) {
+      ctx.font = "italic 400 38px " + font; ctx.globalAlpha = .85;
+      wrap(ctx, verse, W - 2 * pad).slice(0, 3).forEach(function (l, i) { ctx.fillText(l, W / 2, H - 330 + i * 50); });
+      ctx.globalAlpha = 1;
+    }
+    ctx.font = "800 48px " + font; ctx.direction = "ltr";
+    ctx.fillText("Baptize 2027", W / 2, H - 120);
+    return c;
+  }
+  function shareText() { return story.body + "\n\n\u2014 " + story.first_name; }
+  function showCard() {
+    $("card").hidden = !story || !story.submitted_at;
+    if ($("card").hidden) return;
+    var logo = $("cardlogo");
+    if (!logo.complete) { logo.onload = logo.onerror = showCard; return; }
+    var c = drawCard();
+    $("preview").src = c.toDataURL("image/png");
+    pic = new Promise(function (ok) { c.toBlob(ok, "image/png"); });
+  }
+  function download(blob) {
+    var a = el("a", { href: URL.createObjectURL(blob), download: "my-baptism-story.png" });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+  }
+  $("sharebtn").addEventListener("click", function () {
+    pic.then(function (blob) {
+      var file = new File([blob], "my-baptism-story.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], text: shareText() }).catch(function () { /* they closed the menu */ });
+      }
+      download(blob);
+    });
+  });
+  $("savepic").addEventListener("click", function () { pic.then(download); });
+  $("copy").addEventListener("click", function () {
+    var done = function () { $("cardstatus").textContent = T.story_copied || "Copied."; $("cardstatus").className = "status ok"; };
+    if (navigator.clipboard) navigator.clipboard.writeText(shareText()).then(done, function () {});
+  });
+
   function loadWrite() {
     return getJSON(api).then(function (x) {
       T = x[1].text || {};
@@ -265,7 +436,30 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
       put("consentlabel", "story_consent");
       put("save", "story_save", "Save my story");
       put("delete", "story_delete", "Delete my story");
+      put("qtitle", "story_questions", "Answer a few questions");
+      put("qhint", "story_questions_hint");
+      QS.forEach(function (q) { put("qlabel_" + q, "story_q_" + q); $("q_" + q).value = (s.answers || {})[q] || ""; });
+      put("sharelabel", "story_share", "Who can read your story?");
+      put("share_me", "story_share_me", "Only me");
+      put("share_church", "story_share_church", "My church");
+      put("share_baptize", "story_share_baptize", "My church and the Baptize 2027 team");
+      put("agelabel", "story_age", "Are you 18 or older?");
+      put("age_yes", "story_age_yes", "Yes");
+      put("age_no", "story_age_no", "No, I'm under 18");
+      put("guardianlabel", "story_guardian", "Your parent or guardian's name");
+      put("guardianoklabel", "story_guardian_ok");
+      put("cardtitle", "story_card", "Post it yourself");
+      put("cardhint", "story_card_hint");
+      put("sharebtn", "story_card_button", "Share my story");
+      put("savepic", "story_card_save", "Save the picture");
+      put("copy", "story_copy", "Copy the text");
       $("first_name").value = s.first_name; $("body").value = s.body; $("consent").checked = s.consent;
+      built = build(s.answers || {});
+      if (s.share) document.querySelector('input[name="share"][value="' + s.share + '"]').checked = true;
+      if (s.adult !== null) document.querySelector('input[name="adult"][value="' + (s.adult ? "yes" : "no") + '"]').checked = true;
+      $("guardian_name").value = s.guardian_name; $("guardian_ok").checked = s.guardian_ok;
+      showSharing();
+      story = s; church = s.church;
       $("delete").hidden = !s.submitted_at;
       // Once their story is saved: their first 30 days, with church and name carried over.
       put("journey", "j_start_button", "Start my first 30 days");
@@ -273,6 +467,7 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
       $("journey").hidden = !s.submitted_at;
       count();
       $("msg").hidden = true; $("write").hidden = false;
+      showCard();
     });
   }
   $("storyform").addEventListener("submit", function (e) {
@@ -282,9 +477,16 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
     s.textContent = "…"; s.className = "status";
     $("save").disabled = true;
     getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ first_name: $("first_name").value, body: $("body").value, consent: $("consent").checked }) })
+      body: JSON.stringify({ first_name: $("first_name").value, answers: answers(), body: $("body").value, share: chosen("share"),
+        adult: chosen("adult") ? chosen("adult") === "yes" : null, guardian_name: $("guardian_name").value,
+        guardian_ok: $("guardian_ok").checked, consent: $("consent").checked }) })
       .then(function (x) {
-        if (x[0] === 200) { s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false; return; }
+        if (x[0] === 200) {
+          s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false;
+          story = Object.assign({}, x[1].story, { church: church });
+          showCard();
+          return;
+        }
         if (x[0] === 404) return fail(T.web_bad_link || "This link doesn't work anymore.");
         s.textContent = "";
         if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }

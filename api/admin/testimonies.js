@@ -2,10 +2,13 @@
 // Baptism testimonies for the team (Testimonies in /admin), and the advice
 // shown beside the form (btw_guides, key "testimony"). Needs the admin session.
 //
-//   GET                       -> { testimonies, unseen, waiting }: every saved story, latest
-//                                change first, with its church; `waiting` counts links sent
-//                                but nothing written yet
+//   GET                       -> { testimonies, unseen, featured, waiting, private, church_only }:
+//                                every story its writer shared with the team, latest change
+//                                first, with its church; the rest are only counted (kept
+//                                private, or for their church only); `waiting` counts links
+//                                sent but nothing written yet
 //   PATCH ?id= { seen: true } -> { ok }: no longer New
+//   PATCH ?id= { featured }   -> { ok }: starred to feature, or not
 //   POST ?id= { translate: true } -> { text }: the story in English (not saved)
 //   DELETE ?id=               -> { deleted: true }
 //   GET ?part=guide           -> { guides: [{ lang, body, updated_at, editor }], languages }
@@ -34,6 +37,14 @@ export default async function handler(req, res) {
     if (part === "guide-translate" && req.method === "POST") return await translateGuide(user, res);
     if (req.method === "GET") return await list(res);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Send ?id= of a testimony." });
+    if (req.method === "PATCH" && typeof req.body?.featured === "boolean") {
+      // Only a story its writer shared with the team can be featured.
+      const done = await db(`btw_testimonies?id=eq.${id}&share=eq.baptize&select=id`, {
+        method: "PATCH", body: { featured_at: req.body.featured ? new Date().toISOString() : null }, prefer: "return=representation",
+      });
+      if (!done.length) return res.status(404).json({ error: "That story isn't shared with the team." });
+      return res.status(200).json({ ok: true });
+    }
     if (req.method === "PATCH") {
       await db(`btw_testimonies?id=eq.${id}`, { method: "PATCH", body: { seen_at: new Date().toISOString() } });
       return res.status(200).json({ ok: true });
@@ -56,8 +67,10 @@ export default async function handler(req, res) {
 }
 
 async function list(res) {
-  const rows = await dbAll("btw_testimonies?select=id,phone,church_id,lang,first_name,body,submitted_at,updated_at,seen_at&order=id");
-  const saved = rows.filter((t) => t.submitted_at);
+  const rows = await dbAll("btw_testimonies?select=id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,"
+    + "guardian_at,submitted_at,updated_at,seen_at,featured_at&order=id");
+  const written = rows.filter((t) => t.submitted_at);
+  const saved = written.filter((t) => t.share === "baptize");
   const ids = [...new Set(saved.map((t) => t.church_id).filter(Boolean))];
   const churches = ids.length ? await db(`btw_churches?id=in.(${ids.join(",")})&select=id,phone,church_name,city,state,country`) : [];
   const byId = new Map(churches.map((c) => [String(c.id), c]));
@@ -68,7 +81,14 @@ async function list(res) {
         church_place: c ? [c.city, c.state, c.country && c.country !== "US" ? c.country : null].filter(Boolean).join(", ") : null };
     })
     .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
-  res.status(200).json({ testimonies, unseen: testimonies.filter((t) => !t.seen_at).length, waiting: rows.length - saved.length });
+  res.status(200).json({
+    testimonies,
+    unseen: testimonies.filter((t) => !t.seen_at).length,
+    featured: testimonies.filter((t) => t.featured_at).length,
+    waiting: rows.length - written.length,
+    private: written.filter((t) => t.share === "me").length,
+    church_only: written.filter((t) => t.share === "church").length,
+  });
 }
 
 async function guides(res) {
