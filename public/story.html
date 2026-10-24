@@ -99,7 +99,7 @@ legend{font-weight:600;font-size:15px;padding:0}
       <label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label>
       <input id="phone" type="tel" inputmode="tel" autocomplete="tel">
     </div>
-    <div class="hp" aria-hidden="true"><label>Company <input id="company_hp" tabindex="-1" autocomplete="off"></label></div>
+    <div class="hp" aria-hidden="true"><label>Leave this box empty <input id="hpx" name="hpx" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore></label></div>
     <button type="submit" id="send"></button>
     <p class="status" id="startstatus" role="status"></p>
   </form>
@@ -290,7 +290,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     getJSON("/api/story?part=link", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lang: $("lang").value || "en", church: church && church.id, phone: $("phone").value,
         via_qr: !!(church && new URLSearchParams(location.search).get("church") === String(church.id)),
-        company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
+        company_hp: $("hpx").value, elapsed: Date.now() - opened }) })
       .then(function (x) {
         if (x[0] === 200) { s.textContent = T.story_sent || "Check your texts."; s.className = "status ok"; return; }
         if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }

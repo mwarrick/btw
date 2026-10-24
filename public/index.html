@@ -61,7 +61,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
     <form id="linkform" novalidate>
       <label for="phone"><span id="phone-label">Phone</span><span class="hint" id="link-hint"></span></label>
       <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel">
-      <div class="hp" aria-hidden="true"><label>Company <input id="company_hp" tabindex="-1" autocomplete="off"></label></div>
+      <div class="hp" aria-hidden="true"><label>Leave this box empty <input id="hpx" name="hpx" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore></label></div>
       <button type="submit" class="quiet" id="link-button">Text me my link</button>
       <p id="linkstatus" role="status"></p>
     </form>
@@ -142,7 +142,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
     var s = $("linkstatus");
     $("link-button").disabled = true; s.textContent = "…"; s.className = "";
     fetch("/api/profile?part=link", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: $("phone").value, lang: $("lang").value || "en", company_hp: $("company_hp").value, elapsed: Date.now() - opened }) })
+      body: JSON.stringify({ phone: $("phone").value, lang: $("lang").value || "en", company_hp: $("hpx").value, elapsed: Date.now() - opened }) })
       .then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
       .then(function (x) {
         if (x[0] === 200) { s.textContent = T.land_link_sent || "If that number is signed up, the link is on its way by text."; s.className = "ok"; }

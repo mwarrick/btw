@@ -190,7 +190,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
     }
     if (signingUp) {
       // A field people never see: a bot that fills it in is turned away.
-      form.append(el("div", { class: "hp", "aria-hidden": "true" }, [el("label", {}, ["Company", el("input", { name: "company_hp", tabindex: "-1", autocomplete: "off" })])]));
+      form.append(el("div", { class: "hp", "aria-hidden": "true" }, [el("label", {}, ["Leave this box empty", el("input", { name: "hpx", tabindex: "-1", autocomplete: "off", "data-lpignore": "true", "data-1p-ignore": "" })])]));
       // The code texted to their phone, asked for after the first Sign up.
       var code = el("input", { name: "code", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6" });
       code.value = data.code || "";
@@ -215,7 +215,7 @@ button.quiet{background:transparent;color:var(--brand);border:1px solid var(--li
   function changedValues() {
     var now = values(), out = {};
     Object.keys(now).forEach(function (k) {
-      if (k === "consent" || k === "company_hp" || k === "code") return;
+      if (k === "consent" || k === "hpx" || k === "code") return;
       if (JSON.stringify(now[k]) !== JSON.stringify(savedValues[k])) out[k] = now[k];
     });
     return out;
