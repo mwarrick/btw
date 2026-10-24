@@ -29,8 +29,9 @@ const TEXT_KEYS = [
   "web_uploading", "web_uploaded", "web_upload_failed", "web_delete", "web_delete_confirm", "web_no_photos", "web_photos_temporary",
   // The Resources tab: a button to the organizer's folder (resources_url).
   "resources_url", "web_tab_resources", "web_resources_intro", "web_resources_open",
-  // Texted photos waiting for permission, given on the page.
-  "web_photos_waiting", "web_allow_sharing", "web_waiting_label",
+  "web_waiting_label", "web_not_shared_label",
+  // The church's sharing choice.
+  "web_opt_in", "web_opt_out", "web_opted_in", "web_opt_out_confirm",
   "web_phone", "web_phone_hint",
 ];
 const RTL = new Set(["ar", "ur"]);

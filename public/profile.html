@@ -44,8 +44,10 @@ button:disabled{opacity:.5}
 .tabs{display:flex;gap:6px;max-width:560px;margin:0 auto;padding:12px 16px 0}
 .tabs button{flex:1;background:var(--card);color:var(--ink);border:1px solid var(--line);min-height:44px;padding:8px}
 .tabs button[aria-pressed=true]{background:var(--brand);color:#fff;border-color:var(--brand)}
-.consent{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:15px;margin-top:4px}
-.consent input{width:22px;height:22px;min-height:0;margin:1px 0 0;padding:0;flex:0 0 auto}
+.choice{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;font-size:15px}
+.choice p{margin:0 0 10px}
+.choice button{width:100%}
+.choice button.out{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .add{display:block;text-align:center;background:var(--brand);color:#fff;border-radius:10px;padding:13px;margin-top:14px;font-weight:700;cursor:pointer}
 a.add{text-decoration:none}
 .add input{position:absolute;opacity:0;width:1px;height:1px}
@@ -69,8 +71,7 @@ a.add{text-decoration:none}
 <section id="photos" hidden>
 <div class="card viewer" id="viewer" hidden></div>
 <div class="card"><p id="pintro"></p><p class="note" id="ptemp"></p>
-<label class="consent"><input type="checkbox" id="consent"><span id="consent-text"></span></label>
-<div id="waiting" hidden><p class="note" id="wtext"></p><button type="button" id="allow"></button></div>
+<div class="choice" id="choice" hidden><p id="choice-text"></p><button type="button" id="choice-btn"></button></div>
 <label class="add"><input type="file" id="file" accept="image/*" multiple><span id="add-text"></span></label>
 <p id="pstatus" role="status"></p></div>
 <div class="grid" id="grid"></div>
@@ -184,7 +185,6 @@ a.add{text-decoration:none}
     $("rintro").textContent = T.web_resources_intro || "";
     $("ropen").textContent = T.web_resources_open || "Open the resources folder";
     $("ropen").href = T.resources_url || "#";
-    $("consent-text").textContent = T.web_consent || "Everyone in these photos agrees they may be shared publicly.";
     $("add-text").textContent = T.web_add_photos || "Add photos";
     // #photos opens the tab; #photo-<id> (from a texted photo's receipt) also
     // shows that photo.
@@ -209,6 +209,7 @@ a.add{text-decoration:none}
       photosLoaded = true;
       var grid = $("grid");
       grid.replaceChildren();
+      showChoice(d.allowed);
       if (!(d.photos || []).length) return grid.append(el("p", { class: "msg" }, [T.web_no_photos || "No photos yet."]));
       d.photos.forEach(function (p) {
         var del = el("button", { type: "button", class: "del" }, [T.web_delete || "Delete"]);
@@ -217,13 +218,10 @@ a.add{text-decoration:none}
           del.disabled = true;
           fetch(photosApi + "&id=" + p.id, { method: "DELETE" }).then(loadPhotos, function () { del.disabled = false; });
         });
+        var label = p.waiting ? T.web_waiting_label || "Waiting for permission" : p.declined ? T.web_not_shared_label || "Not shared" : null;
         grid.append(el("figure", {}, [el("a", { href: p.url, target: "_blank", rel: "noopener" }, [el("img", { src: p.thumb, alt: "", loading: "lazy" })]),
-          p.waiting ? el("span", { class: "wait" }, [T.web_waiting_label || "Waiting for permission"]) : null, del]));
+          label ? el("span", { class: "wait" }, [label]) : null, del]));
       });
-      // Texted photos without permission: the box above plus Allow sharing.
-      $("waiting").hidden = !d.photos.some(function (p) { return p.waiting; });
-      $("wtext").textContent = T.web_photos_waiting || "Photos you texted are waiting for your permission to share them.";
-      $("allow").textContent = T.web_allow_sharing || "Allow sharing";
       // The photo a receipt linked to, large, with the limited-time note.
       var want = (location.hash.match(/^#photo-(\d+)$/) || [])[1];
       var shown = d.photos.filter(function (p) { return String(p.id) === want; })[0];
@@ -257,23 +255,33 @@ a.add{text-decoration:none}
     return Promise.all([shrink(file, 2048, 0.85), shrink(file, 480, 0.8)]).then(function (x) {
       return fetch(photosApi, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: x[0].data, thumb: x[1].data, width: x[0].w, height: x[0].h, consent: true })
+        body: JSON.stringify({ image: x[0].data, thumb: x[1].data, width: x[0].w, height: x[0].h })
       }).then(function (r) { if (!r.ok) throw new Error(r.status); });
     });
   }
-  $("allow").addEventListener("click", function () {
-    if (!$("consent").checked) return pstatus(T.web_consent_needed || "Please check the permission box first.", "bad");
-    $("allow").disabled = true;
-    fetch(photosApi, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ consent: true }) })
+  // The church's one sharing choice: Opt in (with the permission statement)
+  // until they allow it, then Opt out.
+  var allowed = null;
+  function showChoice(value) {
+    allowed = value === true;
+    $("choice").hidden = false;
+    $("choice-text").textContent = allowed ? T.web_opted_in || "You've allowed Baptize 2027 to share your photos." : T.web_consent || "";
+    $("choice-btn").textContent = allowed ? T.web_opt_out || "Opt out" : T.web_opt_in || "Opt in";
+    $("choice-btn").className = allowed ? "out" : "";
+  }
+  $("choice-btn").addEventListener("click", function () {
+    var allow = !allowed;
+    if (!allow && !confirm(T.web_opt_out_confirm || "Stop sharing your photos?")) return;
+    $("choice-btn").disabled = true;
+    fetch(photosApi, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ allow: allow }) })
       .then(function (r) { if (!r.ok) throw new Error(r.status); pstatus(T.web_saved || "Saved.", "ok"); return loadPhotos(); })
       .catch(function () { pstatus("Couldn't connect. Try again.", "bad"); })
-      .then(function () { $("allow").disabled = false; });
+      .then(function () { $("choice-btn").disabled = false; });
   });
 
   $("file").addEventListener("change", function (e) {
     var input = e.currentTarget, files = Array.prototype.slice.call(input.files || []);
     if (!files.length) return;
-    if (!$("consent").checked) { input.value = ""; return pstatus(T.web_consent_needed || "Please check the permission box first.", "bad"); }
     var failed = 0, i = 0;
     // One at a time, so a weak signal only has one photo in flight.
     (function next() {
