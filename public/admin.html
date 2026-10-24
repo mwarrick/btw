@@ -577,10 +577,11 @@
 
     <section class="block" data-screen="discipleship">
       <h2>Discipleship</h2>
-      <p class="hint">The first 30 days of faith (<b>baptize.app/journey</b>): one reading a day, online only. Check-ins on days 7, 14, 21 and 30 go to the person's church, on the <b>Newly baptized</b> tab of its page. <b>Could use a call</b> means they answered "It's hard" or "I have a question", went quiet (3 days without opening their page), or missed a check-in by 3 days, since the church last pressed We talked. Each church's page has a QR code that starts the 30 days with that church picked. <b>+1 day</b> moves someone a day further along, for demos. Sample people come and go with the simulations (Conversations).</p>
+      <p class="hint">The first 30 days of faith (<b>baptize.app/journey</b>): one reading a day, online only. Check-ins on days 7, 14, 21 and 30 go to the person's church, on the <b>Newly baptized</b> tab of its page. <b>Could use a call</b> means they answered "It's hard" or "I have a question", went quiet (3 days without opening their page), or missed a check-in by 3 days, since the church last pressed We talked. Each church's page has a QR code that starts the 30 days with that church picked. <b>+1 day</b> moves someone a day further along, for demos. Sample people come and go with the simulations (Conversations); <b>Add sample people</b> adds them (again) without touching the simulated churches.</p>
       <div class="convo-bar">
         <span class="meter" id="journey-meter"></span>
         <span class="spacer"></span>
+        <button class="btn" id="journey-samples" type="button" title="Six made-up people at a simulated church; replaces earlier ones">Add sample people</button>
         <button class="btn" id="journey-refresh" type="button">Refresh</button>
       </div>
       <p class="meter" id="journey-answers"></p>
@@ -2179,6 +2180,18 @@ async function loadJourneysAdmin() {
   }
 }
 $("journey-refresh").addEventListener("click", loadJourneysAdmin);
+$("journey-samples").addEventListener("click", async (e) => {
+  e.target.disabled = true;
+  try {
+    const { added } = await api("/api/admin/journeys?part=samples", { method: "POST", body: {} });
+    toast(`Added ${added} sample people.`);
+    loadJourneysAdmin();
+  } catch (err) {
+    if (!err.silent) toast(err.message, "bad");
+  } finally {
+    e.target.disabled = false;
+  }
+});
 
 // The 30 days' content and the Read it links.
 const plan = { loaded: false, days: [], languages: [], links: [] };
