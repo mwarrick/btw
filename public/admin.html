@@ -563,9 +563,10 @@
       </div>
       <div id="story-list"></div>
 
-      <h3 class="guide-title">Advice shown to writers</h3>
-      <p class="hint">Shown above the story box, in the writer's language (English where a language has none). Write <b>## </b> at the start of a line for a heading, <b>• </b> or <b>- </b> for a bullet, <b>**words**</b> for bold, and leave a blank line between paragraphs. Edit the English, then <b>Translate into every language</b> for Google drafts, and check them one by one.</p>
+      <h3 class="guide-title">Advice and example stories shown to writers</h3>
+      <p class="hint"><b>Advice</b> is the "How to share your story" panel; <b>Example stories</b> is "See example stories" on the form, made-up stories that answer the form's own questions. Both show in the writer's language (English where a language has none). Write <b>## </b> at the start of a line for a heading, <b>• </b> or <b>- </b> for a bullet, <b>**words**</b> for bold, and leave a blank line between paragraphs. Edit the English, then <b>Translate into every language</b> for Google drafts, and check them one by one.</p>
       <div class="guide-bar">
+        <label>Text <select id="guide-key"><option value="testimony">Advice</option><option value="story_examples">Example stories</option></select></label>
         <label>Language <select id="guide-lang"></select></label>
         <span class="meter" id="guide-meta"></span>
       </div>
@@ -2104,7 +2105,7 @@ $("story-tabs").addEventListener("click", (e) => {
 const guide = { loaded: false, rows: [], languages: [] };
 async function loadGuide(keepLang) {
   try {
-    const { guides, languages } = await api("/api/admin/testimonies?part=guide");
+    const { guides, languages } = await api(`/api/admin/testimonies?part=guide&key=${$("guide-key").value}`);
     Object.assign(guide, { loaded: true, rows: guides, languages });
     const current = keepLang || $("guide-lang").value || "en";
     $("guide-lang").replaceChildren(...languages.map((l) => h("option", { value: l.code, selected: l.code === current },
@@ -2124,22 +2125,24 @@ function showGuide() {
   $("guide-status").textContent = "";
 }
 $("guide-lang").addEventListener("change", showGuide);
+$("guide-key").addEventListener("change", () => loadGuide($("guide-lang").value));
+const guideName = () => ($("guide-key").value === "story_examples" ? "Example stories" : "Advice");
 $("guide-save").addEventListener("click", async () => {
   const lang = $("guide-lang").value;
   try {
-    await api("/api/admin/testimonies?part=guide", { method: "PUT", body: { lang, body: $("guide-text").value } });
-    toast(`Advice saved (${langName(lang)}).`);
+    await api("/api/admin/testimonies?part=guide", { method: "PUT", body: { key: $("guide-key").value, lang, body: $("guide-text").value } });
+    toast(`${guideName()} saved (${langName(lang)}).`);
     loadGuide(lang);
   } catch (err) {
     if (!err.silent) toast(err.message, "bad");
   }
 });
 $("guide-translate").addEventListener("click", async () => {
-  if (!confirm("Replace the advice in every other language with Google's translation of the saved English? Hand-made translations are overwritten.")) return;
+  if (!confirm(`Replace the ${guideName().toLowerCase()} in every other language with Google's translation of the saved English? Hand-made translations are overwritten.`)) return;
   $("guide-translate").disabled = true;
   $("guide-status").textContent = "Translating…";
   try {
-    const { results } = await api("/api/admin/testimonies?part=guide-translate", { method: "POST", body: {} });
+    const { results } = await api("/api/admin/testimonies?part=guide-translate", { method: "POST", body: { key: $("guide-key").value } });
     const failed = results.filter((r) => !r.saved);
     await loadGuide("en");
     $("guide-status").textContent = failed.length

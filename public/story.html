@@ -59,6 +59,8 @@ details.guide summary{cursor:pointer;font-weight:700;font-size:17px;color:var(--
 .guide ul{margin:6px 0;padding-inline-start:20px}
 .guide li{margin:4px 0}
 .qs label{margin-top:14px}
+.examples{margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.examples summary{font-size:16px}.examples h3{margin-top:14px}
 .qs textarea{min-height:5.5em}
 .choice{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);cursor:pointer}
 .choice input{width:22px;height:22px;min-height:0;margin:1px 0 0;padding:0;flex:0 0 auto}
@@ -115,6 +117,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" name="first_name" maxlength="60" autocomplete="given-name"></div>
     <div class="qs">
       <h2 style="font-size:18px;margin:18px 0 0" id="qtitle"></h2>
+      <details class="guide examples" id="examples" hidden><summary id="examplestitle"></summary><div id="examplesbody"></div></details>
       <p class="hint" id="qhint"></p>
       <div id="f-q_before"><label for="q_before" id="qlabel_before"></label><textarea id="q_before" maxlength="1000"></textarea></div>
       <div id="f-q_why"><label for="q_why" id="qlabel_why"></label><textarea id="q_why" maxlength="1000"></textarea></div>
@@ -521,6 +524,10 @@ legend{font-weight:600;font-size:15px;padding:0}
       // They read the advice before asking for the link; here it stays
       // folded, to open again if they want it.
       $("guide").open = false;
+      // Made-up stories that answer these same questions, to show the way.
+      put("examplestitle", "story_examples", "See example stories");
+      $("examplesbody").replaceChildren.apply($("examplesbody"), renderGuide(d.examples));
+      $("examples").hidden = !d.examples;
       put("namelabel", "story_name_label", "Your first name, or the name you'd like on your story");
       put("bodylabel", "story_body", "Your story");
       put("bodyhint", "story_body_hint");

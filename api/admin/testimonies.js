@@ -13,12 +13,14 @@
 //   POST ?part=samples        -> { added }: replaces the three sample stories (lib/simulations.js)
 //   POST ?id= { translate: true } -> { text }: the story in English (not saved)
 //   DELETE ?id=               -> { deleted: true }
-//   GET ?part=guide           -> { guides: [{ lang, body, updated_at, editor }], languages }
-//   PUT ?part=guide { lang, body } -> { guide }: saves one language; empty removes a
+//   GET ?part=guide[&key=]    -> { guides: [{ lang, body, updated_at, editor }], languages }
+//   PUT ?part=guide { key, lang, body } -> { guide }: saves one language; empty removes a
 //                                translation (English shows instead), never English
-//   POST ?part=guide-translate -> { results: [{ lang, name, saved, error }] }: the English
-//                                advice, machine-translated into every switched-on
+//   POST ?part=guide-translate { key } -> { results: [{ lang, name, saved, error }] }: the
+//                                English text, machine-translated into every switched-on
 //                                language and saved, for a person to check
+//   The texts (btw_guides key): "testimony", the advice; "story_examples", the
+//   example stories built from the form's questions.
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { saveStory } from "../../lib/baptize.js";
@@ -26,7 +28,8 @@ import { db, dbAll, eq } from "../../lib/supabase.js";
 import { addSampleStoriesToSimulation } from "../../lib/simulations.js";
 import { translate } from "../../lib/translate.js";
 
-const GUIDE = "testimony";
+const GUIDES = ["testimony", "story_examples"];
+const guideKey = (k) => (GUIDES.includes(k) ? k : "testimony");
 const GUIDE_MAX = 8000;
 
 export default async function handler(req, res) {
@@ -36,9 +39,9 @@ export default async function handler(req, res) {
     const params = new URL(req.url, "http://x").searchParams;
     const part = params.get("part");
     const id = Number(params.get("id"));
-    if (part === "guide" && req.method === "GET") return await guides(res);
-    if (part === "guide" && req.method === "PUT") return await saveGuide(req.body || {}, user, res);
-    if (part === "guide-translate" && req.method === "POST") return await translateGuide(user, res);
+    if (part === "guide" && req.method === "GET") return await guides(guideKey(params.get("key")), res);
+    if (part === "guide" && req.method === "PUT") return await saveGuide(guideKey(req.body?.key), req.body || {}, user, res);
+    if (part === "guide-translate" && req.method === "POST") return await translateGuide(guideKey(req.body?.key), user, res);
     if (part === "samples" && req.method === "POST") {
       const added = await addSampleStoriesToSimulation();
       return added ? res.status(200).json({ added }) : res.status(400).json({ error: "Add simulations first (Conversations): the sample stories belong to a simulated church." });
@@ -104,7 +107,7 @@ async function list(res) {
   });
 }
 
-async function guides(res) {
+async function guides(GUIDE, res) {
   const [rows, languages] = await Promise.all([
     db(`btw_guides?key=eq.${GUIDE}&select=lang,body,updated_at,editor:btw_users(name)`),
     db("btw_languages?select=code,name,active&order=menu_order"),
@@ -112,14 +115,14 @@ async function guides(res) {
   res.status(200).json({ guides: rows, languages });
 }
 
-async function saveGuide(body, user, res) {
+async function saveGuide(GUIDE, body, user, res) {
   const lang = String(body.lang || "");
   const text = String(body.body ?? "").replace(/\r\n/g, "\n").trim();
   const [language] = await db(`btw_languages?code=${eq(lang)}&select=code`);
   if (!language) return res.status(400).json({ error: "No such language." });
   if (text.length > GUIDE_MAX) return res.status(400).json({ error: `Keep it under ${GUIDE_MAX} characters.` });
   if (!text) {
-    if (lang === "en") return res.status(400).json({ error: "The English advice can't be empty: it's shown wherever a translation is missing." });
+    if (lang === "en") return res.status(400).json({ error: "The English can't be empty: it's shown wherever a translation is missing." });
     await db(`btw_guides?key=eq.${GUIDE}&lang=${eq(lang)}`, { method: "DELETE" });
     return res.status(200).json({ guide: null });
   }
@@ -133,12 +136,12 @@ async function saveGuide(body, user, res) {
 
 // Line by line, keeping the page's markup: "## " headings, "• " bullets and
 // a leading **bold** label are kept out of the text Google sees.
-async function translateGuide(user, res) {
+async function translateGuide(GUIDE, user, res) {
   const [[english], languages] = await Promise.all([
     db(`btw_guides?key=eq.${GUIDE}&lang=eq.en&select=body`),
     db("btw_languages?active=eq.true&select=code,name&order=menu_order"),
   ]);
-  if (!english?.body) return res.status(400).json({ error: "Save the English advice first." });
+  if (!english?.body) return res.status(400).json({ error: "Save the English first." });
   const lines = english.body.split("\n").map((line) => {
     const m = line.match(/^(## |• |- )?(?:\*\*(.+?)\*\*\s*)?(.*)$/);
     return { prefix: m[1] || "", bold: m[2] || "", rest: m[3] || "" };
