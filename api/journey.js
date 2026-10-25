@@ -29,6 +29,7 @@ const TEXT_KEYS = [
   "story_name", "story_church", "story_church_hint", "story_church_none", "land_baptized_button",
   "j_title", "j_intro", "j_start_button", "j_consent", "j_contact", "j_phone_hint", "j_bookmark", "j_day", "j_locked",
   "j_read", "j_question", "j_step", "j_done", "j_checkin", "j_good", "j_hard", "j_ask", "j_note", "j_send", "j_sent",
+  "story_age", "story_age_yes", "story_age_no",
   "j_next", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_calendar", "j_week_note", "j_finished",
 ];
 const FIELDS = "id,key,church_id,testimony_id,first_name,lang,started_on,tz,done_days,next_step";
@@ -67,7 +68,7 @@ const place = (c) => [c.city, c.state, c.country && c.country !== "US" ? c.count
 
 async function storyFor(key) {
   if (!isProfileKey(key)) return null;
-  const [s] = await db(`btw_testimonies?key=${eq(key)}&select=id,phone,church_id,lang,first_name`);
+  const [s] = await db(`btw_testimonies?key=${eq(key)}&select=id,phone,church_id,lang,first_name,adult`);
   return s || null;
 }
 
@@ -77,7 +78,7 @@ async function startPage(wanted, storyKey, churchId, res) {
   let from = null;
   if (story) {
     const [c] = story.church_id ? await db(`btw_churches?id=eq.${story.church_id}&select=id,church_name,city,state,country`) : [];
-    from = { first_name: story.first_name || "", church: c ? { id: c.id, name: c.church_name, place: place(c) } : null };
+    from = { first_name: story.first_name || "", adult: story.adult ?? null, church: c ? { id: c.id, name: c.church_name, place: place(c) } : null };
   }
   // From the church's QR code (simulations too, for the demo).
   const [qr] = !story && /^[\w-]{1,64}$/.test(churchId || "")
@@ -116,7 +117,11 @@ async function start(req, body, res) {
   if (!church || !church.completed_at || (church.simulated && !body.via_qr)) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
   const firstName = String(body.first_name ?? "").trim().replace(/\s+/g, " ");
   if (!firstName || firstName.length > 60) return refuse(400, "first_name", "web_required", "Enter your first name.");
-  const contactOk = body.contact_ok === true;
+  // 18 or older (their story may already say). Under 18, no phone is taken:
+  // churches don't get a minor's number.
+  const adult = story?.adult === true || story?.adult === false ? story.adult : body.adult;
+  if (adult !== true && adult !== false) return refuse(400, "adult", "web_required", "Tell us if you're 18 or older.");
+  const contactOk = adult && body.contact_ok === true;
   let phone = null;
   if (contactOk) {
     phone = story?.phone || phoneValue(body.phone);
@@ -137,7 +142,7 @@ async function start(req, body, res) {
   const key = newProfileKey();
   const now = new Date().toISOString();
   await db("btw_journeys", { method: "POST", body: {
-    key, church_id: church.id, testimony_id: story?.id || null, first_name: firstName, lang, phone, contact_ok: contactOk,
+    key, church_id: church.id, testimony_id: story?.id || null, first_name: firstName, lang, adult, phone, contact_ok: contactOk,
     consent_text: words.j_consent || null, consent_at: now, started_on: dateIn(tz), tz, seen_at: now,
   } });
   res.status(200).json({ key });

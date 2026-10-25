@@ -218,6 +218,9 @@
   }
 
   /* chips */
+  /* a Baptisms row whose count just came in */
+  @keyframes just-changed { from { background: color-mix(in srgb, var(--brand) 22%, transparent); } to { background: transparent; } }
+  tr.just-changed td { animation: just-changed 6s ease-out; }
   .chip {
     display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px;
     padding: 1px 9px; white-space: nowrap;
@@ -535,7 +538,7 @@
 
     <section class="block" data-screen="baptisms">
       <h2>Baptisms</h2>
-      <p class="hint">Each church's total so far, as the church reported it: by texting just a number, or on the Baptisms tab of its page (the latest one counts). Click a column title to sort.</p>
+      <p class="hint">Each church's total so far, as the church reported it: by text ("14", "14 bautismos", "nove"; a count over 1,000 or ten times the last one is confirmed by the church first) or on the Baptisms tab of its page (the latest one counts). This screen updates itself every 10 seconds while it's open; a count that just changed is highlighted. Click a column title to sort.</p>
       <div class="convo-bar">
         <span class="meter" id="baptism-total"></span>
         <span class="spacer"></span>
@@ -1796,6 +1799,8 @@ function messageButton(c) {
 // its total; sorted by church name or count, either way. Churches without a
 // count sort last.
 const baptismSort = { key: "count", dir: -1 };
+// What each church's count was at the last render, to highlight changes.
+let baptismSeen = null;
 function renderBaptisms() {
   const list = convos.list.filter((c) => c.completed_at || c.baptisms != null);
   const name = (c) => (c.church_name || "").toLowerCase();
@@ -1808,11 +1813,15 @@ function renderBaptisms() {
   });
   const reported = list.filter((c) => c.baptisms != null);
   const total = reported.reduce((n, c) => n + c.baptisms, 0);
-  $("baptism-total").textContent = `${total.toLocaleString()} baptized · ${reported.length} of ${list.length} churches reported`;
+  $("baptism-total").textContent = `${total.toLocaleString()} baptized · ${reported.length} of ${list.length} churches reported`
+    + ` · updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+  const before = baptismSeen;
+  baptismSeen = new Map(list.map((c) => [c.phone, c.baptisms ?? null]));
+  const changed = (c) => before && before.get(c.phone) !== (c.baptisms ?? null);
   for (const b of document.querySelectorAll("[data-sort]")) {
     b.textContent = `${b.dataset.sort === "count" ? "Baptisms" : "Church"}${baptismSort.key === b.dataset.sort ? (baptismSort.dir > 0 ? " ▲" : " ▼") : ""}`;
   }
-  $("baptism-rows").replaceChildren(...(list.length ? list.map((c) => h("tr", {},
+  $("baptism-rows").replaceChildren(...(list.length ? list.map((c) => h("tr", { class: changed(c) ? "just-changed" : null },
     h("td", {}, h("span", { class: "who", text: c.church_name || "(no name)" }), c.simulated ? chip("Simulation", "draft") : null,
       h("span", { class: "sub", text: [c.city, c.state, c.country && c.country !== "US" ? c.country : null].filter(Boolean).join(", ") })),
     h("td", { class: "count", text: c.baptisms != null ? c.baptisms.toLocaleString() : "—" }),
@@ -1830,6 +1839,10 @@ for (const b of document.querySelectorAll("[data-sort]")) {
   });
 }
 $("baptism-refresh").addEventListener("click", () => loadConversations());
+// Live while the Baptisms screen is open and the browser tab is in view.
+setInterval(() => {
+  if (state.screen === "baptisms" && document.visibilityState === "visible" && !$("convo-refresh").disabled && !state.me?.setup) loadConversations();
+}, 10000);
 
 function renderChurches() {
   const q = $("church-search").value.trim().toLowerCase();
@@ -2174,6 +2187,7 @@ async function loadJourneysAdmin() {
     }).join(" · ");
     $("journey-rows").replaceChildren(...(journeys.length ? journeys.map((j) => h("tr", {},
       h("td", {}, h("span", { class: "who", text: j.first_name }), j.simulated ? chip("Simulation", "muted") : null,
+        j.adult === false ? chip("Under 18", "muted") : null,
         j.flag ? chip(`Could use a call: ${FLAG_WHY[j.flag.reason]} (${j.flag.reason === "quiet" ? `${j.flag.days} days` : `day ${j.flag.day}`})`, "bad") : null,
         h("span", { class: "sub", text: [j.lang !== "en" ? langNameAll(j.lang) : null, j.contact_ok && j.phone ? formatPhone(j.phone) : null, j.testimony_id ? "wrote a story" : null].filter(Boolean).join(" · ") })),
       h("td", {}, j.church_phone

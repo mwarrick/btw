@@ -27,10 +27,14 @@
 // message also goes to the team thread like any text, and each picture gets
 // a receipt (photo_received / photos_received) linking to it on their page.
 //
-// After finishing, a text that's only a number is the church's baptism
-// count (btw_churches.baptisms, the latest wins; count_saved). Any other
-// text the bot doesn't understand goes to the team thread and also gets
-// info_reply (what they can send), at most once a day.
+// After finishing, a number (alone, or with a baptism word: "14 bautismos";
+// in digits or words: "nove"; lib/counts.js) is the church's baptism count
+// (btw_churches.baptisms, the latest wins; count_saved). One that looks too
+// high (over 1,000, or ten times the last) waits in baptisms_pending for a
+// YES (count_confirm; NO: count_not_saved). Baptisms mentioned without a
+// number get count_ask. Any other text the bot doesn't understand goes to the
+// team thread and also gets info_reply (what they can send), at most once a
+// day. RESTART doesn't erase a finished signup (restart_locked).
 //
 // Sources disagree on whether voip.ms sends GET with placeholders (sometimes
 // separated by ";" instead of "&") or POST with a JSON body, so this accepts both.
@@ -49,6 +53,7 @@ import { createEngine, newState } from "../public/js/engine.js";
 import { loadPrompts, straighten } from "../lib/prompts.js";
 import { db, eq } from "../lib/supabase.js";
 import { logEvent } from "../lib/events.js";
+import { mentionsBaptism, needsConfirming, readCount } from "../lib/counts.js";
 import { churchChoice, pendingPhotos, savePhotosFromText, setPhotoChoice } from "../lib/photos.js";
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
@@ -158,7 +163,15 @@ async function converse(sms, site) {
     // YES or NO, after finishing, while texted photos wait for permission.
     const permission = before.phase === "done" && !sms.media.length ? engine.yesNo(lang, sms.message) : null;
 
-    if (permission !== null && (await pendingPhotos(phone)).length) {
+    // YES or NO to "Did you mean 5000 baptisms?" (count_confirm), within a day.
+    const pendingCount = church?.baptisms_pending != null && Date.now() - Date.parse(church.baptisms_pending_at) < 24 * 3600e3 ? church.baptisms_pending : null;
+
+    if (permission !== null && pendingCount !== null) {
+      const now = new Date().toISOString();
+      await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: {
+        ...(permission ? { baptisms: pendingCount, baptisms_at: now } : {}), baptisms_pending: null, baptisms_pending_at: null } });
+      replies = [permission ? engine.say(lang, "count_saved", { count: pendingCount }) : engine.say(lang, "count_not_saved")];
+    } else if (permission !== null && (await pendingPhotos(phone)).length) {
       // Their answer is the church's choice, as Opt in / Opt out on the page.
       await setPhotoChoice(phone, permission, `${engine.say(lang, "photo_ask")}\n→ ${sms.message.trim()}`);
       replies = [engine.say(lang, permission ? "photo_yes" : "photo_no", { link: `${link}#photos` })];
@@ -170,7 +183,7 @@ async function converse(sms, site) {
       // A new number's first text starts the signup in the language it's
       // written in when that's clear, or with the language menu otherwise;
       // only an opt-out word is taken at its word.
-      let result = engine.reply(before, sms.message, { link });
+      let result = engine.reply(before, sms.message, { link, locked: finished });
       if (!session && result.state.phase !== "stopped") {
         const detected = await guessLanguage(sms.message, languages, phone);
         result = detected ? engine.startIn(detected) : engine.start();
@@ -178,10 +191,21 @@ async function converse(sms, site) {
       // Once the signup has been finished (even if an answer is being changed
       // since), anything that isn't a command is for the reviewers: it joins
       // the team thread in /admin, and the bot stays quiet.
-      const count = finished && result.unhandled ? baptismCount(sms.message) : null;
-      if (count !== null) {
-        await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: { baptisms: count, baptisms_at: new Date().toISOString() } });
+      // A baptism count: a number alone, or with a baptism word ("14
+      // bautismos"), in digits or words (lib/counts.js). One that looks too
+      // high waits for a YES (count_confirm); baptisms mentioned without a
+      // number get asked for one.
+      const count = finished && result.unhandled ? readCount(sms.message) : null;
+      if (count !== null && needsConfirming(count, church?.baptisms)) {
+        await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: { baptisms_pending: count, baptisms_pending_at: new Date().toISOString() } });
+        replies = [engine.say(lang, "count_confirm", { count })];
+      } else if (count !== null) {
+        await db(`btw_churches?phone=${eq(phone)}`, { method: "PATCH", body: {
+          baptisms: count, baptisms_at: new Date().toISOString(), baptisms_pending: null, baptisms_pending_at: null } });
         replies = [engine.say(lang, "count_saved", { count })];
+      } else if (finished && result.unhandled && !sms.media.length && mentionsBaptism(sms.message)) {
+        await toTeam(logged, phone);
+        replies = [engine.say(lang, "count_ask")];
       } else if (finished && result.unhandled) {
         await toTeam(logged, phone);
         // Pictures get their own receipt below.
@@ -268,20 +292,6 @@ async function converse(sms, site) {
   }
 }
 
-// A text that's only a number (any script's digits, with spaces, commas or
-// dots between thousands), as a count from 0 to 100000; null otherwise.
-function baptismCount(text) {
-  const t = String(text || "").trim().replace(/[.!。]$/, "");
-  if (!/^\p{Nd}[\p{Nd}\s,.]*$/u.test(t)) return null;
-  const digits = [...t].filter((c) => /\p{Nd}/u.test(c)).map((c) => {
-    const code = c.codePointAt(0);
-    // Each script's digits run 0-9 in a row, so the value is the distance from its zero.
-    for (let zero = code; zero >= code - 9; zero--) if (!/\p{Nd}/u.test(String.fromCodePoint(zero - 1)) || zero === code - 9) return code - zero;
-    return 0;
-  }).join("");
-  const n = Number(digits);
-  return digits.length <= 6 && n <= 100000 ? n : null;
-}
 
 // Whether info_reply already went to this number in the last day.
 async function infoSentRecently(phone, text) {

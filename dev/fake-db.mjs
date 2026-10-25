@@ -12,7 +12,7 @@ import zlib from "node:zlib";
 
 const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", kw_done: "DONE",
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
-const keys = ["web_consent","web_opted_in","web_opt_in","web_opt_out","photo_ask","photo_yes","photo_no","info_reply","count_saved","photo_received","photos_received","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
+const keys = ["count_confirm","count_not_saved","count_ask","restart_locked","web_consent","web_opted_in","web_opt_in","web_opt_out","photo_ask","photo_yes","photo_no","info_reply","count_saved","photo_received","photos_received","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
   "summary_hint","edit_saved","edit_invalid","sum_intro","sum_outro","val_you","val_same","val_yes","val_no"];
 for (const q of ["name","email","church","country","region","postal","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
   keys.push("ask_"+q, "err_"+q, "edit_"+q);

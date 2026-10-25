@@ -239,6 +239,7 @@ export function createEngine({ prompts, languages }) {
   }
 
   // extra.link: the pastor's own page (/p/<key>), added to the DONE message.
+  // extra.locked: the signup has been finished, so RESTART doesn't erase it.
   function reply(previous, input, extra = {}) {
     const state = JSON.parse(JSON.stringify(previous || newState()));
     const raw = String(input ?? "").trim();
@@ -257,6 +258,8 @@ export function createEngine({ prompts, languages }) {
       return send(text(lang, "stop"));
     }
     if (is(word, "kw_restart")) {
+      // A finished signup isn't erased: its page is where answers change.
+      if (extra.locked) return send(text(lang, "restart_locked", { link: extra.link }));
       return { state: newState(), replies: [text(lang, "restart"), menu()] };
     }
     if (state.phase !== "lang" && is(word, "kw_help", CARRIER_HELP)) {
