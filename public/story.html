@@ -69,8 +69,6 @@ fieldset{border:0;margin:14px 0 0;padding:0}
 legend{font-weight:600;font-size:15px;padding:0}
 .bad .choice{border-color:var(--bad)}
 .status-line{margin:8px 0 0;padding:10px 14px;font-size:15px}.status-line b{color:var(--ok)}
-.mic{width:auto;min-height:38px;margin:6px 0 0;padding:6px 14px;font-weight:600}
-.mic.on{background:var(--bad);border-color:var(--bad);color:#fff}
 .picks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .picks button{margin:0;text-align:start;font-weight:400;font-size:15px;min-height:0;padding:8px 12px}
 .picks button[aria-pressed="true"]{border-color:var(--brand);background:var(--bg);font-weight:600}
@@ -90,6 +88,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <section id="start" hidden>
   <div class="lang"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
   <details class="card guide" id="startguide"><summary id="startguidetitle"></summary><div id="startguidebody"></div></details>
+  <details class="card guide" id="startexamples" hidden><summary id="startexamplestitle"></summary><div id="startexamplesbody"></div></details>
   <form class="card" id="startform" novalidate>
     <div id="f-church">
       <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
@@ -113,11 +112,11 @@ legend{font-weight:600;font-size:15px;padding:0}
   <p class="church" id="church"></p>
   <p class="card status-line" id="status" hidden></p>
   <details class="card guide" id="guide" open><summary id="guidetitle"></summary><div id="guidebody"></div></details>
+  <details class="card guide" id="examples" hidden><summary id="examplestitle"></summary><div id="examplesbody"></div></details>
   <form class="card" id="storyform" novalidate>
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" name="first_name" maxlength="60" autocomplete="given-name"></div>
     <div class="qs">
       <h2 style="font-size:18px;margin:18px 0 0" id="qtitle"></h2>
-      <details class="guide examples" id="examples" hidden><summary id="examplestitle"></summary><div id="examplesbody"></div></details>
       <p class="hint" id="qhint"></p>
       <div id="f-q_before"><label for="q_before" id="qlabel_before"></label><textarea id="q_before" maxlength="1000"></textarea></div>
       <div id="f-q_why"><label for="q_why" id="qlabel_why"></label><textarea id="q_why" maxlength="1000"></textarea></div>
@@ -275,6 +274,10 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("startguidetitle", "story_guide", "How to share your story");
       $("startguidebody").replaceChildren.apply($("startguidebody"), renderGuide(d.guide));
       $("startguide").hidden = !d.guide;
+      // The example stories too, so they can see the way before asking for a link.
+      put("startexamplestitle", "story_examples", "See example stories");
+      $("startexamplesbody").replaceChildren.apply($("startexamplesbody"), renderGuide(d.examples));
+      $("startexamples").hidden = !d.examples;
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
       }));
@@ -488,41 +491,6 @@ legend{font-weight:600;font-size:15px;padding:0}
     if (navigator.clipboard) navigator.clipboard.writeText(shareText()).then(done, function () {});
   });
 
-  // Speaking instead of typing, where the browser can turn speech into text
-  // (mostly Chrome, on Android and computers). The words are added to the box.
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, listening = null;
-  var SPEECH = { en: "en-US", es: "es-419", fr: "fr-FR", pt: "pt-BR", zh: "zh-CN", ar: "ar", hi: "hi-IN", bn: "bn-IN", ru: "ru-RU", ur: "ur-PK" };
-  function addMics() {
-    if (!SR) return;
-    QS.forEach(function (q) {
-      var box = $("f-q_" + q), field = $("q_" + q), old = box.querySelector(".mic");
-      if (old) old.remove();
-      var b = el("button", { type: "button", class: "quiet mic", "aria-controls": "q_" + q }, ["🎤 " + (T.story_speak || "Speak")]);
-      b.addEventListener("click", function () {
-        if (listening) { var was = listening; listening.rec.stop(); if (was.button === b) return; }
-        var rec = new SR();
-        rec.lang = SPEECH[document.documentElement.lang] || document.documentElement.lang || "en-US";
-        rec.continuous = true; rec.interimResults = false;
-        rec.onresult = function (ev) {
-          for (var i = ev.resultIndex; i < ev.results.length; i++) {
-            if (!ev.results[i].isFinal) continue;
-            var said = ev.results[i][0].transcript.trim();
-            if (said) field.value = (field.value.trim() ? field.value.trim() + " " : "") + said;
-          }
-          field.dispatchEvent(new Event("input"));
-        };
-        rec.onend = function () {
-          b.classList.remove("on"); b.textContent = "🎤 " + (T.story_speak || "Speak");
-          if (listening && listening.rec === rec) listening = null;
-        };
-        listening = { rec: rec, button: b };
-        b.classList.add("on"); b.textContent = "● " + (T.story_listening || "Listening… tap to stop");
-        try { rec.start(); } catch (e) { rec.onend(); }
-      });
-      box.append(b);
-    });
-  }
-
   // Where their saved story stands: who can read it, and whether the team
   // has read it since their last change and featured it.
   function showStatus(s) {
@@ -625,7 +593,6 @@ legend{font-weight:600;font-size:15px;padding:0}
       showSharing();
       story = s; church = s.church;
       showStatus(s);
-      addMics();
       $("delete").hidden = !s.submitted_at;
       // Once their story is saved: their first 30 days, with church and name carried over.
       put("journey", "j_start_button", "Start my first 30 days");
