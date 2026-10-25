@@ -198,6 +198,8 @@ const view = (s, church, req) => ({
     name: s.guardian_at ? s.guardian_name || "" : "", link: `${siteUrl(req)}/g/${s.guardian_key}`,
   } : null,
   church: church ? { name: church.church_name, place: place(church) } : null,
+  // The number their link was texted to, shown read-only.
+  phone: String(s.phone || "").replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3"),
 });
 
 async function save(req, story, body, res) {
