@@ -58,6 +58,7 @@ import { churchChoice, pendingPhotos, savePhotosFromText, setPhotoChoice } from 
 import { newProfileKey, profileUrl, siteUrl } from "../lib/profile-link.js";
 import { detect, translate } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
+import { alertTeam, hasUnread, isAlertPhone } from "../lib/team-alerts.js";
 
 // info_reply goes out at most once in this long.
 const INFO_EVERY_MS = 24 * 60 * 60 * 1000;
@@ -142,6 +143,11 @@ async function converse(sms, site) {
         await logEvent("info", "story", `Text from someone who wrote a baptism story, not answered: ${sms.message || "(no words)"}`, { phone });
         return;
       }
+      // A team member answering an alert (lib/team-alerts.js) isn't signing up either.
+      if (await isAlertPhone(phone)) {
+        await logEvent("info", "team-alert", `Text from a team member's alert phone, not answered: ${sms.message || "(no words)"}`, { phone });
+        return;
+      }
     }
     engine = createEngine({ prompts, languages });
     const before = toState(session, church);
@@ -204,10 +210,10 @@ async function converse(sms, site) {
           baptisms: count, baptisms_at: new Date().toISOString(), baptisms_pending: null, baptisms_pending_at: null } });
         replies = [engine.say(lang, "count_saved", { count })];
       } else if (finished && result.unhandled && !sms.media.length && mentionsBaptism(sms.message)) {
-        await toTeam(logged, phone);
+        await toTeam(logged, phone, site);
         replies = [engine.say(lang, "count_ask")];
       } else if (finished && result.unhandled) {
-        await toTeam(logged, phone);
+        await toTeam(logged, phone, site);
         // Pictures get their own receipt below.
         if (!sms.media.length && !(await infoSentRecently(phone, engine.say(lang, "info_reply")))) {
           replies = [engine.say(lang, "info_reply")];
@@ -302,8 +308,10 @@ async function infoSentRecently(phone, text) {
 
 // Moves an incoming text to the team thread, unread, with an English
 // translation when it isn't in English. A failed translation only costs
-// the translation.
-async function toTeam(message, phone) {
+// the translation. The team gets a text alert when nothing from this
+// number was waiting unread (lib/team-alerts.js).
+async function toTeam(message, phone, site) {
+  const waiting = await hasUnread(phone, message.id);
   let translation = null;
   // A picture with no words has nothing to translate.
   if (message.body.trim()) try {
@@ -316,6 +324,7 @@ async function toTeam(message, phone) {
     await logEvent("warning", "sms-inbound", `Couldn't translate a message for the team: ${err.message}`, { phone });
   }
   await db(`btw_messages?id=eq.${message.id}`, { method: "PATCH", body: { thread: "team", translation } });
+  if (!waiting) await alertTeam({ phone, body: message.body, translation, media: message.media?.length > 0, site });
 }
 
 // The switched-on language a first text is written in, or null when it's

@@ -654,9 +654,10 @@
     <section class="block" id="users-block" data-screen="users">
       <h2>Users</h2>
       <p class="hint" id="users-hint">Everyone here can do everything, including adding and removing each other. Messages sent to pastors show who sent them.</p>
+      <p class="hint"><b>Text alerts:</b> add a mobile number (US or Canada) and it gets a text from the signup number when a pastor writes to the team, with the first words and a link that opens the conversation. One alert per conversation until someone reads it. Replies to an alert aren't seen by anyone.</p>
       <div class="table-scroll">
         <table class="users-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Last login</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Text alerts</th><th>Last login</th><th></th></tr></thead>
           <tbody id="user-rows"></tbody>
         </table>
       </div>
@@ -997,6 +998,18 @@ async function start(user) {
   $("users-hint").textContent = "Everyone here can do everything, including adding and removing each other. Messages sent to pastors show who sent them.";
   await load();
   loadUsers();
+  openFromHash();
+}
+
+// A text alert's link (lib/team-alerts.js): #open=<10 digits> opens that
+// conversation's Messages tab.
+function openFromHash() {
+  const m = location.hash.match(/^#open=(\d{10})$/);
+  if (!m) return false;
+  history.replaceState(null, "", "#conversations");
+  showScreen("conversations");
+  openThread(`+1${m[1]}`, "team");
+  return true;
 }
 
 async function load() {
@@ -1683,7 +1696,7 @@ document.addEventListener("click", (e) => { if (!$("settings-menu").contains(e.t
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSettings(); });
 window.addEventListener("resize", closeSettings);
 window.addEventListener("scroll", closeSettings, { passive: true });
-window.addEventListener("hashchange", () => { if (!state.me?.setup) showScreen(screenFromHash()); });
+window.addEventListener("hashchange", () => { if (!state.me?.setup && !openFromHash()) showScreen(screenFromHash()); });
 
 // ---------- conversations ----------
 
@@ -2656,7 +2669,7 @@ async function loadUsers() {
 function renderUsers() {
   const me = state.me || {};
   if (!users.list.length) {
-    $("user-rows").replaceChildren(h("tr", {}, h("td", { colspan: "4", class: "empty", text: "No users yet." })));
+    $("user-rows").replaceChildren(h("tr", {}, h("td", { colspan: "5", class: "empty", text: "No users yet." })));
     return;
   }
   $("user-rows").replaceChildren(...users.list.map((u) => {
@@ -2664,18 +2677,20 @@ function renderUsers() {
     let actions;
     if (editing) {
       const input = h("input", {
-        type: editing === "password" ? "password" : "text",
+        type: editing === "password" ? "password" : editing === "alert_phone" ? "tel" : "text",
         autocomplete: editing === "password" ? "new-password" : "off",
-        "aria-label": editing === "password" ? `New password for ${u.name}` : `New name for ${u.name}`,
-        placeholder: editing === "password" ? "New password" : "Name",
+        "aria-label": editing === "password" ? `New password for ${u.name}` : editing === "alert_phone" ? `Mobile number for ${u.name}'s alerts` : `New name for ${u.name}`,
+        placeholder: editing === "password" ? "New password" : editing === "alert_phone" ? "Mobile (US/Canada); empty = off" : "Name",
       });
       if (editing === "name") input.value = u.name;
+      if (editing === "alert_phone") input.value = u.alert_phone ? formatPhone(u.alert_phone) : "";
       const save = async () => {
         try {
           await api("/api/admin/users", { method: "PATCH", body: { id: u.id, [editing]: input.value } });
           users.editing = null;
           toast(editing === "password"
             ? (u.id === me.id ? "Your password is changed." : `${u.name}'s password is changed, and they're signed out everywhere.`)
+            : editing === "alert_phone" ? (input.value.trim() ? "Saved. Press Test to check the alert arrives." : "Text alerts are off.")
             : "Saved.");
           if (editing === "name" && u.id === me.id) { me.name = input.value.trim(); $("whoami").textContent = me.name; }
           loadUsers();
@@ -2693,6 +2708,15 @@ function renderUsers() {
       actions = [
         h("button", { class: "btn small ghost", type: "button", onclick: edit("name") }, "Rename"),
         h("button", { class: "btn small ghost", type: "button", onclick: edit("password") }, u.id === me.id ? "Change my password" : "New password"),
+        h("button", { class: "btn small ghost", type: "button", onclick: edit("alert_phone") }, u.alert_phone ? "Change alerts" : "Set up alerts"),
+        u.alert_phone ? h("button", { class: "btn small ghost", type: "button", onclick: async () => {
+          try {
+            await api("/api/admin/users", { method: "PATCH", body: { id: u.id, test_alert: true } });
+            toast(`A test alert went to ${formatPhone(u.alert_phone)}.`);
+          } catch (err) {
+            if (!err.silent) toast(err.message, "bad");
+          }
+        } }, "Test") : null,
         u.id === me.id ? null : h("button", { class: "btn small ghost", type: "button", onclick: async () => {
           if (!confirm(`Remove ${u.name}? They're signed out and can't log in again. Messages they sent keep their name.`)) return;
           try {
@@ -2708,6 +2732,7 @@ function renderUsers() {
     return h("tr", {},
       h("td", {}, h("span", { class: "who", text: u.name }), u.id === me.id ? chip("You", "muted") : null),
       h("td", { text: u.email }),
+      h("td", { text: u.alert_phone ? formatPhone(u.alert_phone) : "Off" }),
       h("td", { class: "when", text: u.last_login_at ? when(u.last_login_at) : "Never" }),
       h("td", {}, h("div", { class: "user-actions" }, ...(actions || []))));
   }));
