@@ -47,6 +47,8 @@ import { db, eq } from "../lib/supabase.js";
 import { RTL, phoneValue, wording as words } from "../lib/web-text.js";
 import { journeysWithStatus } from "../lib/journeys.js";
 import { readable } from "../lib/stories.js";
+import { createHash } from "node:crypto";
+import { translateHtml } from "../lib/translate.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
@@ -93,7 +95,7 @@ const TEXT_KEYS = [
 const LANDING_KEYS = ["web_title", "web_language", "web_phone", "web_phone_invalid",
   "land_intro", "land_church_title", "land_church_text", "land_signup", "land_text_us", "land_link_title",
   "land_link_hint", "land_link_button", "land_link_sent", "land_baptized_title", "land_baptized_text",
-  "land_coming_soon", "land_baptized_button", "land_journey_button", "land_team_title", "land_team_text", "land_team_button"];
+  "land_coming_soon", "land_baptized_button", "land_journey_button", "land_team_title", "land_team_text", "land_team_button", "land_how_link"];
 // Answers the signup form must have; state and ZIP only in the US.
 const REQUIRED = ["church_name", "street", "city", "name", "email"];
 
@@ -108,6 +110,7 @@ export default async function handler(req, res) {
     const params = new URL(req.url, "http://x").searchParams;
     if (req.method === "GET" && params.get("part") === "signup") return await signupForm(params.get("lang"), res);
     if (req.method === "GET" && params.get("part") === "landing") return await signupForm(params.get("lang"), res, LANDING_KEYS);
+    if (req.method === "GET" && params.get("part") === "features") return await features(req, params.get("lang"), res);
     if (req.method === "POST" && params.get("part") === "link") return await sendLink(req, req.body || {}, res, siteUrl(req));
     if (req.method === "POST") return await signup(req, req.body || {}, res, siteUrl(req));
     const key = new URL(req.url, "http://x").searchParams.get("key");
@@ -224,6 +227,44 @@ async function signupForm(wanted, res, keys = TEXT_KEYS) {
   res.status(200).json({ languages: languages.map((l) => ({ code: l.code, name: l.menu_label || l.name })),
     lang, dir: RTL.has(lang) ? "rtl" : "ltr", text: await wording(lang, keys),
     ...(keys === LANDING_KEYS ? { number: did.length === 10 ? `+1 ${did.slice(0, 3)}-${did.slice(3, 6)}-${did.slice(6)}` : null } : {}) });
+}
+
+// The "How it works" page (public/features.html) in another language. Its
+// English is read from the page itself (each piece of text carries a data-t
+// number), machine-translated once per language and kept in btw_guides (key
+// "features"), with a hash of the English so a changed page is translated
+// again. English, or a failed translation, answers { text: {} } and the page
+// stays in English.
+let featuresEnglish = null;
+async function features(req, wanted, res) {
+  const languages = await db("btw_languages?active=eq.true&select=code,name,menu_label&order=menu_order");
+  const lang = languages.some((l) => l.code === wanted) ? wanted : "en";
+  const answer = (text) => res.status(200).json({ lang: Object.keys(text).length ? lang : "en", dir: Object.keys(text).length && RTL.has(lang) ? "rtl" : "ltr",
+    languages: languages.map((l) => ({ code: l.code, name: l.menu_label || l.name })), text });
+  if (lang === "en") return answer({});
+  try {
+    if (!featuresEnglish) {
+      // The live site's page; the dev server's own, over plain http, locally.
+      const base = process.env.VERCEL || process.env.PUBLIC_SITE_URL ? siteUrl(req) : `http://${req.headers.host}`;
+      const html = await (await fetch(`${base}/features`)).text();
+      const pieces = {};
+      for (const m of html.matchAll(/<(\w+)\b[^>]*\bdata-t="(t\d+)"[^>]*>([\s\S]*?)<\/\1>/g)) pieces[m[2]] = m[3].trim();
+      if (!Object.keys(pieces).length) throw new Error("No text found on /features.");
+      featuresEnglish = { pieces, hash: createHash("sha256").update(JSON.stringify(pieces)).digest("hex").slice(0, 16) };
+    }
+    const { pieces, hash } = featuresEnglish;
+    const [saved] = await db(`btw_guides?key=eq.features&lang=${eq(lang)}&select=body`);
+    const cached = saved ? JSON.parse(saved.body) : null;
+    if (cached?.hash === hash) return answer(cached.text);
+    const keys = Object.keys(pieces);
+    const out = await translateHtml(keys.map((k) => pieces[k]), lang);
+    const text = Object.fromEntries(keys.map((k, i) => [k, out[i]]));
+    await db("btw_guides?on_conflict=key,lang", { method: "POST", body: { key: "features", lang, body: JSON.stringify({ hash, text }) }, prefer: "resolution=merge-duplicates" });
+    return answer(text);
+  } catch (err) {
+    await logEvent("warning", "features", `The How it works page couldn't be translated into ${lang}: ${err.message}`);
+    return answer({});
+  }
 }
 
 // Get my link (see POST ?part=link above). Bots, and numbers or visitors

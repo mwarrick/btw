@@ -52,8 +52,11 @@ export let failSend = false; export function setFailSend(v) { failSend = v; }
 let nextId = 1;
 const keyOf = { btw_sessions: "phone", btw_churches: "phone", btw_messages: "provider_id" };
 
+const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
+  // The dev server's own /features page, read for its translation.
+  if (/^https?:\/\/localhost(:\d+)?\/features$/.test(url)) return realFetch(url, opts);
   // Google Translate: "translates" to "[es] text"; detects everything as English.
   if (url.includes("translation.googleapis.com")) {
     const b = JSON.parse(opts.body);
