@@ -135,7 +135,7 @@ legend{font-weight:600;font-size:15px;padding:0}
       <label class="choice"><input type="radio" name="share" value="baptize"><span id="share_baptize"></span></label>
     </fieldset>
     <div id="others" hidden>
-      <fieldset id="f-adult"><legend id="agelabel"></legend>
+      <fieldset id="f-adult" hidden><legend id="agelabel"></legend>
         <label class="choice"><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label>
         <label class="choice"><input type="radio" name="adult" value="no"><span id="age_no"></span></label>
       </fieldset>
@@ -361,6 +361,11 @@ legend{font-weight:600;font-size:15px;padding:0}
       if (follows) { $("body").value = built; count(); }
     });
   });
+  // "Are you 18 or older?" is off for now (2026-10-25): sharing counts as 18+,
+  // so a parent's approval isn't asked for. A story already saved as under 18
+  // keeps that answer, and its parent's approval, when it's saved again. Set
+  // to true to ask again; the parent approval (/g/<key>) is all still there.
+  var ASK_AGE = false;
   function chosen(name) { var c = document.querySelector('input[name="' + name + '"]:checked'); return c ? c.value : ""; }
   // Only them: nothing else to ask. Anyone else: their age and OK; under
   // 18, a parent or guardian approves it on their own link after saving.
@@ -368,6 +373,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     var share = chosen("share");
     $("others").hidden = !share || share === "me";
     $("minor").hidden = chosen("adult") !== "no";
+    $("f-adult").hidden = !ASK_AGE;
   }
   document.querySelectorAll('input[name="share"],input[name="adult"]').forEach(function (i) { i.addEventListener("change", showSharing); });
 
@@ -611,7 +617,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     $("save").disabled = true;
     getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ first_name: $("first_name").value, answers: answers(), body: $("body").value, share: chosen("share"),
-        adult: chosen("adult") ? chosen("adult") === "yes" : null, consent: $("consent").checked }) })
+        adult: chosen("adult") ? chosen("adult") === "yes" : ASK_AGE ? null : true, consent: $("consent").checked }) })
       .then(function (x) {
         if (x[0] === 200) {
           s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false;
