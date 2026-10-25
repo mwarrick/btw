@@ -40,114 +40,191 @@ figure{margin:0}
 figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:14px;background:var(--bg)}
 figcaption{font-size:14px;color:var(--muted);margin-top:6px;text-align:center}
 @media (min-width:560px){.langs{columns:3}}
+.lang{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:12px 0 0;font-size:15px;color:var(--muted)}
+.lang select{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:42px}
+.note{font-size:14px;margin:0 0 6px}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
-<header><a class="home" href="/"><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture></a><p>How Baptize 2027 works</p></header>
+<header><a class="home" href="/"><picture><source srcset="/img/b-mark.avif" type="image/avif"><img class="logo" src="/img/b-mark.png" width="48" height="48" alt="Baptize 2027"></picture></a><p data-t="t1">How Baptize 2027 works</p></header>
 <main>
-<h1>How it works</h1>
-<p class="lead">Baptize 2027 helps churches take part in baptisms and helps the people baptized take their next steps. Everything works from a phone, by text message or in the browser, in 10 languages, with no app and no account.</p>
-<nav class="jump"><a href="#churches">For churches</a><a href="#baptized">For the newly baptized</a><a href="#languages">Languages</a><a href="#privacy">Privacy</a></nav>
+<div class="lang" id="langrow" hidden><label data-t="t2" for="lang" id="langlabel">Language</label><select id="lang"></select></div>
+<h1 data-t="t3">How it works</h1>
+<p data-t="t4" class="muted note" id="mtnote" hidden>This page was translated automatically, so some wording may not be exact.</p>
+<p data-t="t5" class="lead">Baptize 2027 helps churches take part in baptisms and helps the people baptized take their next steps. Everything works from a phone, by text message or in the browser, in 10 languages, with no app and no account.</p>
+<nav class="jump"><a data-t="t6" href="#churches">For churches</a><a data-t="t7" href="#baptized">For the newly baptized</a><a data-t="t8" href="#languages">Languages</a><a data-t="t9" href="#privacy">Privacy</a></nav>
 
 <section id="churches">
-<h2>For churches</h2>
+<h2 data-t="t10">For churches</h2>
 
-<h3>Sign up by text or online</h3>
+<h3 data-t="t11">Sign up by text or online</h3>
 <ul>
-  <li><b>By text:</b> text our number and answer about 14 short questions, one text at a time: your name, email, church name and address, denomination, website, the main contact for baptisms, where baptisms will happen, and whether your church can appear on the public Baptize map.</li>
-  <li><b>In your language:</b> write in your own language and we answer in it, or pick from a menu of 10 languages. Text MENU at any time to switch.</li>
-  <li><b>Or on one page:</b> sign up with a form instead, at <a href="/signup">baptize.app/signup</a>. If you start by text, we also send a link to finish on the form; whichever you answered last counts.</li>
-  <li>Texting HELP explains what you can do, and STOP ends all texts.</li>
-  <li>Churches outside the US are welcome.</li>
+  <li data-t="t12"><b>By text:</b> text our number and answer about 14 short questions, one text at a time: your name, email, church name and address, denomination, website, the main contact for baptisms, where baptisms will happen, and whether your church can appear on the public Baptize map.</li>
+  <li data-t="t13"><b>In your language:</b> write in your own language and we answer in it, or pick from a menu of 10 languages. Text MENU at any time to switch.</li>
+  <li data-t="t14"><b>Or on one page:</b> sign up with a form instead, at <a href="/signup">baptize.app/signup</a>. If you start by text, we also send a link to finish on the form; whichever you answered last counts.</li>
+  <li data-t="t15">Texting HELP explains what you can do, and STOP ends all texts.</li>
+  <li data-t="t16">Churches outside the US are welcome.</li>
 </ul>
 <div class="shots">
-  <figure><img src="/img/how/text-signup.jpg" width="780" height="1520" loading="lazy" alt="A text conversation: the church picks a language, then answers its name, email and church name, one text at a time."><figcaption>Signing up by text, one question at a time. (The menu lists every language that's switched on.)</figcaption></figure>
+  <figure><img src="/img/how/text-signup.jpg" width="780" height="1520" loading="lazy" alt="A text conversation: the church picks a language, then answers its name, email and church name, one text at a time."><figcaption data-t="t17">Signing up by text, one question at a time. (The menu lists every language that's switched on.)</figcaption></figure>
 </div>
 
-<h3>Your church's page</h3>
-<p>When you finish, we text you a private link to your church's own page. The link is your login, so keep it. Lost it? Enter your phone number on the <a href="/">front page</a> and we text it again. On your page you can:</p>
+<h3 data-t="t18">Your church's page</h3>
+<p data-t="t19">When you finish, we text you a private link to your church's own page. The link is your login, so keep it. Lost it? Enter your phone number on the <a href="/">front page</a> and we text it again. On your page you can:</p>
 <ul>
-  <li><b>Your signup:</b> see and change every answer, and read every text between you and our team.</li>
-  <li><b>Photos:</b> add photos of your baptisms from your phone, or simply text them to us. You choose once whether we may share them publicly, including on social media, and you can opt out later. Removing a photo deletes it for good.</li>
-  <li><b>Baptisms:</b> report how many people you've baptized. You can also just text the number, like "14", at any time; the latest number counts.</li>
-  <li><b>Resources:</b> a link to materials for your baptism event.</li>
-  <li><b>Stories:</b> read the baptism stories your people chose to share with you. A printable QR code invites them to write one, with your church already picked.</li>
-  <li><b>Newly baptized:</b> follow the people from your church who are on their first 30 days:
+  <li data-t="t20"><b>Your signup:</b> see and change every answer, and read every text between you and our team.</li>
+  <li data-t="t21"><b>Photos:</b> add photos of your baptisms from your phone, or simply text them to us. You choose once whether we may share them publicly, including on social media, and you can opt out later. Removing a photo deletes it for good.</li>
+  <li data-t="t22"><b>Baptisms:</b> report how many people you've baptized. You can also just text the number, like "14", at any time; the latest number counts.</li>
+  <li data-t="t23"><b>Resources:</b> a link to materials for your baptism event.</li>
+  <li data-t="t24"><b>Stories:</b> read the baptism stories your people chose to share with you. A printable QR code invites them to write one, with your church already picked.</li>
+  <li><span data-t="t25"><b>Newly baptized:</b> follow the people from your church who are on their first 30 days:</span>
     <ul>
-      <li>their progress and their check-in answers;</li>
-      <li>a "could use a call" flag when someone says it's hard, asks a question, or has gone quiet for a few days;</li>
-      <li>their phone number, if they agreed to be contacted.</li>
+      <li data-t="t26">their progress and their check-in answers;</li>
+      <li data-t="t27">a "could use a call" flag when someone says it's hard, asks a question, or has gone quiet for a few days;</li>
+      <li data-t="t28">their phone number, if they agreed to be contacted.</li>
     </ul>
-    You can also post a weekly note they'll see each day, and print a QR code that starts the 30 days with your church picked.</li>
+    <span data-t="t29">You can also post a weekly note they'll see each day, and print a QR code that starts the 30 days with your church picked.</span></li>
 </ul>
 <div class="shots">
-  <figure><img src="/img/how/church-page.jpg" width="780" height="1520" loading="lazy" alt="A church's page: tabs for Your signup, Photos, Baptisms, Stories, Newly baptized and Resources, above the church's details."><figcaption>Your church's page, with all its tabs.</figcaption></figure>
-  <figure><img src="/img/how/newly-baptized.jpg" width="780" height="1520" loading="lazy" alt="The Newly baptized tab: each person's day, progress, last activity and check-in notes, with Could use a call and We talked."><figcaption>Newly baptized: who could use a call. (Sample people.)</figcaption></figure>
+  <figure><img src="/img/how/church-page.jpg" width="780" height="1520" loading="lazy" alt="A church's page: tabs for Your signup, Photos, Baptisms, Stories, Newly baptized and Resources, above the church's details."><figcaption data-t="t30">Your church's page, with all its tabs.</figcaption></figure>
+  <figure><img src="/img/how/newly-baptized.jpg" width="780" height="1520" loading="lazy" alt="The Newly baptized tab: each person's day, progress, last activity and check-in notes, with Could use a call and We talked."><figcaption data-t="t31">Newly baptized: who could use a call. (Sample people.)</figcaption></figure>
 </div>
 
-<h3>Talking to our team</h3>
-<p>After signing up, anything you text that isn't a command goes straight to the Baptize 2027 team, translated for them if needed, and they reply from the same number.</p>
-<a class="button" href="/signup">Sign up your church</a>
+<h3 data-t="t32">Talking to our team</h3>
+<p data-t="t33">After signing up, anything you text that isn't a command goes straight to the Baptize 2027 team, translated for them if needed, and they reply from the same number.</p>
+<a data-t="t34" class="button" href="/signup">Sign up your church</a>
 </section>
 
 <section id="baptized">
-<h2>For the newly baptized</h2>
+<h2 data-t="t35">For the newly baptized</h2>
 
-<h3>Share your baptism story</h3>
+<h3 data-t="t36">Share your baptism story</h3>
 <ul>
-  <li><b>Getting started:</b> pick your church and give your mobile number, and we text you a private link to your own story page, at <a href="/story">baptize.app/story</a>.</li>
-  <li><b>Help with writing:</b> read the advice on sharing a story and three example stories. Then answer five short questions: life before, why you were baptized, the moment itself, a word for someone thinking about it, and a verse. Your answers become your story, and you can rewrite it in your own words.</li>
-  <li><b>You choose who reads it:</b> only you, your church, or your church and the Baptize 2027 team, who may feature it. If it's featured, we text to let you know.</li>
-  <li><b>Post it yourself:</b> once saved, make a picture of your story, sized for WhatsApp or Instagram Status, to share or save. You pick the line it quotes. We never post anything for you.</li>
-  <li><b>Come back any time:</b> use the same link to check on your story, change it, change who can read it, or delete it for good.</li>
+  <li data-t="t37"><b>Getting started:</b> pick your church and give your mobile number, and we text you a private link to your own story page, at <a href="/story">baptize.app/story</a>.</li>
+  <li data-t="t38"><b>Help with writing:</b> read the advice on sharing a story and three example stories. Then answer five short questions: life before, why you were baptized, the moment itself, a word for someone thinking about it, and a verse. Your answers become your story, and you can rewrite it in your own words.</li>
+  <li data-t="t39"><b>You choose who reads it:</b> only you, your church, or your church and the Baptize 2027 team, who may feature it. If it's featured, we text to let you know.</li>
+  <li data-t="t40"><b>Post it yourself:</b> once saved, make a picture of your story, sized for WhatsApp or Instagram Status, to share or save. You pick the line it quotes. We never post anything for you.</li>
+  <li data-t="t41"><b>Come back any time:</b> use the same link to check on your story, change it, change who can read it, or delete it for good.</li>
 </ul>
 <div class="shots">
-  <figure><img src="/img/how/story-start.jpg" width="780" height="1280" loading="lazy" alt="The story start page: pick the church that baptized you, enter your phone, and get a private link by text."><figcaption>Pick your church and get your private link.</figcaption></figure>
-  <figure><img src="/img/how/story-page.jpg" width="780" height="1520" loading="lazy" alt="A saved story page: the church, the phone, who can read it and Featured by the team, then the name and the questions, filled in."><figcaption>Your story page, saved and featured.</figcaption></figure>
-  <figure><img src="/img/how/story-picture.jpg" width="540" height="960" loading="lazy" alt="The picture made from a story: a quote, the first name, the church, a verse, Baptize 2027 and #BaptizeTheWorld."><figcaption>The picture to post yourself.</figcaption></figure>
+  <figure><img src="/img/how/story-start.jpg" width="780" height="1280" loading="lazy" alt="The story start page: pick the church that baptized you, enter your phone, and get a private link by text."><figcaption data-t="t42">Pick your church and get your private link.</figcaption></figure>
+  <figure><img src="/img/how/story-page.jpg" width="780" height="1520" loading="lazy" alt="A saved story page: the church, the phone, who can read it and Featured by the team, then the name and the questions, filled in."><figcaption data-t="t43">Your story page, saved and featured.</figcaption></figure>
+  <figure><img src="/img/how/story-picture.jpg" width="540" height="960" loading="lazy" alt="The picture made from a story: a quote, the first name, the church, a verse, Baptize 2027 and #BaptizeTheWorld."><figcaption data-t="t44">The picture to post yourself.</figcaption></figure>
 </div>
-<a class="button" href="/story">Share your story</a>
+<a data-t="t45" class="button" href="/story">Share your story</a>
 
-<h3>Your first 30 days</h3>
+<h3 data-t="t46">Your first 30 days</h3>
 <ul>
-  <li><b>Getting started:</b> at <a href="/journey">baptize.app/journey</a>, pick your church, give your first name and mobile number, and we text you the link to your 30 days. If you lose it, enter the same number again to get the link back.</li>
-  <li><b>Each day:</b> a short Bible reading (one tap opens it), a few thoughts, a question to think about and one small step. Mark it done when you're ready. Missed days stay open.</li>
-  <li><b>Check-ins:</b> on days 7, 14, 21 and 30, tell your church how it's going, or ask a question.</li>
-  <li><b>Reminders:</b> add a daily reminder to your phone's calendar. We don't send reminder texts.</li>
-  <li><b>Your choices:</b> letting your church contact you, and letting your church and our team see your progress, are both up to you.</li>
+  <li data-t="t47"><b>Getting started:</b> at <a href="/journey">baptize.app/journey</a>, pick your church, give your first name and mobile number, and we text you the link to your 30 days. If you lose it, enter the same number again to get the link back.</li>
+  <li data-t="t48"><b>Each day:</b> a short Bible reading (one tap opens it), a few thoughts, a question to think about and one small step. Mark it done when you're ready. Missed days stay open.</li>
+  <li data-t="t49"><b>Check-ins:</b> on days 7, 14, 21 and 30, tell your church how it's going, or ask a question.</li>
+  <li data-t="t50"><b>Reminders:</b> add a daily reminder to your phone's calendar. We don't send reminder texts.</li>
+  <li data-t="t51"><b>Your choices:</b> letting your church contact you, and letting your church and our team see your progress, are both up to you.</li>
 </ul>
 <div class="shots">
-  <figure><img src="/img/how/first-30-days.jpg" width="780" height="1520" loading="lazy" alt="Day 1 of the first 30 days: 30 numbered circles, then the day's reading with Read it, a note, a question to think about and today's step."><figcaption>Day 1 of your first 30 days.</figcaption></figure>
+  <figure><img src="/img/how/first-30-days.jpg" width="780" height="1520" loading="lazy" alt="Day 1 of the first 30 days: 30 numbered circles, then the day's reading with Read it, a note, a question to think about and today's step."><figcaption data-t="t52">Day 1 of your first 30 days.</figcaption></figure>
 </div>
-<a class="button quiet" href="/journey">Start your first 30 days</a>
+<a data-t="t53" class="button quiet" href="/journey">Start your first 30 days</a>
 </section>
 
 <section id="languages">
-<h2>Languages</h2>
-<p>Texts, pages and the 30 days are available in:</p>
+<h2 data-t="t54">Languages</h2>
+<p data-t="t55">Texts, pages and the 30 days are available in:</p>
 <ul class="langs">
-  <li>English</li><li>Spanish</li><li>French</li><li>Portuguese</li><li>Chinese</li>
-  <li>Arabic</li><li>Hindi</li><li>Bengali</li><li>Russian</li><li>Urdu</li>
+  <li data-t="t56">English</li><li data-t="t57">Spanish</li><li data-t="t58">French</li><li data-t="t59">Portuguese</li><li data-t="t60">Chinese</li>
+  <li data-t="t61">Arabic</li><li data-t="t62">Hindi</li><li data-t="t63">Bengali</li><li data-t="t64">Russian</li><li data-t="t65">Urdu</li>
 </ul>
 </section>
 
 <section id="privacy">
-<h2>Privacy</h2>
+<h2 data-t="t66">Privacy</h2>
 <ul>
-  <li><b>Private links:</b> every church page, story and 30-day page has its own private link, sent by text. There are no passwords, and the pages aren't listed in search engines.</li>
-  <li><b>Your choices, enforced:</b>
+  <li data-t="t67"><b>Private links:</b> every church page, story and 30-day page has its own private link, sent by text. There are no passwords, and the pages aren't listed in search engines.</li>
+  <li><span data-t="t68"><b>Your choices, enforced:</b></span>
     <ul>
-      <li>a story is read only by the people you choose;</li>
-      <li>photos are shared only if your church agrees;</li>
-      <li>a church sees a newly baptized person's number only if they agree.</li>
+      <li data-t="t69">a story is read only by the people you choose;</li>
+      <li data-t="t70">photos are shared only if your church agrees;</li>
+      <li data-t="t71">a church sees a newly baptized person's number only if they agree.</li>
     </ul></li>
-  <li><b>Deleting:</b> you can delete your story or your church's photos at any time.</li>
-  <li><b>Texting:</b> we can text numbers in the US and Canada.</li>
+  <li data-t="t72"><b>Deleting:</b> you can delete your story or your church's photos at any time.</li>
+  <li data-t="t73"><b>Texting:</b> we can text numbers in the US and Canada.</li>
 </ul>
-<p class="muted">Questions? Churches can text us from the number they signed up with.</p>
+<p data-t="t74" class="muted">Questions? Churches can text us from the number they signed up with.</p>
 </section>
 
-<p class="muted"><a href="/">Back to the front page</a></p>
+<p data-t="t75" class="muted"><a href="/">Back to the front page</a></p>
 </main>
+<script>
+// The page in the reader's language: ?lang=, else the browser's when we have
+// it, else English. Other languages are machine-translated once on the server
+// (GET /api/profile?part=features) and only <b>, <br> and links to our own
+// pages are kept from the translation.
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var english = {};
+  document.querySelectorAll("[data-t]").forEach(function (el) { english[el.dataset.t] = el.innerHTML; });
+  function clean(html) {
+    var t = document.createElement("template");
+    t.innerHTML = html;
+    (function walk(node) {
+      Array.from(node.childNodes).forEach(function (c) {
+        if (c.nodeType !== 1) return;
+        var ok = c.tagName === "B" || c.tagName === "STRONG" || c.tagName === "BR" ||
+          (c.tagName === "A" && /^(\/(?!\/)|#)/.test(c.getAttribute("href") || ""));
+        if (!ok) { c.replaceWith(document.createTextNode(c.textContent)); return; }
+        Array.from(c.attributes).forEach(function (a) { if (!(c.tagName === "A" && a.name === "href")) c.removeAttribute(a.name); });
+        walk(c);
+      });
+    })(t.content);
+    var div = document.createElement("div");
+    div.append(t.content);
+    return div.innerHTML;
+  }
+  function show(d) {
+    var text = d.text || {};
+    var translated = Object.keys(text).length > 0;
+    document.querySelectorAll("[data-t]").forEach(function (el) {
+      el.innerHTML = translated && text[el.dataset.t] ? clean(text[el.dataset.t]) : english[el.dataset.t];
+    });
+    document.documentElement.lang = d.lang || "en";
+    document.documentElement.dir = d.dir || "ltr";
+    $("mtnote").hidden = !translated;
+    // Links to the other pages open them in the same language.
+    document.querySelectorAll('a[href^="/"]').forEach(function (a) {
+      var u = new URL(a.getAttribute("href"), location.origin);
+      if (u.pathname === "/" || u.pathname === "/signup" || u.pathname === "/story" || u.pathname === "/journey") {
+        if (translated) u.searchParams.set("lang", d.lang); else u.searchParams.delete("lang");
+        a.setAttribute("href", u.pathname + u.search + u.hash);
+      }
+    });
+  }
+  function load(lang, first) {
+    return fetch("/api/profile?part=features&lang=" + encodeURIComponent(lang)).then(function (r) { return r.json(); }).then(function (d) {
+      var sel = $("lang");
+      sel.replaceChildren.apply(sel, (d.languages || []).map(function (l) {
+        var o = document.createElement("option"); o.value = l.code; o.textContent = l.name; o.selected = l.code === (d.lang || "en"); return o;
+      }));
+      $("langrow").hidden = (d.languages || []).length < 2;
+      if (!first || d.lang !== "en") show(d);
+      return d;
+    });
+  }
+  var params = new URLSearchParams(location.search);
+  var codes = [params.get("lang") || ""].concat((navigator.languages || [navigator.language || "en"]).map(function (l) { return String(l).slice(0, 2).toLowerCase(); }));
+  load("en", true).then(function (d) {
+    var have = (d.languages || []).map(function (l) { return l.code; });
+    var pick = codes.filter(function (c) { return have.indexOf(c) >= 0; })[0];
+    if (pick && pick !== "en") return load(pick);
+  }).catch(function () { /* stays in English */ });
+  $("lang").addEventListener("change", function () {
+    var lang = $("lang").value, u = new URL(location.href);
+    if (lang === "en") u.searchParams.delete("lang"); else u.searchParams.set("lang", lang);
+    history.replaceState(null, "", u);
+    $("lang").disabled = true;
+    load(lang).catch(function () {}).then(function () { $("lang").disabled = false; });
+  });
+})();
+</script>
 </body>
 </html>

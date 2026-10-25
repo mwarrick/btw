@@ -79,7 +79,7 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
   <div><h2 id="team-title">Team</h2><p id="team-text"></p></div>
   <a class="button quiet" href="/admin" id="team-button">Log in</a>
 </section>
-<p class="small" style="text-align:center"><a href="/features">How Baptize 2027 works</a></p>
+<p class="small" style="text-align:center"><a href="/features" id="how">How Baptize 2027 works</a></p>
 </main>
 <script>
 (function () {
@@ -96,6 +96,8 @@ input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
       document.documentElement.lang = d.lang;
       document.documentElement.dir = d.dir;
       put("intro", "land_intro");
+      put("how", "land_how_link");
+      $("how").href = "/features" + (d.lang && d.lang !== "en" ? "?lang=" + d.lang : "");
       put("church-title", "land_church_title"); put("church-text", "land_church_text"); put("signup", "land_signup");
       put("link-title", "land_link_title"); put("link-hint", "land_link_hint"); put("link-button", "land_link_button");
       put("phone-label", "web_phone");
