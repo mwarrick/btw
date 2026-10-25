@@ -10,9 +10,10 @@
 // anyone else reads it, and again after any change. The page also makes a
 // picture of the story they post themselves; nothing is published by us.
 //
-//   GET ?part=start&lang=xx[&church=<id>] -> { languages, lang, dir, text, guide, church }: the
-//                               start page's wording and the advice, read before asking for a
-//                               link; `church` is the one picked by its QR code (its page)
+//   GET ?part=start&lang=xx[&church=<id>] -> { languages, lang, dir, text, guide, examples, church }:
+//                               the start page's wording, the advice and the example stories,
+//                               read before asking for a link; `church` is the one picked by
+//                               its QR code (its page)
 //   GET ?part=churches&q=..  -> { churches: [{ id, name, place }] }: finished, real
 //                               signups whose name or city contains q (2+ letters), up to 20
 //   POST ?part=link { lang, church, phone } -> { sent: true } or 400/429/503
@@ -101,9 +102,9 @@ export default async function handler(req, res) {
 async function start(wanted, churchId, res) {
   const { languages: list, lang } = await languages(wanted);
   // From the church's QR code (simulations too, for the demo).
-  const [text, guide, [qr]] = await Promise.all([wording(lang, TEXT_KEYS), advice(lang),
+  const [text, guide, examples, [qr]] = await Promise.all([wording(lang, TEXT_KEYS), advice(lang), advice(lang, "story_examples"),
     /^[\w-]{1,64}$/.test(churchId || "") ? db(`btw_churches?id=${eq(churchId)}&completed_at=not.is.null&select=id,church_name,city,state,country`) : []]);
-  res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide, church: qr ? { id: qr.id, name: qr.church_name, place: place(qr) } : null });
+  res.status(200).json({ languages: list, lang, dir: dir(lang), text, guide, examples, church: qr ? { id: qr.id, name: qr.church_name, place: place(qr) } : null });
 }
 
 // The advice (or another btw_guides text, such as the example stories) in

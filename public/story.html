@@ -90,6 +90,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <section id="start" hidden>
   <div class="lang"><label for="lang" id="langlabel" style="margin:0;font-weight:400"></label><select id="lang"></select></div>
   <details class="card guide" id="startguide"><summary id="startguidetitle"></summary><div id="startguidebody"></div></details>
+  <details class="card guide" id="startexamples" hidden><summary id="startexamplestitle"></summary><div id="startexamplesbody"></div></details>
   <form class="card" id="startform" novalidate>
     <div id="f-church">
       <label for="q"><span id="churchlabel"></span><span class="hint" id="churchhint"></span></label>
@@ -275,6 +276,10 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("startguidetitle", "story_guide", "How to share your story");
       $("startguidebody").replaceChildren.apply($("startguidebody"), renderGuide(d.guide));
       $("startguide").hidden = !d.guide;
+      // The example stories too, so they can see the way before asking for a link.
+      put("startexamplestitle", "story_examples", "See example stories");
+      $("startexamplesbody").replaceChildren.apply($("startexamplesbody"), renderGuide(d.examples));
+      $("startexamples").hidden = !d.examples;
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
       }));
