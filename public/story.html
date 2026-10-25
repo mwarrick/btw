@@ -110,6 +110,7 @@ legend{font-weight:600;font-size:15px;padding:0}
 <section id="write" hidden>
   <h1 id="title"></h1>
   <p class="church" id="church"></p>
+  <p class="hint" id="myphone" hidden><b id="myphonelabel"></b> <span id="myphonenum" dir="ltr"></span><br><span id="myphonenote"></span></p>
   <p class="card status-line" id="status" hidden></p>
   <details class="card guide" id="guide" open><summary id="guidetitle"></summary><div id="guidebody"></div></details>
   <details class="card guide" id="examples" hidden><summary id="examplestitle"></summary><div id="examplesbody"></div></details>
@@ -556,6 +557,11 @@ legend{font-weight:600;font-size:15px;padding:0}
       setLang(d);
       put("title", "story_title", "Your baptism story");
       $("church").textContent = s.church ? s.church.name + (s.church.place ? " · " + s.church.place : "") : "";
+      // The number their link went to (read-only): enter it again on /story to get the link back.
+      $("myphonelabel").textContent = (T.web_phone || "Your phone number") + ":";
+      $("myphonenum").textContent = s.phone || "";
+      put("myphonenote", "story_phone_note", "Your private link was texted to this number. Enter it again on the start page to get the link back.");
+      $("myphone").hidden = !s.phone;
       put("guidetitle", "story_guide", "How to share your story");
       $("guidebody").replaceChildren.apply($("guidebody"), renderGuide(d.guide));
       $("guide").hidden = !d.guide;
