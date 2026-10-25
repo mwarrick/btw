@@ -12,7 +12,7 @@ import zlib from "node:zlib";
 
 const KW = { kw_yes: "YES,Y", kw_no: "NO,N", kw_skip: "SKIP", kw_edit: "EDIT", kw_done: "DONE",
   kw_help: "HELP", kw_restart: "RESTART", kw_start: "START", kw_stop: "STOP", kw_menu: "MENU" };
-const keys = ["count_confirm","count_not_saved","count_ask","restart_locked","web_consent","web_opted_in","web_opt_in","web_opt_out","photo_ask","photo_yes","photo_no","info_reply","count_saved","photo_received","photos_received","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
+const keys = ["story_guardian_after","story_guardian_wait","story_guardian_yes","story_guardian_no","story_guardian_ask","story_guardian_send","story_guardian_phone","story_guardian_text_button","story_guardian_texted","g_title","g_share","g_share_church","g_share_baptize","g_name","g_approve","g_not_yet","g_approved","g_declined","g_nothing","count_confirm","count_not_saved","count_ask","restart_locked","web_consent","web_opted_in","web_opt_in","web_opt_out","photo_ask","photo_yes","photo_no","info_reply","count_saved","photo_received","photos_received","menu_intro","menu_footer","menu_invalid","lang_detected","welcome","help","stop","restart","done","done_reply",
   "summary_hint","edit_saved","edit_invalid","sum_intro","sum_outro","val_you","val_same","val_yes","val_no"];
 for (const q of ["name","email","church","country","region","postal","street","city","state","zip","denom","website","contact","contact_phone","baptism","b_street","b_city","b_state","b_zip","map","consent"])
   keys.push("ask_"+q, "err_"+q, "edit_"+q);
@@ -27,7 +27,11 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "web_signup_button", lang: "es", text: "Inscribirse" },
     { key: "web_form_link", lang: "en", text: "Prefer a form? Answer every question on one page instead: {link} Or just keep replying here." },
     { key: "land_text_us", lang: "en", text: "Or text {number} and sign up by text message, in your language." },
-    { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" }],
+    { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" },
+    { key: "story_guardian_msg", lang: "en", text: "{name} wants to share their baptism story. As their parent or guardian, please read it and approve it here: {link}" },
+    { key: "story_featured", lang: "en", text: "The Baptize 2027 team featured your baptism story. Thank you for sharing it! {link}" },
+    { key: "g_intro", lang: "en", text: "{name} is under 18 and wants to share this baptism story. Please read it." },
+    { key: "g_agree", lang: "en", text: "I am {name}'s parent or guardian. I have read this story and agree to share it as shown." }],
   btw_sessions: [], btw_churches: [], btw_messages: [], btw_events: [], btw_prompt_keys: [], btw_users: [], btw_photos: [], btw_web_requests: [], btw_web_codes: [], btw_testimonies: [], btw_journeys: [], btw_checkins: [], btw_journey_days: Array.from({ length: 30 }, (_, i) => ({ day: i + 1, lang: "en", theme: `Theme ${i + 1}`,
     passage: i === 4 ? "John 16:23–24; Philippians 4:6–7" : `Mark ${i + 1}:1–8`, note: `Note for day ${i + 1}.`, question: `Question ${i + 1}?`, step: `Step ${i + 1}.` })),
   btw_guides: [{ key: "bible_url", lang: "en", body: "https://www.biblegateway.com/passage/?search={passage}&version=WEB" }, { key: "testimony", lang: "en", body: "## What is a baptism testimony?\nA short, personal story.\n\n## The three parts\n• **Before:** your life before faith.\n• **How:** coming to faith.\n• **After:** your life now.", updated_at: new Date().toISOString() }] };

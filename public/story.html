@@ -140,10 +140,7 @@ legend{font-weight:600;font-size:15px;padding:0}
         <label class="choice"><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label>
         <label class="choice"><input type="radio" name="adult" value="no"><span id="age_no"></span></label>
       </fieldset>
-      <div id="minor" hidden>
-        <div id="f-guardian_name"><label for="guardian_name" id="guardianlabel"></label><input id="guardian_name" maxlength="60" autocomplete="off"></div>
-        <div id="f-guardian_ok" style="margin-top:10px"><label class="agree"><input type="checkbox" id="guardian_ok"><span id="guardianoklabel"></span></label></div>
-      </div>
+      <p class="hint" id="minor" hidden></p>
       <div id="f-consent" style="margin-top:14px"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
     </div>
     <button type="submit" id="save"></button>
@@ -151,6 +148,17 @@ legend{font-weight:600;font-size:15px;padding:0}
     <a class="button" id="journey" href="#" hidden style="display:block;text-align:center;text-decoration:none;font-weight:700;border-radius:10px;background:var(--brand);color:#fff;padding:12px 18px;margin-top:12px"></a>
     <button type="button" class="danger" id="delete" hidden></button>
   </form>
+  <!-- Under 18: their parent or guardian's approval link -->
+  <div class="card" id="gbox" hidden>
+    <p style="margin:0" id="gask"></p>
+    <button type="button" id="gsend"></button>
+    <div id="f-guardian_phone">
+      <label for="guardian_phone" id="gphonelabel"></label>
+      <input id="guardian_phone" type="tel" inputmode="tel" autocomplete="off">
+    </div>
+    <button type="button" class="quiet" id="gtext"></button>
+    <p class="status" id="gstatus" role="status"></p>
+  </div>
   <div class="card" id="card" hidden>
     <h2 style="font-size:18px;margin:0" id="cardtitle"></h2>
     <p class="hint" id="cardhint"></p>
@@ -162,11 +170,30 @@ legend{font-weight:600;font-size:15px;padding:0}
     <p class="status" id="cardstatus" role="status"></p>
   </div>
 </section>
+
+<!-- /g/<key>: a parent or guardian approves an under-18's story -->
+<section id="approve" hidden>
+  <h1 id="gtitle"></h1>
+  <p id="gintro"></p>
+  <div class="card">
+    <p class="church" id="gchurch"></p>
+    <p style="white-space:pre-wrap;margin:0" id="gbody"></p>
+    <p class="hint" style="margin-top:12px"><b id="gsharelabel"></b>: <span id="gshare"></span></p>
+  </div>
+  <form class="card" id="gform" novalidate>
+    <div id="f-name"><label for="g_name" id="gnamelabel"></label><input id="g_name" maxlength="60" autocomplete="name"></div>
+    <div id="f-agree" style="margin-top:14px"><label class="agree"><input type="checkbox" id="g_agree"><span id="gagreelabel"></span></label></div>
+    <button type="submit" id="gapprove"></button>
+    <button type="button" class="quiet" id="gnotyet"></button>
+  </form>
+  <p class="card status-line" id="gdone" hidden></p>
+</section>
 </main>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var key = (location.pathname.match(/\/s\/([A-Za-z0-9_-]+)/) || [])[1] || "";
+  var gkey = (location.pathname.match(/\/g\/([A-Za-z0-9_-]+)/) || [])[1] || "";
   var T = {};
   var opened = Date.now(); // a form sent back in under 3 seconds is a bot's
   function put(id, k, fallback) { $(id).textContent = T[k] || fallback || ""; }
@@ -179,7 +206,7 @@ legend{font-weight:600;font-size:15px;padding:0}
   function getJSON(url, opts) {
     return fetch(url, opts).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); });
   }
-  function fail(text) { $("start").hidden = $("write").hidden = true; $("msg").hidden = false; $("msg").textContent = text; }
+  function fail(text) { $("start").hidden = $("write").hidden = $("approve").hidden = true; $("msg").hidden = false; $("msg").textContent = text; }
   function setLang(d) {
     document.documentElement.lang = d.lang;
     document.documentElement.dir = d.dir;
@@ -332,8 +359,8 @@ legend{font-weight:600;font-size:15px;padding:0}
     });
   });
   function chosen(name) { var c = document.querySelector('input[name="' + name + '"]:checked'); return c ? c.value : ""; }
-  // Only them: nothing else to ask. Anyone else: their age and OK, and a
-  // parent or guardian's under 18.
+  // Only them: nothing else to ask. Anyone else: their age and OK; under
+  // 18, a parent or guardian approves it on their own link after saving.
   function showSharing() {
     var share = chosen("share");
     $("others").hidden = !share || share === "me";
@@ -505,10 +532,47 @@ legend{font-weight:600;font-size:15px;padding:0}
     var who = { me: ["story_status_me", "Only you can see your story."], church: ["story_status_church", "Shared with your church."],
       baptize: ["story_status_baptize", "Shared with your church and the Baptize 2027 team."] }[s.share];
     var kids = [T[who[0]] || who[1]];
+    var g = s.guardian;
+    if (g && g.status === "waiting") kids = [T.story_guardian_wait || "Waiting for your parent or guardian to approve it."];
+    if (g && g.status === "declined") kids = [T.story_guardian_no || "Your parent or guardian said not yet."];
+    if (g && g.status === "approved") kids.push(" · ", (T.story_guardian_yes || "Approved by {name}.").replace("{name}", g.name));
     if (s.read) kids.push(" · ", T.story_status_read || "Read by the team");
     if (s.featured) kids.push(" · ", el("b", {}, ["★ " + (T.story_status_featured || "Featured by the team")]));
     box.replaceChildren.apply(box, kids);
+    showGuardian(s);
   }
+
+  // Under 18 and waiting: send the approval link (share menu, else copy), or text it.
+  function guardianMessage(g) {
+    return (T.story_guardian_msg || "{name} wants to share their baptism story. Please read it and approve it here: {link}")
+      .replace("{name}", (story && story.first_name) || "").replace("{link}", g.link);
+  }
+  function showGuardian(s) {
+    var g = s && s.guardian;
+    $("gbox").hidden = !g || g.status === "approved";
+    $("gstatus").textContent = ""; $("gstatus").className = "status";
+  }
+  $("gsend").addEventListener("click", function () {
+    var g = story && story.guardian, st = $("gstatus");
+    if (!g) return;
+    var msg = guardianMessage(g);
+    if (navigator.share) return navigator.share({ text: msg }).catch(function () { /* they closed the menu */ });
+    if (navigator.clipboard) navigator.clipboard.writeText(msg).then(function () { st.textContent = T.story_copied || "Copied."; st.className = "status ok"; }, function () {});
+  });
+  $("gtext").addEventListener("click", function () {
+    var st = $("gstatus"), box = $("gbox");
+    clearErrors(box);
+    st.textContent = ""; st.className = "status";
+    $("gtext").disabled = true;
+    getJSON(api + "&part=guardian-text", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: $("guardian_phone").value }) })
+      .then(function (x) {
+        if (x[0] === 200) { st.textContent = T.story_guardian_texted || "Sent."; st.className = "status ok"; return; }
+        if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { st.textContent = x[1].message || x[1].error || "!"; st.className = "status bad"; }
+      })
+      .catch(function () { st.textContent = "Couldn't connect. Try again."; st.className = "status bad"; })
+      .then(function () { $("gtext").disabled = false; });
+  });
 
   function loadWrite() {
     return getJSON(api).then(function (x) {
@@ -544,8 +608,11 @@ legend{font-weight:600;font-size:15px;padding:0}
       put("agelabel", "story_age", "Are you 18 or older?");
       put("age_yes", "story_age_yes", "Yes");
       put("age_no", "story_age_no", "No, I'm under 18");
-      put("guardianlabel", "story_guardian", "Your parent or guardian's name");
-      put("guardianoklabel", "story_guardian_ok");
+      put("minor", "story_guardian_after", "Under 18: after you save, you'll get a link for your parent or guardian.");
+      put("gask", "story_guardian_ask", "Send this link to your parent or guardian.");
+      put("gsend", "story_guardian_send", "Send the link");
+      put("gphonelabel", "story_guardian_phone", "Or text the link to their phone");
+      put("gtext", "story_guardian_text_button", "Text it to them");
       put("cardtitle", "story_card", "Post it yourself");
       put("cardhint", "story_card_hint");
       put("sharebtn", "story_card_button", "Share my story");
@@ -555,7 +622,6 @@ legend{font-weight:600;font-size:15px;padding:0}
       built = build(s.answers || {});
       if (s.share) document.querySelector('input[name="share"][value="' + s.share + '"]').checked = true;
       if (s.adult !== null) document.querySelector('input[name="adult"][value="' + (s.adult ? "yes" : "no") + '"]').checked = true;
-      $("guardian_name").value = s.guardian_name; $("guardian_ok").checked = s.guardian_ok;
       showSharing();
       story = s; church = s.church;
       showStatus(s);
@@ -578,8 +644,7 @@ legend{font-weight:600;font-size:15px;padding:0}
     $("save").disabled = true;
     getJSON(api, { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ first_name: $("first_name").value, answers: answers(), body: $("body").value, share: chosen("share"),
-        adult: chosen("adult") ? chosen("adult") === "yes" : null, guardian_name: $("guardian_name").value,
-        guardian_ok: $("guardian_ok").checked, consent: $("consent").checked }) })
+        adult: chosen("adult") ? chosen("adult") === "yes" : null, consent: $("consent").checked }) })
       .then(function (x) {
         if (x[0] === 200) {
           s.textContent = T.story_saved || "Saved."; s.className = "status ok"; $("delete").hidden = false; $("journey").hidden = false;
@@ -604,7 +669,54 @@ legend{font-weight:600;font-size:15px;padding:0}
     }, function () { $("delete").disabled = false; });
   });
 
-  if (key) {
+  // ---------- /g/<key>: the parent or guardian's approval ----------
+  var gapi = "/api/story?g=" + encodeURIComponent(gkey);
+  function showApproval(d) {
+    T = d.text || {};
+    setLang(d);
+    $("intro").textContent = ""; // the header's line speaks to the writer
+    var s = d.story || {}, name = s.first_name || "";
+    if (!d.waiting) return fail(T.g_nothing || "There's nothing to approve right now.");
+    put("gtitle", "g_title", "A baptism story to approve");
+    $("gintro").textContent = (T.g_intro || "{name} is under 18 and wants to share this baptism story.").replace("{name}", name);
+    $("gchurch").textContent = s.church ? s.church.name + (s.church.place ? " · " + s.church.place : "") : "";
+    $("gbody").textContent = s.body + "\n\n\u2014 " + name;
+    put("gsharelabel", "g_share", "Who would read it");
+    put("gshare", s.share === "baptize" ? "g_share_baptize" : "g_share_church", s.share === "baptize" ? "Their church and the Baptize 2027 team" : "Their church");
+    put("gnamelabel", "g_name", "Your name");
+    $("gagreelabel").textContent = (T.g_agree || "I am {name}'s parent or guardian and agree to share it.").replace("{name}", name);
+    put("gapprove", "g_approve", "I approve");
+    put("gnotyet", "g_not_yet", "Not yet");
+    if (s.name && !$("g_name").value) $("g_name").value = s.name;
+    // Approved, or not yet: their answer, and the form to change it.
+    var done = s.approved ? "g_approved" : s.declined ? "g_declined" : "";
+    $("gdone").hidden = !done;
+    $("gdone").textContent = done ? (T[done] || "Thank you.").replace("{name}", name) : "";
+    $("gform").hidden = !!s.approved;
+    $("msg").hidden = true; $("approve").hidden = false;
+  }
+  function answer(approve) {
+    var f = $("gform");
+    clearErrors(f);
+    $("gapprove").disabled = $("gnotyet").disabled = true;
+    return getJSON(gapi, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve: approve, name: $("g_name").value, agree: $("g_agree").checked }) })
+      .then(function (x) {
+        if (x[0] === 200) { showApproval(x[1]); $("gdone").scrollIntoView({ block: "center" }); return; }
+        if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) fail(x[1].message || x[1].error || "!");
+      })
+      .catch(function () { fail("Couldn't connect. Try again."); })
+      .then(function () { $("gapprove").disabled = $("gnotyet").disabled = false; });
+  }
+  $("gform").addEventListener("submit", function (e) { e.preventDefault(); answer(true); });
+  $("gnotyet").addEventListener("click", function () { answer(false); });
+
+  if (gkey) {
+    getJSON(gapi).then(function (x) {
+      if (x[0] !== 200) { T = x[1].text || {}; return fail(T.web_bad_link || "This link doesn't work anymore."); }
+      showApproval(x[1]);
+    }).catch(function () { fail("Couldn't connect. Check your signal and reload."); });
+  } else if (key) {
     loadWrite().catch(function () { fail("Couldn't connect. Check your signal and reload."); });
   } else {
     // The language picked on the front page (?lang=), else the browser's

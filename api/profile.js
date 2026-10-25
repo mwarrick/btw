@@ -46,6 +46,7 @@ import { isProfileKey, linkText, newProfileKey, profileUrl, siteUrl } from "../l
 import { db, eq } from "../lib/supabase.js";
 import { RTL, phoneValue, wording as words } from "../lib/web-text.js";
 import { journeysWithStatus } from "../lib/journeys.js";
+import { readable } from "../lib/stories.js";
 import { explainStatus, sendText } from "../lib/voipms.js";
 import { checkCode, looksLikeBot, newCode, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 
@@ -137,9 +138,11 @@ export default async function handler(req, res) {
       return;
     }
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "stories") {
-      const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&share=in.(church,baptize)&select=first_name,body,share,submitted_at,updated_at&order=submitted_at.desc`);
+      const stories = await db(`btw_testimonies?church_id=eq.${church.id}&submitted_at=not.is.null&share=in.(church,baptize)&select=first_name,body,share,adult,guardian_at,submitted_at,updated_at&order=submitted_at.desc`);
       res.status(200).json({
-        stories: stories.filter((s) => s.submitted_at && (s.share === "church" || s.share === "baptize")),
+        // An under-18's story only once their parent or guardian approved it.
+        stories: stories.filter((s) => s.submitted_at && (s.share === "church" || s.share === "baptize") && readable(s))
+          .map(({ first_name, body, share, submitted_at, updated_at }) => ({ first_name, body, share, submitted_at, updated_at })),
         // The QR code's link: the story form with this church picked.
         start_url: `${siteUrl(req)}/story?church=${church.id}&lang=${church.lang || "en"}`,
       });
