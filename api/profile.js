@@ -124,7 +124,8 @@ export default async function handler(req, res) {
       return;
     }
     if (req.method === "GET" && new URL(req.url, "http://x").searchParams.get("part") === "journeys") {
-      const list = await journeysWithStatus([church.id]);
+      // Only those who let their church and the team see their progress.
+      const list = (await journeysWithStatus([church.id])).filter((j) => j.consent_at);
       res.status(200).json({
         weekly_note: church.weekly_note || "",
         journeys: list.sort((a, b) => (!!b.flag - !!a.flag) || b.id - a.id).map((j) => ({

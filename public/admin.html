@@ -2195,7 +2195,8 @@ async function loadJourneysAdmin() {
   try {
     const { journeys, totals } = await api("/api/admin/journeys");
     $("journeys-flagged").replaceChildren(...(totals.flagged ? [chip(String(totals.flagged), "bad")] : []));
-    $("journey-meter").textContent = `${totals.started} started · ${totals.active_week} opened their page this week · ${totals.finished} finished · ${totals.flagged} could use a call`;
+    $("journey-meter").textContent = `${totals.started} started · ${totals.active_week} opened their page this week · ${totals.finished} finished · ${totals.flagged} could use a call`
+      + (totals.private ? ` · ${totals.private} keeping their progress private` : "");
     $("journey-answers").textContent = "Check-ins: " + [7, 14, 21, 30].map((d) => {
       const a = totals.answers[d];
       return `day ${d}: ${a.good} well, ${a.hard} hard, ${a.question} question`;
