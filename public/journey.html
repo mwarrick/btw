@@ -101,7 +101,7 @@ details.day .body{padding:0 14px 14px}
       <ul class="results" id="results"></ul>
     </div>
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" maxlength="60" autocomplete="given-name"></div>
-    <div id="f-adult" style="margin-top:14px"><label id="agelabel"></label>
+    <div id="f-adult" style="margin-top:14px" hidden><label id="agelabel"></label>
       <div class="choices"><label><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label><label><input type="radio" name="adult" value="no"><span id="age_no"></span></label></div></div>
     <div id="f-contact_ok" style="margin-top:14px" hidden><label class="agree"><input type="checkbox" id="contact_ok"><span id="contactlabel"></span></label></div>
     <div id="f-phone" hidden><label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
@@ -231,7 +231,12 @@ details.day .body{padding:0 14px 14px}
   });
   // Only adults are offered "My church may contact me" and the phone box:
   // churches don't get an under-18's number.
-  function adultAnswer() { var c = document.querySelector('input[name="adult"]:checked'); return c ? c.value === "yes" : null; }
+  // "Are you 18 or older?" is off for now (2026-10-25, as on the story form):
+  // unanswered counts as 18+, so "My church may contact me" and the phone are
+  // offered to everyone. An answer carried from their story still counts.
+  // Set to true to ask again; the under-18 handling is all still there.
+  var ASK_AGE = false;
+  function adultAnswer() { var c = document.querySelector('input[name="adult"]:checked'); return c ? c.value === "yes" : ASK_AGE ? null : true; }
   function showContact() {
     var adult = adultAnswer() === true;
     $("f-contact_ok").hidden = !adult;
@@ -240,6 +245,7 @@ details.day .body{padding:0 14px 14px}
   }
   document.querySelectorAll('input[name="adult"]').forEach(function (i) { i.addEventListener("change", showContact); });
   $("contact_ok").addEventListener("change", showContact);
+  showContact();
   $("startform").addEventListener("submit", function (e) {
     e.preventDefault();
     var f = $("startform"), s = $("startstatus");

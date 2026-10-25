@@ -37,7 +37,7 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **Typed only.** No voice or video recording; the phone keyboard's microphone works for speaking a story.
 - **No AI polish.** The guided questions shape the story; nothing rewrites a rambling one (declined earlier).
 - **Featuring is a star.** The team marks stories to feature; getting them onto baptize.org is still by hand.
-- **The age question is hidden for now** (`ASK_AGE` in `public/story.html`): every new shared story counts as 18+, so no parent is asked. Turning it back on brings back the parent approval below, unchanged.
+- **The age question is hidden for now** (`ASK_AGE` in `public/story.html` and `public/journey.html`; on the 30 days it means anyone, under-18s included, can give their church a phone number): every new shared story counts as 18+, so no parent is asked. Turning it back on brings back the parent approval below, unchanged.
 - **The 18+ answer is taken on trust,** and so is who opens the parent's approval link: whoever the writer sends it to can approve.
 - **The phone check proves only the phone.** The link texted to the number shows it's theirs, but anyone can pick any church in the list.
 - **Advice translations need checking.** The seeded advice was translated by hand. "Translate into every language" overwrites every other language with Google drafts, which need a native speaker's eye.
