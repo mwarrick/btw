@@ -25,7 +25,7 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "resources_url", lang: "en", text: "https://example.org/resources" },
     { key: "done_link", lang: "en", text: "See or update your signup anytime: {link}" },
     { key: "web_signup_button", lang: "es", text: "Inscribirse" },
-    { key: "web_form_link", lang: "en", text: "Prefer a form? Answer every question on one page instead: {link} Or just keep replying here." },
+    { key: "web_form_link", lang: "en", text: "Or fill in one form instead: {link}" },
     { key: "land_text_us", lang: "en", text: "Or text {number} and sign up by text message, in your language." },
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" },
     { key: "story_guardian_msg", lang: "en", text: "{name} wants to share their baptism story. As their parent or guardian, please read it and approve it here: {link}" },
