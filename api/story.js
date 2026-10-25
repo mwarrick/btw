@@ -59,8 +59,8 @@ const BODY_MAX = 4000; // the advice asks for about 250 words; this only stops a
 const ANSWER_MAX = 1000;
 const QUESTIONS = ["before", "why", "moment", "advice", "verse"]; // story_q_<name>
 const SHARES = { me: "story_share_me", church: "story_share_church", baptize: "story_share_baptize" };
-const STORY_FIELDS = "id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,guardian_at,guardian_key,"
-  + "guardian_declined_at,consent_text,consent_at,submitted_at,updated_at,seen_at,featured_at,simulated";
+const STORY_FIELDS = "id,key,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,guardian_at,guardian_key,"
+  + "guardian_declined_at,consent_text,consent_at,submitted_at,updated_at,seen_at,featured_at,simulated,saved_texted_at";
 
 
 export default async function handler(req, res) {
@@ -254,7 +254,25 @@ async function save(req, story, body, res) {
     },
     prefer: "return=representation",
   });
+  if (!story.submitted_at) await textSaved(req, saved);
   res.status(200).json({ story: view(saved, null, req) });
+}
+
+// The first save texts the writer their link again, so it's at the top of
+// their messages for checking on, changing or deleting it later. Once per
+// story; not for sample stories; within the daily cap. A failure is logged.
+async function textSaved(req, story) {
+  const to = canText(story.phone);
+  if (!to || story.simulated || story.saved_texted_at || !(await textsLeft())) return;
+  await record("story_saved", visitor(req), story.phone);
+  const template = (await wording(story.lang || "en", ["story_saved_text"])).story_saved_text || "Your story is saved. See, change or delete it anytime: {link}";
+  const link = `${siteUrl(req)}/s/${story.key}`;
+  try {
+    await sendText(to, template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
+    await db(`btw_testimonies?id=eq.${story.id}`, { method: "PATCH", body: { saved_texted_at: new Date().toISOString() } });
+  } catch (err) {
+    await logEvent("error", "story", `The "story saved" text wasn't sent: ${err.status ? explainStatus(err.status) : err.message}`, { phone: story.phone });
+  }
 }
 
 // The writer texts their parent or guardian the approval link (US and
