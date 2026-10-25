@@ -3,17 +3,25 @@
 // adding and removing each other. Needs the admin session; the first-time
 // setup login (see lib/admin-auth.js) may only add users.
 //
-//   GET                                 -> { users: [{ id, name, email, last_login_at, created_at }], me }
+//   GET                                 -> { users: [{ id, name, email, alert_phone, last_login_at, created_at }], me }
 //   POST { name, email, password }      -> { user }: adds someone (or brings back someone removed)
-//   PATCH { id, name?, password? }      -> { user }: renames, or sets a new password, which
-//                                          signs that person out everywhere (but not you, if it's yours)
+//   PATCH { id, name?, password?, alert_phone? } -> { user }: renames, sets a new password (which
+//                                          signs that person out everywhere, but not you, if it's
+//                                          yours), or sets the US/Canadian mobile number that gets
+//                                          a text when a pastor writes to the team ("" turns it off;
+//                                          lib/team-alerts.js)
+//   PATCH { id, test_alert: true }      -> { sent: true }: texts them a sample alert
 //   DELETE ?id=...                      -> { removed: true }: signs them out and stops their login;
 //                                          the messages they sent keep their name
 
 import { PASSWORD_MIN, hashPassword, normalizeEmail, requireAdmin, setSessionCookie } from "../../lib/admin-auth.js";
+import { siteUrl } from "../../lib/profile-link.js";
 import { db, eq } from "../../lib/supabase.js";
+import { alertText } from "../../lib/team-alerts.js";
+import { canText, explainStatus, sendText } from "../../lib/voipms.js";
+import { phoneValue } from "../../lib/web-text.js";
 
-const FIELDS = "id,name,email,last_login_at,created_at";
+const FIELDS = "id,name,email,alert_phone,last_login_at,created_at";
 
 export default async function handler(req, res) {
   const me = await requireAdmin(req, res, { allowSetup: true });
@@ -25,6 +33,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") return await list(me, res);
     if (req.method === "POST") return await add(req.body || {}, res);
+    if (req.method === "PATCH" && req.body?.test_alert) return await testAlert(req, req.body.id, res);
     if (req.method === "PATCH") return await change(req.body || {}, me, res);
     if (req.method === "DELETE") return await remove(new URL(req.url, "http://x").searchParams.get("id"), me, res);
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
@@ -92,8 +101,16 @@ async function change(body, me, res) {
     fields.password_hash = await hashPassword(body.password);
     fields.session_version = target.session_version + 1;
   }
+  if (body.alert_phone !== undefined) {
+    const typed = String(body.alert_phone || "").trim();
+    fields.alert_phone = typed ? phoneValue(typed) : null;
+    if (typed && !canText(fields.alert_phone)) {
+      res.status(400).json({ error: "Enter a 10-digit US or Canadian mobile number, or leave it empty to turn alerts off." });
+      return;
+    }
+  }
   if (!Object.keys(fields).length) {
-    res.status(400).json({ error: "Send a new `name` or `password`." });
+    res.status(400).json({ error: "Send a new `name`, `password` or `alert_phone`." });
     return;
   }
 
@@ -101,6 +118,22 @@ async function change(body, me, res) {
   // Changing your own password shouldn't sign you out of this browser.
   if (fields.session_version && target.id === me.id) setSessionCookie(res, me.id, fields.session_version);
   res.status(200).json({ user });
+}
+
+async function testAlert(req, id, res) {
+  const [user] = await db(`btw_users?id=${eq(String(id || ""))}&active=eq.true&select=name,alert_phone`);
+  if (!canText(user?.alert_phone)) {
+    res.status(400).json({ error: "Save a mobile number for alerts first." });
+    return;
+  }
+  try {
+    await sendText(canText(user.alert_phone), alertText({ church: "Sample Church", phone: null,
+      body: "This is a test alert. A pastor's message would show here.", site: siteUrl(req) }));
+  } catch (err) {
+    res.status(502).json({ error: `The test alert wasn't sent: ${err.status ? explainStatus(err.status) : err.message}` });
+    return;
+  }
+  res.status(200).json({ sent: true });
 }
 
 async function remove(id, me, res) {

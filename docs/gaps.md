@@ -20,7 +20,7 @@ This is a proof of concept. These gaps are known and kept on purpose for the dem
 - **Slow requests.** A request takes about 7 seconds end to end, which risks voip.ms retries. Proof of concept only.
 
 ## Smaller items (noted, skipped)
-- **No alerts for reviewers.** A pastor's reply only shows as an unread badge in `/admin`.
+- **Alerts are texts only.** Team members can get a text when a pastor writes (Users: Set up alerts); there are no email alerts, and replying to an alert doesn't reach anyone.
 - **Page links can't be revoked.** Pastor's page links (`/p/<key>`) never expire, and `/admin` can't revoke them.
 - **Simulations are in the live data.** The simulated churches are flagged and badged. Remove them with Conversations → Remove simulations before real signups.
 - **Unconfirmed in production.** The Log panel and language detection on a real non-English first text haven't been checked there.
