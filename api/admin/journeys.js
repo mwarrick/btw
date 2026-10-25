@@ -51,7 +51,10 @@ export default async function handler(req, res) {
 }
 
 async function list(res) {
-  const journeys = await journeysWithStatus();
+  // Only those who let their church and the team see their progress; the
+  // rest are only counted.
+  const all = await journeysWithStatus();
+  const journeys = all.filter((j) => j.consent_at);
   const ids = [...new Set(journeys.map((j) => j.church_id).filter(Boolean))];
   const churches = ids.length ? await db(`btw_churches?id=in.(${ids.join(",")})&select=id,phone,church_name,city,state,country`) : [];
   const byId = new Map(churches.map((c) => [String(c.id), c]));
@@ -66,6 +69,7 @@ async function list(res) {
     journeys: rows,
     totals: {
       started: journeys.length,
+      private: all.length - journeys.length,
       active_week: journeys.filter((j) => j.seen_at && now - Date.parse(j.seen_at) < WEEK_MS).length,
       finished: journeys.filter((j) => j.finished).length,
       flagged: journeys.filter((j) => j.flag).length,

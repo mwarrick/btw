@@ -1,9 +1,11 @@
 // /api/journey.js
 // The first 30 days of faith (public/journey.html at /journey and /j/<key>).
-// Online, with one text: someone who gives their phone (adults who let their
-// church contact them, or the verified phone of their story) is texted their
-// private link once when they start (j_link_text). No reminders are texted.
-// The private link is the only login, as for a church's page. Their church follows along on its page's Newly baptized
+// Online, with one text: their phone is required (or the verified phone of
+// their story) and is texted their private link when they start
+// (j_link_text); entering the same number again texts that link again, so
+// the phone is how they get back in. No reminders are texted. Letting their
+// church contact them (contact_ok: the church sees the number) and letting
+// their church and the team see their progress (consent_at) are optional. Their church follows along on its page's Newly baptized
 // tab (api/profile.js); the team on Discipleship in /admin.
 //
 //   GET ?part=start&lang=xx[&story=<testimony key>][&church=<id>] -> { languages, lang, dir,
@@ -12,7 +14,9 @@
 //                         `church` is the church picked by its QR code (their page)
 //   GET ?part=churches&q=..  -> as api/story.js (finished, real signups)
 //   POST ?part=start { lang, church | story, first_name, consent, contact_ok, phone, tz }
-//                         -> { key, texted } or 400 { error, field, message }; one journey per story
+//                         -> { key, texted }, or { resent: true } when that phone already has a
+//                         journey (its link is texted to it; the key isn't given to whoever typed
+//                         the number), or 400 { error, field, message }; one journey per story
 //   GET ?key=..           -> { journey, church, days, lang, dir, text }: days that are
 //                         open carry their content and a Read it link; later ones only
 //                         their number
@@ -31,7 +35,7 @@ import { dir, languages, phoneValue, wording } from "../lib/web-text.js";
 const TEXT_KEYS = [
   "web_language", "web_phone", "web_phone_invalid", "web_required", "web_wait", "web_bad_link",
   "story_name", "story_church", "story_church_hint", "story_church_none", "land_baptized_button",
-  "j_title", "j_intro", "j_start_button", "j_consent", "j_contact", "j_phone_hint", "j_bookmark", "j_day", "j_locked",
+  "j_title", "j_intro", "j_start_button", "j_consent", "j_contact", "j_phone_hint", "j_link_resent", "j_bookmark", "j_day", "j_locked",
   "j_read", "j_question", "j_step", "j_done", "j_checkin", "j_good", "j_hard", "j_ask", "j_note", "j_send", "j_sent",
   "story_age", "story_age_yes", "story_age_no",
   "j_next", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_calendar", "j_week_note", "j_finished",
@@ -121,17 +125,16 @@ async function start(req, body, res) {
   if (!church || !church.completed_at || (church.simulated && !body.via_qr)) return refuse(400, "church", "story_church_hint", "Pick your church from the list.");
   const firstName = String(body.first_name ?? "").trim().replace(/\s+/g, " ");
   if (!firstName || firstName.length > 60) return refuse(400, "first_name", "web_required", "Enter your first name.");
-  // 18 or older (their story may already say). Under 18, no phone is taken:
-  // churches don't get a minor's number.
+  // 18 or older (their story may already say). Under 18, the church never
+  // gets their number (contact_ok stays off); the phone is still their login.
   const adult = story?.adult === true || story?.adult === false ? story.adult : body.adult;
   if (adult !== true && adult !== false) return refuse(400, "adult", "web_required", "Tell us if you're 18 or older.");
   const contactOk = adult && body.contact_ok === true;
-  let phone = null;
-  if (contactOk) {
-    phone = story?.phone || phoneValue(body.phone);
-    if (!phone) return refuse(400, "phone", "web_phone_invalid", "Enter a US or Canadian mobile number with its area code.");
-  }
-  if (body.consent !== true) return refuse(400, "consent", "web_required", "Tick the box to start.");
+  // The phone is how they get their link: required, and one we can text.
+  const phone = story?.phone || phoneValue(body.phone);
+  if (!phone || !canText(phone)) return refuse(400, "phone", "web_phone_invalid", "Enter a US or Canadian mobile number with its area code.");
+  // Letting their church and the team see their progress is their choice.
+  const shared = body.consent === true;
 
   const ip = visitor(req);
   // Bots get a link that leads nowhere; nothing is saved.
@@ -142,12 +145,22 @@ async function start(req, body, res) {
   if (!(await withinLimits("journey", ip, null))) return refuse(429, null, "web_wait", "Too many tries. Please wait a few minutes and try again.");
   await record("journey", ip, phone);
 
+  // One journey per phone (not from a story, handled above): starting again
+  // texts the same link to that number, never to whoever typed it.
+  if (!story) {
+    const [mine] = await db(`btw_journeys?phone=${eq(phone)}&select=key,lang&order=id.desc&limit=1`);
+    if (mine) {
+      await textLink(req, { phone, key: mine.key, lang: mine.lang || lang, demo: church.simulated, ip });
+      return res.status(200).json({ resent: true });
+    }
+  }
+
   const tz = validZone(body.tz);
   const key = newProfileKey();
   const now = new Date().toISOString();
   await db("btw_journeys", { method: "POST", body: {
     key, church_id: church.id, testimony_id: story?.id || null, first_name: firstName, lang, adult, phone, contact_ok: contactOk,
-    consent_text: words.j_consent || null, consent_at: now, started_on: dateIn(tz), tz, seen_at: now,
+    consent_text: shared ? words.j_consent || null : null, consent_at: shared ? now : null, started_on: dateIn(tz), tz, seen_at: now,
   } });
   const texted = await textLink(req, { phone, key, lang, demo: church.simulated, ip });
   res.status(200).json({ key, texted });

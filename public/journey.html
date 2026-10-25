@@ -103,8 +103,8 @@ details.day .body{padding:0 14px 14px}
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" maxlength="60" autocomplete="given-name"></div>
     <div id="f-adult" style="margin-top:14px" hidden><label id="agelabel"></label>
       <div class="choices"><label><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label><label><input type="radio" name="adult" value="no"><span id="age_no"></span></label></div></div>
+    <div id="f-phone"><label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
     <div id="f-contact_ok" style="margin-top:14px" hidden><label class="agree"><input type="checkbox" id="contact_ok"><span id="contactlabel"></span></label></div>
-    <div id="f-phone" hidden><label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
     <div id="f-consent" style="margin-top:14px"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
     <div class="hp" aria-hidden="true"><label>Leave this box empty <input id="hpx" name="hpx" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore></label></div>
     <button type="submit" id="startbtn"></button>
@@ -237,11 +237,14 @@ details.day .body{padding:0 14px 14px}
   // Set to true to ask again; the under-18 handling is all still there.
   var ASK_AGE = false;
   function adultAnswer() { var c = document.querySelector('input[name="adult"]:checked'); return c ? c.value === "yes" : ASK_AGE ? null : true; }
+  // The phone is how they get their link (and get it back): always asked,
+  // except from a story, whose phone we already know. Letting the church
+  // contact them, and see their progress, are their choice.
   function showContact() {
     var adult = adultAnswer() === true;
     $("f-contact_ok").hidden = !adult;
     if (!adult) $("contact_ok").checked = false;
-    $("f-phone").hidden = !adult || !$("contact_ok").checked || !!fromStory;
+    $("f-phone").hidden = !!fromStory;
   }
   document.querySelectorAll('input[name="adult"]').forEach(function (i) { i.addEventListener("change", showContact); });
   $("contact_ok").addEventListener("change", showContact);
@@ -262,6 +265,8 @@ details.day .body{padding:0 14px 14px}
       consent: $("consent").checked, tz: tz, company_hp: $("hpx").value, elapsed: Date.now() - opened }) })
       .then(function (x) {
         if (x[0] === 200 && x[1].key) { location.href = "/j/" + x[1].key; return; }
+        // That number has already started: its link was texted to it again.
+        if (x[0] === 200 && x[1].resent) { s.textContent = T.j_link_resent || "You've already started. We texted your link to that number."; s.className = "status ok"; return; }
         if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }
       })
       .catch(function () { s.textContent = "Couldn't connect. Try again."; s.className = "status bad"; })
