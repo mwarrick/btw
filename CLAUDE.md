@@ -78,6 +78,7 @@ Known gaps, kept on purpose for the demo: `docs/gaps.md`. Testimonies are built 
 
 ## Tooling quirks
 - Supabase returns at most 1000 rows per request. `btw_prompts` (one row per prompt per language) passed that with the country change (1053 rows) and was 1203 on 2026-10-24, so the newest prompts silently went missing (a texted photo's permission question went out empty: voip.ms `message_empty`). Whole-table reads use `dbAll()` in `lib/supabase.js` (pages with `limit`/`offset`; give it an `order`), and an empty reply is logged instead of sent.
+- `btw_web_requests.kind` has a check constraint listing every kind `record()` uses; a new kind needs it updated (migration `20261025150000`), or the insert fails with a 500. `dev/fake-db.mjs` doesn't enforce constraints, so tests won't catch it: the 30-days resend and the parent link text both broke live this way on 2026-10-25.
 - Supabase MCP: reads and `apply_migration` work; DELETE via `execute_sql` times out (use `/admin`'s Delete button).
 - Vercel MCP: deployments and runtime logs work (project `prj_0mYe7r3u736ewePhPOnodWuQQSQ7`, team `team_lgFLmF4DFBT7H0DS0A1KcLNr`); listing env vars is forbidden.
 - The live site isn't reachable from the sandbox; test with `dev/server.mjs` and Playwright (`/opt/pw-browsers/chromium`).
