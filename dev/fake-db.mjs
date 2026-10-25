@@ -30,6 +30,7 @@ export const tables = { btw_languages: [{ code: "en", name: "English", menu_labe
     { key: "login_link", lang: "en", text: "Upload photos, change your profile, record baptism counts here: {link}" },
     { key: "story_guardian_msg", lang: "en", text: "{name} wants to share their baptism story. As their parent or guardian, please read it and approve it here: {link}" },
     { key: "j_link_text", lang: "en", text: "Your first 30 days with Jesus: {link} Open it each day." },
+    { key: "story_saved_text", lang: "en", text: "Your story is saved. See, change or delete it anytime: {link}" },
     { key: "story_featured", lang: "en", text: "The Baptize 2027 team featured your baptism story. Thank you for sharing it! {link}" },
     { key: "g_intro", lang: "en", text: "{name} is under 18 and wants to share this baptism story. Please read it." },
     { key: "g_agree", lang: "en", text: "I am {name}'s parent or guardian. I have read this story and agree to share it as shown." }],
