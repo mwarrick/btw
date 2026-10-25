@@ -1,7 +1,9 @@
 // /api/journey.js
 // The first 30 days of faith (public/journey.html at /journey and /j/<key>).
-// Online only: nothing is texted. The private link is the only login, as for
-// a church's page. Their church follows along on its page's Newly baptized
+// Online, with one text: someone who gives their phone (adults who let their
+// church contact them, or the verified phone of their story) is texted their
+// private link once when they start (j_link_text). No reminders are texted.
+// The private link is the only login, as for a church's page. Their church follows along on its page's Newly baptized
 // tab (api/profile.js); the team on Discipleship in /admin.
 //
 //   GET ?part=start&lang=xx[&story=<testimony key>][&church=<id>] -> { languages, lang, dir,
@@ -10,7 +12,7 @@
 //                         `church` is the church picked by its QR code (their page)
 //   GET ?part=churches&q=..  -> as api/story.js (finished, real signups)
 //   POST ?part=start { lang, church | story, first_name, consent, contact_ok, phone, tz }
-//                         -> { key } or 400 { error, field, message }; one journey per story
+//                         -> { key, texted } or 400 { error, field, message }; one journey per story
 //   GET ?key=..           -> { journey, church, days, lang, dir, text }: days that are
 //                         open carry their content and a Read it link; later ones only
 //                         their number
@@ -21,7 +23,9 @@
 import { CHECKIN_DAYS, DAYS, NEXT_STEPS, bibleTemplate, currentDay, dateIn, loadDays, readUrl, validZone } from "../lib/journeys.js";
 import { isProfileKey, newProfileKey, siteUrl } from "../lib/profile-link.js";
 import { db, eq } from "../lib/supabase.js";
-import { looksLikeBot, record, visitor, withinLimits } from "../lib/web-guard.js";
+import { logEvent } from "../lib/events.js";
+import { canText, explainStatus, sendText } from "../lib/voipms.js";
+import { looksLikeBot, record, textsLeft, visitor, withinLimits } from "../lib/web-guard.js";
 import { dir, languages, phoneValue, wording } from "../lib/web-text.js";
 
 const TEXT_KEYS = [
@@ -145,7 +149,27 @@ async function start(req, body, res) {
     key, church_id: church.id, testimony_id: story?.id || null, first_name: firstName, lang, adult, phone, contact_ok: contactOk,
     consent_text: words.j_consent || null, consent_at: now, started_on: dateIn(tz), tz, seen_at: now,
   } });
-  res.status(200).json({ key });
+  const texted = await textLink(req, { phone, key, lang, demo: church.simulated, ip });
+  res.status(200).json({ key, texted });
+}
+
+// Their link by text, once, so it isn't lost with a bookmark. Not for a
+// demo church, past the daily cap, or a number texted in the last 10
+// minutes; a failure is logged and the journey still starts.
+async function textLink(req, { phone, key, lang, demo, ip }) {
+  const to = canText(phone);
+  if (!to || demo) return false;
+  if (!(await withinLimits("journey_link", ip, phone)) || !(await textsLeft())) return false;
+  await record("journey_link", ip, phone);
+  const template = (await wording(lang, ["j_link_text"])).j_link_text || "Your first 30 days: {link}";
+  const link = `${siteUrl(req)}/j/${key}`;
+  try {
+    await sendText(to, template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
+    return true;
+  } catch (err) {
+    await logEvent("error", "journey", `A 30-days link wasn't sent: ${err.status ? explainStatus(err.status) : err.message}`, { phone });
+    return false;
+  }
 }
 
 async function page(journey, res) {
