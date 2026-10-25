@@ -48,7 +48,7 @@ const TEXT_KEYS = [
   "story_age_yes", "story_age_no", "story_guardian", "story_guardian_ok", "story_card", "story_card_hint",
   "story_card_button", "story_card_save", "story_copy", "story_copied", "story_card_church",
   "story_phone_invalid", "story_cant_text", "story_card_pick", "story_name_label",
-  "story_examples", "story_phone_note", "story_status_me", "story_status_church", "story_status_baptize", "story_status_read", "story_status_featured",
+  "story_examples", "story_status_me", "story_status_church", "story_status_baptize", "story_status_read", "story_status_featured",
   "j_start_button", "story_guardian_after", "story_guardian_wait", "story_guardian_yes", "story_guardian_no",
   "story_guardian_ask", "story_guardian_send", "story_guardian_phone", "story_guardian_text_button", "story_guardian_texted",
   "story_guardian_msg", "story_copied", "g_title", "g_intro", "g_share", "g_share_church", "g_share_baptize", "g_name",
