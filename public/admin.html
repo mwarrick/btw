@@ -556,7 +556,7 @@
 
     <section class="block" data-screen="testimonies">
       <h2>Testimonies</h2>
-      <p class="hint">Baptism stories from <b>baptize.app/story</b>. A person picks their church, gets a private link by text (which proves the phone is theirs), answers a few questions and chooses who reads the story: only them, their church (the Stories tab of its page), or their church and this team. Only that last kind shows here, and only those can be <b>featured</b>; the others are just counted. Under 18, a parent or guardian agreed before it was shared. A story is <b>New</b> until marked read, and again after the writer changes it.</p>
+      <p class="hint">Baptism stories from <b>baptize.app/story</b>. A person picks their church, gets a private link by text (which proves the phone is theirs), answers a few questions and chooses who reads the story: only them, their church (the Stories tab of its page), or their church and this team. Only that last kind shows here, and only those can be <b>featured</b>; the others are just counted. Under 18, it shows only once a parent or guardian approved it on their own link (the writer sends it to them). Featuring a story texts its writer once, with its link. A story is <b>New</b> until marked read, and again after the writer changes it.</p>
       <div class="convo-bar">
         <div class="tabs" id="story-tabs"><button type="button" class="tab" aria-pressed="true" data-filter="all">All</button><button type="button" class="tab" aria-pressed="false" data-filter="featured">Featured</button></div>
         <span class="meter" id="story-meter"></span>
@@ -2031,8 +2031,9 @@ function storyCard(t) {
     h("button", { class: "btn small", type: "button", text: t.featured_at ? "★ Featured" : "☆ Feature",
       title: t.featured_at ? "Click to stop featuring it" : "Star it to feature (they agreed)", onclick: async () => {
       try {
-        const { sent } = await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { featured: !t.featured_at } });
-        if (sent) toast(sent === "mocked" ? "Featured. It would go to baptize.org now (mocked: Baptize has no API yet; see the Log)." : "Featured and sent to baptize.org.");
+        const { sent, texted } = await api(`/api/admin/testimonies?id=${t.id}`, { method: "PATCH", body: { featured: !t.featured_at } });
+        if (sent) toast((sent === "mocked" ? "Featured. It would go to baptize.org now (mocked: Baptize has no API yet; see the Log)." : "Featured and sent to baptize.org.")
+          + (texted ? " The writer was texted." : ""));
         loadTestimonies();
       } catch (err) {
         if (!err.silent) toast(err.message, "bad");
@@ -2078,11 +2079,12 @@ function storyCard(t) {
 
 async function loadTestimonies() {
   try {
-    const { testimonies, unseen, featured, waiting, private: kept, church_only } = await api("/api/admin/testimonies");
+    const { testimonies, unseen, featured, waiting, private: kept, church_only, parent } = await api("/api/admin/testimonies");
     $("stories-unseen").replaceChildren(...(unseen ? [chip(String(unseen), "bad")] : []));
     $("story-meter").textContent = `${testimonies.length} shared with the team`
       + (unseen ? ` · ${unseen} new` : "") + (featured ? ` · ${featured} featured` : "")
       + (church_only ? ` · ${church_only} for their church only` : "") + (kept ? ` · ${kept} kept private` : "")
+      + (parent ? ` · ${parent} under 18, waiting for a parent's OK` : "")
       + (waiting ? ` · ${waiting} link${waiting === 1 ? "" : "s"} sent, nothing written yet` : "");
     const shown = storyFilter === "featured" ? testimonies.filter((t) => t.featured_at) : testimonies;
     $("story-list").replaceChildren(...(shown.length ? shown.map(storyCard)

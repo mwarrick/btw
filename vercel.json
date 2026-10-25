@@ -61,6 +61,23 @@
       ]
     },
     {
+      "source": "/g/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    },
+    {
       "source": "/j/(.*)",
       "headers": [
         {
@@ -89,6 +106,10 @@
     },
     {
       "source": "/s/:key",
+      "destination": "/story"
+    },
+    {
+      "source": "/g/:key",
       "destination": "/story"
     },
     {

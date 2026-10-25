@@ -2,14 +2,16 @@
 // Baptism testimonies for the team (Testimonies in /admin), and the advice
 // shown beside the form (btw_guides, key "testimony"). Needs the admin session.
 //
-//   GET                       -> { testimonies, unseen, featured, waiting, private, church_only }:
+//   GET                       -> { testimonies, unseen, featured, waiting, private, church_only, parent }:
 //                                every story its writer shared with the team, latest change
 //                                first, with its church; the rest are only counted (kept
 //                                private, or for their church only); `waiting` counts links
-//                                sent but nothing written yet
+//                                sent but nothing written yet, `parent` under-18s' stories
+//                                waiting for a parent or guardian's approval (lib/stories.js)
 //   PATCH ?id= { seen: true } -> { ok }: no longer New
-//   PATCH ?id= { featured }   -> { ok, sent }: starred to feature, or not; featuring hands it
-//                                to Baptize (saveStory in lib/baptize.js, mocked: `sent` is "mocked")
+//   PATCH ?id= { featured }   -> { ok, sent, texted }: starred to feature, or not; featuring hands
+//                                it to Baptize (saveStory in lib/baptize.js, mocked: `sent` is
+//                                "mocked") and texts the writer once (story_featured, `texted`)
 //   POST ?part=samples        -> { added }: replaces the three sample stories (lib/simulations.js)
 //   POST ?id= { translate: true } -> { text }: the story in English (not saved)
 //   DELETE ?id=               -> { deleted: true }
@@ -24,7 +26,12 @@
 
 import { requireAdmin } from "../../lib/admin-auth.js";
 import { saveStory } from "../../lib/baptize.js";
+import { logEvent } from "../../lib/events.js";
+import { siteUrl } from "../../lib/profile-link.js";
+import { readable } from "../../lib/stories.js";
 import { db, dbAll, eq } from "../../lib/supabase.js";
+import { canText, explainStatus, sendText } from "../../lib/voipms.js";
+import { wording } from "../../lib/web-text.js";
 import { addSampleStoriesToSimulation } from "../../lib/simulations.js";
 import { translate } from "../../lib/translate.js";
 
@@ -49,17 +56,18 @@ export default async function handler(req, res) {
     if (req.method === "GET") return await list(res);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Send ?id= of a testimony." });
     if (req.method === "PATCH" && typeof req.body?.featured === "boolean") {
-      // Only a story its writer shared with the team can be featured.
-      const done = await db(`btw_testimonies?id=eq.${id}&share=eq.baptize&select=id`, {
-        method: "PATCH", body: { featured_at: req.body.featured ? new Date().toISOString() : null }, prefer: "return=representation",
-      });
-      if (!done.length) return res.status(404).json({ error: "That story isn't shared with the team." });
+      // Only a story its writer shared with the team (and, under 18, their
+      // parent or guardian approved) can be featured.
+      const [story] = await db(`btw_testimonies?id=eq.${id}&select=first_name,lang,body,answers,consent_text,adult,guardian_name,`
+        + "guardian_at,church_id,share,phone,key,simulated,featured_texted_at");
+      if (!story || story.share !== "baptize" || !readable(story)) return res.status(404).json({ error: "That story isn't shared with the team." });
+      await db(`btw_testimonies?id=eq.${id}`, { method: "PATCH", body: { featured_at: req.body.featured ? new Date().toISOString() : null } });
       if (!req.body.featured) return res.status(200).json({ ok: true });
-      const [story] = await db(`btw_testimonies?id=eq.${id}&select=first_name,lang,body,answers,consent_text,adult,guardian_name,church_id`);
+      const texted = await textFeatured(req, id, story);
       const [church] = story.church_id ? await db(`btw_churches?id=eq.${story.church_id}&select=church_name,city,state,country`) : [];
       const sent = await saveStory({ ...story, church_name: church?.church_name,
         church_place: church ? [church.city, church.state, church.country && church.country !== "US" ? church.country : null].filter(Boolean).join(", ") : null });
-      return res.status(200).json({ ok: true, sent: sent.mocked ? "mocked" : "sent" });
+      return res.status(200).json({ ok: true, sent: sent.mocked ? "mocked" : "sent", texted });
     }
     if (req.method === "PATCH") {
       await db(`btw_testimonies?id=eq.${id}`, { method: "PATCH", body: { seen_at: new Date().toISOString() } });
@@ -82,11 +90,30 @@ export default async function handler(req, res) {
   }
 }
 
+// The writer hears once that their story was featured, with its link.
+// Never for a sample story, and only where we can text (lib/voipms.js canText).
+async function textFeatured(req, id, story) {
+  const to = canText(story.phone);
+  if (story.simulated || story.featured_texted_at || !to || !story.key) return false;
+  const lang = story.lang || "en";
+  const template = (await wording(lang, ["story_featured"])).story_featured || "The Baptize 2027 team featured your baptism story. Thank you for sharing it! {link}";
+  const link = `${siteUrl(req)}/s/${story.key}`;
+  try {
+    await sendText(to, template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
+  } catch (err) {
+    const why = err.status ? explainStatus(err.status) : err.message;
+    await logEvent("error", "story", `The "story featured" text wasn't sent: ${why}`, { phone: story.phone });
+    return false;
+  }
+  await db(`btw_testimonies?id=eq.${id}`, { method: "PATCH", body: { featured_texted_at: new Date().toISOString() } });
+  return true;
+}
+
 async function list(res) {
   const rows = await dbAll("btw_testimonies?select=id,phone,church_id,lang,first_name,answers,body,share,adult,guardian_name,"
     + "guardian_at,submitted_at,updated_at,seen_at,featured_at,simulated&order=id");
   const written = rows.filter((t) => t.submitted_at);
-  const saved = written.filter((t) => t.share === "baptize");
+  const saved = written.filter((t) => t.share === "baptize" && readable(t));
   const ids = [...new Set(saved.map((t) => t.church_id).filter(Boolean))];
   const churches = ids.length ? await db(`btw_churches?id=in.(${ids.join(",")})&select=id,phone,church_name,city,state,country`) : [];
   const byId = new Map(churches.map((c) => [String(c.id), c]));
@@ -103,7 +130,8 @@ async function list(res) {
     featured: testimonies.filter((t) => t.featured_at).length,
     waiting: rows.length - written.length,
     private: written.filter((t) => t.share === "me").length,
-    church_only: written.filter((t) => t.share === "church").length,
+    church_only: written.filter((t) => t.share === "church" && readable(t)).length,
+    parent: written.filter((t) => !readable(t)).length,
   });
 }
 
