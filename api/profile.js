@@ -77,7 +77,7 @@ const TEXT_KEYS = [
   // The Newly baptized tab: people on their first 30 days (api/journey.js).
   "web_tab_journeys", "web_journeys_intro", "web_no_journeys", "web_journey_progress", "web_journey_flag",
   "web_journey_last", "web_journey_qr", "web_journey_qr_hint", "web_print", "j_title",
-  "web_story_qr", "web_story_qr_hint", "story_title",
+  "web_story_qr", "web_story_qr_hint", "story_title", "web_journey_minor",
   "web_journey_talked", "web_journey_next_label", "web_weekly_note", "web_weekly_note_hint",
   "j_good", "j_hard", "j_ask", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_day",
   // The Stories tab: baptism stories from the church's people (api/story.js).
@@ -129,7 +129,7 @@ export default async function handler(req, res) {
         journeys: list.sort((a, b) => (!!b.flag - !!a.flag) || b.id - a.id).map((j) => ({
           id: j.id, first_name: j.first_name, day: j.day, done: j.done, finished: j.finished, next_step: j.next_step,
           checkins: j.checkins, flag: j.flag, phone: j.contact_ok && j.phone ? formatPhone(j.phone) : null, started_on: j.started_on,
-          last_active: j.last_active, simulated: j.simulated,
+          last_active: j.last_active, simulated: j.simulated, minor: j.adult === false,
         })),
         // The QR code's link: the 30 days with this church picked.
         start_url: `${siteUrl(req)}/journey?church=${church.id}&lang=${church.lang || "en"}`,

@@ -45,6 +45,8 @@ button.quiet,a.button.quiet{background:transparent;color:var(--brand);border:1px
 .picked div{flex:1;font-weight:600}.picked small{display:block;font-weight:400;color:var(--muted)}
 .picked button{width:auto;margin:0;min-height:38px;padding:6px 12px}
 .agree{display:flex;gap:10px;align-items:flex-start;font-weight:400}
+.choices{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}.choices label{display:flex;gap:8px;align-items:center;font-weight:400;margin:0}
+.choices input{width:22px;height:22px;min-height:0;margin:0;padding:0}
 .agree input{width:22px;height:22px;min-height:0;margin:2px 0 0;padding:0;flex:0 0 auto}
 .err{display:block;color:var(--bad);font-weight:400;font-size:14px;margin-top:4px}
 .bad input,.bad textarea{border-color:var(--bad)}
@@ -99,7 +101,9 @@ details.day .body{padding:0 14px 14px}
       <ul class="results" id="results"></ul>
     </div>
     <div id="f-first_name"><label for="first_name" id="namelabel"></label><input id="first_name" maxlength="60" autocomplete="given-name"></div>
-    <div id="f-contact_ok" style="margin-top:14px"><label class="agree"><input type="checkbox" id="contact_ok"><span id="contactlabel"></span></label></div>
+    <div id="f-adult" style="margin-top:14px"><label id="agelabel"></label>
+      <div class="choices"><label><input type="radio" name="adult" value="yes"><span id="age_yes"></span></label><label><input type="radio" name="adult" value="no"><span id="age_no"></span></label></div></div>
+    <div id="f-contact_ok" style="margin-top:14px" hidden><label class="agree"><input type="checkbox" id="contact_ok"><span id="contactlabel"></span></label></div>
     <div id="f-phone" hidden><label for="phone"><span id="phonelabel"></span><span class="hint" id="phonehint"></span></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel"></div>
     <div id="f-consent" style="margin-top:14px"><label class="agree"><input type="checkbox" id="consent"><span id="consentlabel"></span></label></div>
     <div class="hp" aria-hidden="true"><label>Leave this box empty <input id="hpx" name="hpx" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore></label></div>
@@ -174,6 +178,9 @@ details.day .body{padding:0 14px 14px}
       put("phonehint", "j_phone_hint");
       put("consentlabel", "j_consent");
       put("startbtn", "j_start_button", "Start my first 30 days");
+      put("agelabel", "story_age", "Are you 18 or older?");
+      put("age_yes", "story_age_yes", "Yes");
+      put("age_no", "story_age_no", "No, I'm under 18");
       $("lang").replaceChildren.apply($("lang"), (d.languages || []).map(function (l) {
         var o = el("option", { value: l.code }, [l.name]); o.selected = l.code === d.lang; return o;
       }));
@@ -184,6 +191,11 @@ details.day .body{padding:0 14px 14px}
         fromStory = d.from;
         if (d.from.church) { pick(d.from.church); $("change").hidden = true; }
         if (!$("first_name").value) $("first_name").value = d.from.first_name || "";
+        // Their story already said whether they're 18 or older.
+        if (d.from.adult === true || d.from.adult === false) {
+          document.querySelector('input[name="adult"][value="' + (d.from.adult ? "yes" : "no") + '"]').checked = true;
+          showContact();
+        }
       }
       // From their church's QR code: that church, which they can still change.
       if (d.church && !church) pick(d.church);
@@ -217,7 +229,17 @@ details.day .body{padding:0 14px 14px}
       });
     }, 250);
   });
-  $("contact_ok").addEventListener("change", function () { $("f-phone").hidden = !$("contact_ok").checked || !!fromStory; });
+  // Only adults are offered "My church may contact me" and the phone box:
+  // churches don't get an under-18's number.
+  function adultAnswer() { var c = document.querySelector('input[name="adult"]:checked'); return c ? c.value === "yes" : null; }
+  function showContact() {
+    var adult = adultAnswer() === true;
+    $("f-contact_ok").hidden = !adult;
+    if (!adult) $("contact_ok").checked = false;
+    $("f-phone").hidden = !adult || !$("contact_ok").checked || !!fromStory;
+  }
+  document.querySelectorAll('input[name="adult"]').forEach(function (i) { i.addEventListener("change", showContact); });
+  $("contact_ok").addEventListener("change", showContact);
   $("startform").addEventListener("submit", function (e) {
     e.preventDefault();
     var f = $("startform"), s = $("startstatus");
@@ -230,7 +252,7 @@ details.day .body{padding:0 14px 14px}
     getJSON("/api/journey?part=start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
       lang: $("lang").value || "en", story: params.get("story") || null, church: church && church.id,
       via_qr: !!(church && params.get("church") === String(church.id)),
-      first_name: $("first_name").value, contact_ok: $("contact_ok").checked, phone: $("phone").value,
+      first_name: $("first_name").value, adult: adultAnswer(), contact_ok: $("contact_ok").checked, phone: $("phone").value,
       consent: $("consent").checked, tz: tz, company_hp: $("hpx").value, elapsed: Date.now() - opened }) })
       .then(function (x) {
         if (x[0] === 200 && x[1].key) { location.href = "/j/" + x[1].key; return; }

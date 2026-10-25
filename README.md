@@ -2,7 +2,7 @@
 
 Church signup for Baptize 2027, entirely by text message through [voip.ms](https://voip.ms), on Vercel serverless functions with a Supabase database. The SMS wording lives in the database and is edited at `/admin`.
 
-**Hackathon submission (track 2, testimony sharing):** see [docs/HACKATHON.md](docs/HACKATHON.md). License: MIT ([LICENSE](LICENSE)).
+License: MIT ([LICENSE](LICENSE)).
 
 | Path | Purpose |
 | --- | --- |

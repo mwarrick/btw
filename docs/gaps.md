@@ -21,7 +21,6 @@ This is a proof of concept. These gaps are known and kept on purpose for the dem
 
 ## Smaller items (noted, skipped)
 - **No alerts for reviewers.** A pastor's reply only shows as an unread badge in `/admin`.
-- **RESTART wipes a finished signup.** RESTART after finishing deletes that phone's answers.
 - **Page links can't be revoked.** Pastor's page links (`/p/<key>`) never expire, and `/admin` can't revoke them.
 - **Simulations are in the live data.** The simulated churches are flagged and badged. Remove them with Conversations → Remove simulations before real signups.
 - **Unconfirmed in production.** The Log panel and language detection on a real non-English first text haven't been checked there.
@@ -53,7 +52,6 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **No add to home screen.** The page can be bookmarked, but it can't be installed like an app.
 - **Not by text or WhatsApp.** The brief's main ask: a daily step by text with replies. Online only for now (decided).
 - **Our own plan, not John.** The brief suggests the Gospel of John with days 22 to 30 left to the church.
-- **No age question.** A church may get an under-18's phone number.
 - **"Quiet" means not opening the page.** Opening it without doing anything still counts as active.
 - **+1 day changes real data.** It's for demos; using it on a real person moves their days for good.
 
