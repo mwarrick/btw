@@ -1,8 +1,10 @@
 # Baptize 2027: sign up, share, grow
 
-A simple way for churches to join **Baptize 2027** and for the people they baptize to share their story and take their first steps of faith, from any phone, in their own language.
+A simple way for churches to join **Baptize 2027**, and for the people they baptize to share their story and take their first steps of faith, from any phone, in their own language.
 
-**Live site:** [baptize.app](https://baptize.app) · **How it works, in pictures:** [baptize.app/features](https://baptize.app/features)
+Churches sign up whichever way suits them: **by text message**, answering one short question at a time, or **on a mobile-friendly web page**. Stories and the first 30 days are mobile-friendly web pages too.
+
+**Live site:** [baptize.app](https://baptize.app) · **Diagrams of each journey:** [How it works](#how-it-works) below · **Screenshots:** [baptize.app/features](https://baptize.app/features)
 
 <p>
   <img src="public/img/how/text-signup.jpg" width="200" alt="A church signing up by text, one question at a time">
@@ -13,7 +15,7 @@ A simple way for churches to join **Baptize 2027** and for the people they bapti
 
 ## Who it's for
 
-**Churches.** A pastor signs up by simply texting our number and answering about 14 short questions, one text at a time, or by filling in one form online. They get a private link to their church's own page, where they can change their answers, add photos of baptisms, report how many people they've baptized, and see how their newly baptized are doing.
+**Churches.** A pastor signs up by simply texting our number and answering about 14 short questions, one text at a time, or by filling in one mobile-friendly form on the web. They get a private link to their church's own page, where they can change their answers, add photos of baptisms, report how many people they've baptized, and see how their newly baptized are doing.
 
 **People who were baptized.** Anyone baptized can write their story with a few guided questions, choose who may read it, and make a picture of it to post themselves. They can also follow **the first 30 days**: a short reading, a question and one small step each day, with check-ins their church can see if they allow it.
 
