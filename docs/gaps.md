@@ -51,7 +51,7 @@ Protected since 2026-10-24 (`lib/web-guard.js`): the phone is confirmed with a t
 - **No phone check.** Starting from the front page doesn't verify the phone a person gives for their church to call. Starting from a story uses that story's verified number.
 - **No add to home screen.** The page can be bookmarked, but it can't be installed like an app.
 - **Not by text or WhatsApp.** The brief's main ask: a daily step by text with replies. Online only for now (decided).
-- **Our own plan, not John.** The brief suggests the Gospel of John with days 22 to 30 left to the church.
+- **One plan for every church.** The brief suggested reading the Gospel of John and leaving days 22 to 30 for each church to write. We wrote all 30 days ourselves instead (first lessons, Mark, Acts 2 and the church, living it out), so every church gets the same plan. A church can't add or change days; it can only post the weekly note shown on top of each day. The days are edited by the team on /admin's Discipleship screen.
 - **"Quiet" means not opening the page.** Opening it without doing anything still counts as active.
 - **+1 day changes real data.** It's for demos; using it on a real person moves their days for good.
 
