@@ -1,17 +1,17 @@
 # voip.ms: sending, receiving and open questions
 
-Setup steps (API password, callback URL, MMS, 10DLC) are in `README.md`. How texts are handled is in [features/sms-signup.md](features/sms-signup.md).
+Setup steps (API password, callback URL, MMS, 10DLC) are in [setup.md](setup.md). How texts are handled is in [features/sms-signup.md](features/sms-signup.md).
 
 ## Sending through the relay
 
-- voip.ms only accepts API calls from whitelisted IPs, so sending goes through an n8n relay at https://n8n.markwarrick.org (`relay/`; `lib/voipms.js` sends `X-Relay-Key`). Vercel Static IPs were rejected at $100/month.
-- The site is behind Cloudflare, so the IP to whitelist is the server's own outbound IP, not what the hostname resolves to: **76.175.179.85** (Spectrum residential, unchanged for years per the user). If sending starts failing with `ip_not_enabled`, check `curl https://api.ipify.org` on the server first.
+- voip.ms only accepts API calls from whitelisted IPs, so sending goes through an n8n relay on the organizer's own server (its address is the `VOIPMS_API_URL` setting in Vercel; setup in `relay/`; `lib/voipms.js` sends `X-Relay-Key`). Vercel Static IPs were rejected at $100/month.
+- The site is behind Cloudflare, so the IP to whitelist is the server's own outbound IP, not what the hostname resolves to (a residential IP, unchanged for years per the user; it's the one whitelisted in the voip.ms portal). If sending starts failing with `ip_not_enabled`, check `curl https://api.ipify.org` on the server first.
 - `/admin` has a Connection screen (`api/admin/sms-check.js`) that checks the relay (`getIP`), credentials and whitelist (`getBalance`), shows the DID texts come from (`VOIPMS_DID`, confirmed on the account with `getDIDsInfo`, with its SMS setting and description), and sends a test text. Working in production as of 2026-10-23.
 - Which numbers we can text is `canText` in `lib/voipms.js` (US and Canada today), so switching provider changes only that file.
 
 ## Open questions (verify against https://voip.ms/m/apidocs.php)
 
-1. ~~Format of the incoming callback~~: answered live. voip.ms sends GET with the placeholders filled in and `&` between them, e.g. `{"id":"113367333","from":"9498709493","to":"7147165116","message":"Hi 2","date":"2026-10-23 11:37:00"}` once normalized (`date` is local time, no zone). `flattenBody` / `parseQuery` could be simplified to match. One request took about 7 seconds end to end (incl. a relay send).
+1. ~~Format of the incoming callback~~: answered live. voip.ms sends GET with the placeholders filled in and `&` between them, e.g. `{"id":"113367333","from":"5551234567","to":"5559990000","message":"Hi 2","date":"2026-10-23 11:37:00"}` once normalized (`date` is local time, no zone). `flattenBody` / `parseQuery` could be simplified to match. One request took about 7 seconds end to end (incl. a relay send).
 2. Does `rest.php` accept POST for `sendSMS`, or only GET? The code POSTs form-encoded data for both.
 3. The response field holding the message id: `sms` for `sendSMS`, `mms` for `sendMMS`? The code assumes so.
 4. Does `sendMMS` accept media URLs in `media1..3`, or only base64? (Needed before reviewers can send pictures.)

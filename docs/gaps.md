@@ -16,7 +16,7 @@ This is a proof of concept. These gaps are known and kept on purpose for the dem
 - **No native-speaker check.** The hand-written translations have not been checked by native speakers. This covers the keyword lists, the fixed prompts, `lang_detected`, `kw_menu` and the web pages' wording, including the signup form's. Acceptable for the demo.
 
 ## Reliability
-- **One point of failure for sending.** Every text goes through the n8n relay on a residential IP (76.175.179.85). If that machine or line is down, nothing is sent.
+- **One point of failure for sending.** Every text goes through the n8n relay on a residential connection. If that machine or line is down, nothing is sent.
 - **Slow requests.** A request takes about 7 seconds end to end, which risks voip.ms retries. Proof of concept only.
 
 ## Smaller items (noted, skipped)

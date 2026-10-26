@@ -1,29 +1,25 @@
-# btw
+# Baptize 2027: sign up, share, grow
 
-Church signup for Baptize 2027, entirely by text message through [voip.ms](https://voip.ms), on Vercel serverless functions with a Supabase database. The SMS wording lives in the database and is edited at `/admin`.
+A simple way for churches to join **Baptize 2027** and for the people they baptize to share their story and take their first steps of faith, from any phone, in their own language.
 
-License: MIT ([LICENSE](LICENSE)).
+**Live site:** [baptize.app](https://baptize.app) · **How it works, in pictures:** [baptize.app/features](https://baptize.app/features)
 
-| Path | Purpose |
-| --- | --- |
-| `/` | The front page: Church organizers (sign up, text us, Get my link), I was baptized (share your story), Team (`/admin`). |
-| `/signup` | The signup form: the same form as a church's own page, with the phone typed in, a language picker and the consent box. Confirms the phone with a texted 6-digit code, saves a finished signup, texts the thank-you with the page link and opens the page (`/p/<key>`). |
-| `/story`, `/s/<key>` | Baptism testimonies: pick a church, get a private link by text, answer guided questions (with example stories), choose who can read it (only them, their church, or their church and the team), and share a story picture. |
-| `/journey`, `/j/<key>` | The first 30 days of faith: one reading a day, check-ins that reach the person's church (Newly baptized tab on its page). Online only. |
-| `/demo` | A browser demo of the signup conversation. Nothing is saved or sent. |
-| `/admin` | SMS Gateway, with one screen each for Conversations (signups, and texting pastors), Prompts (message text, edited in English with Translate into the rest), Languages, Log, Users and Connection (voip.ms checks). Each person logs in with their own email and password. |
-| `POST /api/sms-send` | Send an SMS or MMS from your voip.ms number |
-| `/p/<key>` | A pastor's own signup page, linked from the DONE text: see and update their answers on a phone. The key in the link is the only login. |
-| `GET/PATCH /api/profile?key=` | That page's data and saves |
-| `GET/POST/DELETE /api/profile-photos?key=` | That page's Photos tab (`/p/<key>#photos`): list, upload (with permission for public use), delete |
-| `GET/POST /api/sms-inbound` | voip.ms calls this when a text arrives; it runs the signup conversation and texts the replies |
-| `/api/admin/*` | The editor's API: `session`, `prompts`, `languages`, `translate` (drafts, not saved), `translate-all` (one prompt into every language, saved), `sms-check` (relay and voip.ms connection check, test text), `conversations` (signups, and one number's texts and answers), `events` (the problem log), `users` (add, rename, new password, remove), `churches` (read and edit one signup's answers), `photos` (every church's photos, or one number's; delete), `simulations` (add or remove the eleven made-up signups) |
+<p>
+  <img src="public/img/how/text-signup.jpg" width="200" alt="A church signing up by text, one question at a time">
+  <img src="public/img/how/church-page.jpg" width="200" alt="A church's own page">
+  <img src="public/img/how/story-page.jpg" width="200" alt="A baptism story page">
+  <img src="public/img/how/first-30-days.jpg" width="200" alt="Day 1 of the first 30 days">
+</p>
 
-Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
+## Who it's for
+
+**Churches.** A pastor signs up by simply texting our number and answering about 14 short questions, one text at a time, or by filling in one form online. They get a private link to their church's own page, where they can change their answers, add photos of baptisms, report how many people they've baptized, and see how their newly baptized are doing.
+
+**People who were baptized.** Anyone baptized can write their story with a few guided questions, choose who may read it, and make a picture of it to post themselves. They can also follow **the first 30 days**: a short reading, a question and one small step each day, with check-ins their church can see if they allow it.
+
+**The Baptize 2027 team.** The team sees every signup, texts pastors back from the same number, reads the stories people chose to share with them, and edits the wording of every message.
 
 ## How it works
-
-The front page has three ways in: one for churches, and two for people who were baptized. These diagrams are the short version; [docs/workflows.md](docs/workflows.md) has every step, and [docs/features/](docs/features/) has the details.
 
 ### Churches
 
@@ -34,17 +30,17 @@ flowchart LR
   pastor([Pastor]) --> how{Signs up}
   how -->|texts our number| lang[Language detected,<br>or picked from a menu]
   lang --> q[About 14 questions,<br>one text at a time]
-  how -->|"/signup on the web"| code[Texted code<br>confirms the phone]
+  how -->|fills in a form online| code[Texted code<br>confirms the phone]
   code --> form[One form]
   q -.->|or finishes on the web| form
   q --> done[[Thank-you text<br>with the page link]]
   form --> done
-  done --> page["Church page /p/key:<br>answers, photos, baptism count,<br>resources, QR codes to invite"]
+  done --> page["The church's own page:<br>answers, photos, baptism count,<br>resources, QR codes to invite"]
   done -.->|after signup| later[Later texts]
   later --> kind{What is it?}
   kind -->|a number| count[Baptism count saved]
   kind -->|a picture| photo[Photo kept,<br>asks to share it]
-  kind -->|anything else| team["Team inbox in /admin<br>+ text alert"]
+  kind -->|anything else| team["Baptize 2027 team inbox<br>+ a text alert to the team"]
   team -->|reply by text| later
 ```
 
@@ -54,13 +50,13 @@ Anyone baptized can write their story. A link texted to their phone is how they 
 
 ```mermaid
 flowchart LR
-  person([Someone baptized]) --> start["/story<br>(front page or church QR code)"]
+  person([Someone baptized]) --> start["Story start page<br>(front page or church QR code)"]
   start --> link[[Link texted<br>to their phone]]
-  link --> write["/s/key: five guided<br>questions become a story"]
+  link --> write["Their own story page:<br>five guided questions<br>become a story"]
   write --> who{Who can read it?}
   who -->|only me| mine[Private]
   who -->|my church| church[Church page:<br>Stories tab]
-  who -->|church and the team| team["/admin: read,<br>feature it"]
+  who -->|church and the team| team["Baptize 2027 team<br>reads it, may feature it"]
   write --> card[Story picture<br>to post themselves]
   write --> next["Start the first 30 days"]
 ```
@@ -71,9 +67,9 @@ Online, except one text with their link. A new day opens each day, and check-ins
 
 ```mermaid
 flowchart LR
-  person([Newly baptized]) --> start["/journey<br>(front page, church QR code,<br>or their story)"]
+  person([Newly baptized]) --> start["30 days start page<br>(front page, church QR code,<br>or their story)"]
   start --> link[[Link texted<br>to their phone]]
-  link --> days["/j/key: a reading,<br>question and step each day"]
+  link --> days["Their own 30 days page:<br>a reading, a question<br>and a step each day"]
   days --> checkin{"Check-in on<br>days 7, 14, 21, 30"}
   checkin -->|going well| days
   checkin -->|"it's hard / a question"| flag
@@ -83,76 +79,29 @@ flowchart LR
   checkin -->|day 30| next([Next step:<br>group, serve, class])
 ```
 
-## Environment variables
+## In 10 languages
 
-| Name | What it is |
-| --- | --- |
-| `VOIPMS_API_USERNAME` | Your voip.ms account email |
-| `VOIPMS_API_PASSWORD` | The API password, which is separate from your portal password |
-| `VOIPMS_DID` | Your voip.ms number to send from, as 10 digits |
-| `SMS_SEND_KEY` | Shared secret that callers of `/api/sms-send` must send |
-| `SMS_INBOUND_KEY` | Shared secret in the voip.ms callback URL |
-| `VOIPMS_API_URL` | The n8n relay's webhook URL (see `relay/README.md`). Unset: call voip.ms directly, which fails from Vercel. |
-| `VOIPMS_RELAY_KEY` | The relay's shared secret, sent as the `X-Relay-Key` header |
-| `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | The service role (secret) key. Server-side only. |
-| `ADMIN_PASSWORD` | Signs the `/admin` session cookies, so changing it logs everyone out. Before any user exists it's also the setup password that logs in to add the first one. |
-| `GOOGLE_TRANSLATE_API_KEY` | API key restricted to the Cloud Translation API, for "Draft with Google" in the editor |
-| `TRANSLATE_PROVIDER` | Optional: `google` (the default and only option so far) |
-| `WEB_TEXTS_PER_DAY` | Optional: the most texts the signup form and Get my link may send in 24 hours (default 300). Past it they stop sending and an error shows in the Log panel. |
-| `PUBLIC_SITE_URL` | Optional: the address used in links texted to pastors. Unset: `https://baptize.app` (on Vercel). |
+English, Spanish, French, Portuguese, Chinese, Arabic, Hindi, Bengali, Russian and Urdu. A church that texts in its own language is answered in it, and every page has a language picker. The team writes in English and translates with one click.
 
-## Database
+## Privacy
 
-The schema and seed are in `supabase/migrations/`. Every table is prefixed `btw_` because the Supabase project is shared with other apps. Row level security is on with no policies, so only the service role key reaches the data.
+- **No passwords.** Every church page, story and 30-day page has its own private link, sent by text. The pages aren't listed in search engines.
+- **People choose.** A story is read only by the people its writer chooses. Photos are shared only if the church agrees. A church sees a newly baptized person's phone number only if they agree.
+- **Deleting is for good.** Stories and photos can be deleted at any time.
+- **We never post for anyone.** Story pictures are made on the person's own phone, for them to share.
+- Texting works with numbers in the US and Canada.
 
-| Table | Holds |
-| --- | --- |
-| `btw_languages` | Languages in the SMS menu, with an on/off switch and the label shown there (each language's own name, e.g. Español, 中文) |
-| `btw_prompt_keys` | One row per message, with a description and the `{placeholders}` it must keep |
-| `btw_prompts` | The text of each message in each language |
-| `btw_churches` | One signup per phone number, with who last edited it from `/admin` and whether it's a simulation |
-| `btw_sessions` | Where each phone number is in the conversation |
-| `btw_messages` | Every text in and out (the voip.ms id is unique so retries are handled once), split into the signup thread and the team thread (reviewers and the pastor), with who sent it, read state, an English translation and any send error |
-| `btw_events` | Problems shown on the Log screen (replies that weren't sent, errors, callbacks with the wrong key) |
-| `btw_photos` | Churches' photos: file paths in the private `btw-photos` Storage bucket, when and how they came in, and the permission text agreed to |
-| `btw_users` | People who log in to `/admin` (scrypt password hashes); removed users stay with `active = false` |
+## Status
 
-A language can only be switched on once every message has text in it. Editing happens in English: after an English message is saved, its Translate button translates it into every language that's switched on or started, saves the results and shows them. A translation that loses a `{placeholder}` is not saved. Drafts made per language with "Draft with Google" are only saved when someone clicks Save.
+A working proof of concept, built in October 2026. The gaps we know about and kept on purpose are in [docs/gaps.md](docs/gaps.md).
 
-## voip.ms setup
+## For developers
 
-1. In the voip.ms portal, go to the API settings. Set an API password, turn API access on, and whitelist the IPs that will call the API.
-2. Edit your DID and turn on SMS (and MMS if you want it). Set the **SMS URL Callback** to:
+- [docs/setup.md](docs/setup.md): how it's built, settings, voip.ms setup and running it locally
+- [docs/features/](docs/features/): what each feature does, in detail
+- [docs/workflows.md](docs/workflows.md): step-by-step diagrams of the three journeys
+- [docs/schema.md](docs/schema.md): the database
 
-   ```
-   https://<your-site>/api/sms-inbound?key=<SMS_INBOUND_KEY>&to={TO}&from={FROM}&message={MESSAGE}&id={ID}&date={TIMESTAMP}&media={MEDIA}
-   ```
+## License and credits
 
-   Keep `&media={MEDIA}` last: it's the MMS attachments (comma-separated links), and everything after `media=` is read as that list. Turn on MMS on the number to receive pictures. Turn on **URL callback retry** too. voip.ms keeps retrying until the endpoint replies `ok`.
-3. US numbers: register a brand and a campaign for 10DLC in the portal. Carriers filter unregistered application-to-person traffic.
-
-## Sending
-
-```bash
-curl -X POST https://<your-site>/api/sms-send \
-  -H "Authorization: Bearer $SMS_SEND_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"to":"5551234567","message":"Hello"}'
-```
-
-Text that fits one SMS goes out through `sendSMS`: 160 characters, or 70 if any character needs Unicode (accents outside the GSM alphabet, curly quotes, non-Latin scripts). Longer text (up to 2048 characters) or messages with `media` (up to 3 URLs) go out through `sendMMS`.
-
-## Caveats
-
-- **IP whitelist and Vercel:** voip.ms only accepts API calls from whitelisted IPs, and Vercel's outbound IPs aren't fixed. Sending therefore goes through an n8n workflow on a server with a fixed IP; setup is in `relay/README.md`. Receiving isn't affected.
-- **Incoming request format isn't confirmed:** sources disagree on whether voip.ms sends GET with placeholders (sometimes separated by `;`) or POST with JSON. `sms-inbound` accepts both. Log one real message to confirm.
-- These notes come from voip.ms wiki pages and third-party integrations. Check them against the official API docs at <https://voip.ms/m/apidocs.php>, which you can read when logged in to the portal.
-
-## Local testing
-
-`node dev/server.mjs` serves the site on http://localhost:8787 with every API handler running against an in-memory database (`dev/fake-db.mjs`), a fake voip.ms and a fake Google Translate. Nothing leaves the machine. Log in to `/admin` with the setup password `pw` and add a user. A few conversations are seeded through the real SMS handler, and **Add simulations** adds eleven more.
-
-## Credits
-
-- QR codes on the church page: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4 by Kazuhiko Arase (MIT license), copied unchanged to `public/js/qrcode.js`. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
+MIT ([LICENSE](LICENSE)). QR codes are drawn with [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), copied unchanged to `public/js/qrcode.js`. "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.

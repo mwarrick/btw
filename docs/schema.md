@@ -1,6 +1,6 @@
 # Database schema
 
-Supabase project `supabase-cobalt-saddle` (ref `jrkhnieyramucpegntln`), shared with other apps: everything of ours is prefixed `btw_`. Read from the live database on 2026-10-26 (after migration `20261025180000`).
+Supabase project `supabase-cobalt-saddle`, shared with other apps: everything of ours is prefixed `btw_`. Read from the live database on 2026-10-26 (after migration `20261025180000`).
 
 - **Full DDL:** [`supabase/schema.sql`](../supabase/schema.sql) (reference only; the migrations in `supabase/migrations/` are the source of truth).
 - **Access:** row level security is on for every table with no policies, so only the service role key, used server-side, reaches the data. The pages never talk to Supabase directly.

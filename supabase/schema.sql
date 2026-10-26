@@ -1,5 +1,5 @@
 -- btw: current database schema (reference only; not a migration, don't run it).
--- Read from the live Supabase project (ref jrkhnieyramucpegntln) on 2026-10-26,
+-- Read from the live Supabase project on 2026-10-26,
 -- after migration 20261025180000. The migrations in supabase/migrations/ are the
 -- source of truth; refresh this file after each new one.
 --

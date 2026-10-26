@@ -1,8 +1,8 @@
 # btw: project notes
 
-Goal: Baptize 2027 church signup, entirely by SMS through voip.ms, on Vercel serverless functions with Supabase. Churches pick a language and answer ~14 questions one text at a time; the last answer finishes the signup, and the reply thanks them with a link to their own page where they can see and change every answer. The newly baptized can share their story and follow a first 30 days. Reviewers work in `/admin` ("SMS Gateway"): see signups, text pastors, edit answers. Setup and usage are in `README.md`; the 2026-10-23 build session (what was built, the decisions behind it, what's left, tooling quirks) is in `docs/session-2026-10-23.md`.
+Goal: Baptize 2027 church signup, entirely by SMS through voip.ms, on Vercel serverless functions with Supabase. Churches pick a language and answer ~14 questions one text at a time; the last answer finishes the signup, and the reply thanks them with a link to their own page where they can see and change every answer. The newly baptized can share their story and follow a first 30 days. Reviewers work in `/admin` ("SMS Gateway"): see signups, text pastors, edit answers. `README.md` is the plain-language front page for GitHub (no technical detail there); setup and the technical overview are in `docs/setup.md`; the 2026-10-23 build session (what was built, the decisions behind it, what's left, tooling quirks) is in `docs/session-2026-10-23.md`.
 
-Live site: https://baptize.app (Vercel project `btw`; also https://btw-dusky.vercel.app, which voip.ms's callback uses). Database: Supabase project `supabase-cobalt-saddle` (ref `jrkhnieyramucpegntln`), which is **shared with other apps**: everything of ours is prefixed `btw_`, and nothing else in it should be touched.
+Live site: https://baptize.app (Vercel project `btw`; also https://btw-dusky.vercel.app, which voip.ms's callback uses). Database: Supabase project `supabase-cobalt-saddle` (find its ref with the Supabase MCP's `list_projects`), which is **shared with other apps**: everything of ours is prefixed `btw_`, and nothing else in it should be touched.
 
 ## Where the details are
 
@@ -21,6 +21,7 @@ Each feature's spec (what it does, its rules, the migrations and prompts behind 
 | `docs/features/testimonies.md` | `/story`, `/s/<key>`, sharing choice, parent's OK (`/g/<key>`), story picture, Stories tab, /admin Testimonies |
 | `docs/features/first-30-days.md` | `/journey`, `/j/<key>`, check-ins, Newly baptized tab, /admin Discipleship, sample people |
 | `docs/features/front-page.md` | `/` (three ways in, Get my link) and `/features` (translated "How it works") |
+| `docs/setup.md` | Pages, API, environment variables, voip.ms setup, sending by hand, local testing |
 | `docs/voipms.md` | The n8n relay and IP whitelist, Connection screen, open API questions, 10DLC, research sources |
 | `docs/schema.md`, `supabase/schema.sql` | The database: diagram, tables, how they link; current-state DDL (reference, not a migration) |
 | `docs/workflows.md` | Mermaid diagrams of the three journeys: churches, the baptized sharing a story, the first 30 days |
@@ -55,10 +56,11 @@ Each feature's spec (what it does, its rules, the migrations and prompts behind 
 - Workflow: work on `claude/intelligent-brown-8znoxb` reset onto `main`, then a PR, merged only when the user says so. Migrations are applied through the Supabase MCP and also saved under `supabase/migrations/`.
 
 ## Tooling quirks
+- The repo may be made public: keep secrets, the relay's address, the server's IP, personal phone numbers and emails, and project/team ids out of every file (use placeholders like 555-01xx).
 - Supabase returns at most 1000 rows per request. `btw_prompts` (one row per prompt per language) passed that with the country change (1053 rows) and was 1203 on 2026-10-24, so the newest prompts silently went missing (a texted photo's permission question went out empty: voip.ms `message_empty`). Whole-table reads use `dbAll()` in `lib/supabase.js` (pages with `limit`/`offset`; give it an `order`), and an empty reply is logged instead of sent.
 - `btw_web_requests.kind` has a check constraint listing every kind `record()` uses; a new kind needs it updated (migration `20261025150000`), or the insert fails with a 500. `dev/fake-db.mjs` doesn't enforce constraints, so tests won't catch it: the 30-days resend and the parent link text both broke live this way on 2026-10-25.
 - Supabase MCP: reads and `apply_migration` work; DELETE via `execute_sql` times out (use `/admin`'s Delete button).
-- Vercel MCP: deployments and runtime logs work (project `prj_0mYe7r3u736ewePhPOnodWuQQSQ7`, team `team_lgFLmF4DFBT7H0DS0A1KcLNr`); listing env vars is forbidden.
+- Vercel MCP: deployments and runtime logs work (project `btw`; find the project and team ids with `list_teams` / `list_projects`); listing env vars is forbidden.
 - The live site isn't reachable from the sandbox; test with `dev/server.mjs` and Playwright (`/opt/pw-browsers/chromium`).
 - After a migration, refresh `supabase/schema.sql` and `docs/schema.md` from the live database (information_schema / pg_constraint reads through the Supabase MCP).
 
