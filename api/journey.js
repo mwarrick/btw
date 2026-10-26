@@ -2,8 +2,9 @@
 // The first 30 days of faith (public/journey.html at /journey and /j/<key>).
 // Online, with one text: their phone is required (or the verified phone of
 // their story) and is texted their private link when they start
-// (j_link_text); entering the same number again texts that link again, so
-// the phone is how they get back in. No reminders are texted. Letting their
+// (j_link_text). Unless they came from their story, that text is the only
+// way in, so the phone is proven before their church sees it; entering the
+// same number again texts that link again. No reminders are texted. Letting their
 // church contact them (contact_ok: the church sees the number) and letting
 // their church and the team see their progress (consent_at) are optional. Their church follows along on its page's Newly baptized
 // tab (api/profile.js); the team on Discipleship in /admin.
@@ -14,9 +15,11 @@
 //                         `church` is the church picked by its QR code (their page)
 //   GET ?part=churches&q=..  -> as api/story.js (finished, real signups)
 //   POST ?part=start { lang, church | story, first_name, consent, contact_ok, phone, tz }
-//                         -> { key, texted }, or { resent: true } when that phone already has a
-//                         journey (its link is texted to it; the key isn't given to whoever typed
-//                         the number), or 400 { error, field, message }; one journey per story
+//                         -> { sent: true }: its link was texted to the phone (the key isn't
+//                         given to whoever typed the number), or { resent: true } when that
+//                         phone already has a journey (its link is texted to it again), or
+//                         { key } from their story (its phone is proven) or a demo church, or
+//                         400/429/503 { error, field, message }; one journey per story
 //   GET ?key=..           -> { journey, church, days, lang, dir, text }: days that are
 //                         open carry their content and a Read it link; later ones only
 //                         their number
@@ -33,9 +36,9 @@ import { looksLikeBot, record, textsLeft, visitor, withinLimits } from "../lib/w
 import { dir, languages, phoneValue, wording } from "../lib/web-text.js";
 
 const TEXT_KEYS = [
-  "web_language", "web_phone", "web_phone_invalid", "web_required", "web_wait", "web_bad_link",
+  "web_language", "web_phone", "web_phone_invalid", "web_required", "web_wait", "web_busy", "web_bad_link",
   "story_name", "story_church", "story_church_hint", "story_church_none", "land_baptized_button",
-  "j_title", "j_intro", "j_start_button", "j_consent", "j_contact", "j_phone_hint", "j_link_resent", "j_bookmark", "j_day", "j_locked",
+  "j_title", "j_intro", "j_start_button", "j_consent", "j_contact", "j_phone_hint", "j_link_resent", "j_link_sent", "j_bookmark", "j_day", "j_locked",
   "j_read", "j_question", "j_step", "j_done", "j_checkin", "j_good", "j_hard", "j_ask", "j_note", "j_send", "j_sent",
   "story_age", "story_age_yes", "story_age_no",
   "j_next", "j_next_group", "j_next_serve", "j_next_class", "j_next_unsure", "j_calendar", "j_week_note", "j_finished",
@@ -137,10 +140,10 @@ async function start(req, body, res) {
   const shared = body.consent === true;
 
   const ip = visitor(req);
-  // Bots get a link that leads nowhere; nothing is saved.
+  // Bots get the usual answer; nothing is saved or sent.
   if (looksLikeBot(body)) {
     await record("bot", ip, null);
-    return res.status(200).json({ key: newProfileKey() });
+    return res.status(200).json(story ? { key: newProfileKey() } : { sent: true });
   }
   if (!(await withinLimits("journey", ip, null))) return refuse(429, null, "web_wait", "Too many tries. Please wait a few minutes and try again.");
   await record("journey", ip, phone);
@@ -163,25 +166,33 @@ async function start(req, body, res) {
     consent_text: shared ? words.j_consent || null : null, consent_at: shared ? now : null, started_on: dateIn(tz), tz, seen_at: now,
   } });
   const texted = await textLink(req, { phone, key, lang, demo: church.simulated, ip });
-  res.status(200).json({ key, texted });
+  // From their story (a proven phone) or a demo church: straight in.
+  if (story || texted === "demo") return res.status(200).json({ key });
+  if (texted === "sent") return res.status(200).json({ sent: true });
+  // Not texted, so there's no way in: take it back, so trying again starts afresh.
+  await db(`btw_journeys?key=eq.${key}`, { method: "DELETE" });
+  if (texted === "limit") return refuse(429, null, "web_wait", "Too many tries. Please wait a few minutes and try again.");
+  return refuse(503, null, "web_busy", "We can't send texts right now. Please try again later.");
 }
 
-// Their link by text, once, so it isn't lost with a bookmark. Not for a
-// demo church, past the daily cap, or a number texted in the last 10
-// minutes; a failure is logged and the journey still starts.
+// Their link by text: "sent", or why not: "demo" (a demo church, never
+// texted), "limit" (a number texted in the last 10 minutes, or too many from
+// this visitor), "busy" (past the daily cap, or the send failed, logged).
 async function textLink(req, { phone, key, lang, demo, ip }) {
   const to = canText(phone);
-  if (!to || demo) return false;
-  if (!(await withinLimits("journey_link", ip, phone)) || !(await textsLeft())) return false;
+  if (demo) return "demo";
+  if (!to) return "busy";
+  if (!(await withinLimits("journey_link", ip, phone))) return "limit";
+  if (!(await textsLeft())) return "busy";
   await record("journey_link", ip, phone);
   const template = (await wording(lang, ["j_link_text"])).j_link_text || "Your first 30 days: {link}";
   const link = `${siteUrl(req)}/j/${key}`;
   try {
     await sendText(to, template.includes("{link}") ? template.replace("{link}", link) : `${template} ${link}`);
-    return true;
+    return "sent";
   } catch (err) {
     await logEvent("error", "journey", `A 30-days link wasn't sent: ${err.status ? explainStatus(err.status) : err.message}`, { phone });
-    return false;
+    return "busy";
   }
 }
 

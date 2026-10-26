@@ -265,6 +265,8 @@ details.day .body{padding:0 14px 14px}
       consent: $("consent").checked, tz: tz, company_hp: $("hpx").value, elapsed: Date.now() - opened }) })
       .then(function (x) {
         if (x[0] === 200 && x[1].key) { location.href = "/j/" + x[1].key; return; }
+        // A new start: its link was texted to that number, the only way in.
+        if (x[0] === 200 && x[1].sent) { s.textContent = T.j_link_sent || "We've texted you a link. Open it to start Day 1."; s.className = "status ok"; return; }
         // That number has already started: its link was texted to it again.
         if (x[0] === 200 && x[1].resent) { s.textContent = T.j_link_resent || "You've already started. We texted your link to that number."; s.className = "status ok"; return; }
         if (!(x[1].field && showError(x[1].field, x[1].message || x[1].error))) { s.textContent = x[1].message || x[1].error || "!"; s.className = "status bad"; }
