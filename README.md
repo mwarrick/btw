@@ -21,6 +21,68 @@ License: MIT ([LICENSE](LICENSE)).
 
 Only `public/` is published as the website (see `vercel.json`). Everything else in the repo, including `docs/`, stays private.
 
+## How it works
+
+The front page has three ways in: one for churches, and two for people who were baptized. These diagrams are the short version; [docs/workflows.md](docs/workflows.md) has every step, and [docs/features/](docs/features/) has the details.
+
+### Churches
+
+A church signs up by text or on the web. Either way, the thank-you text links to the church's own page, which is the only login it needs.
+
+```mermaid
+flowchart LR
+  pastor([Pastor]) --> how{Signs up}
+  how -->|texts our number| lang[Language detected,<br>or picked from a menu]
+  lang --> q[About 14 questions,<br>one text at a time]
+  how -->|"/signup on the web"| code[Texted code<br>confirms the phone]
+  code --> form[One form]
+  q -.->|or finishes on the web| form
+  q --> done[[Thank-you text<br>with the page link]]
+  form --> done
+  done --> page["Church page /p/key:<br>answers, photos, baptism count,<br>resources, QR codes to invite"]
+  done -.->|after signup| later[Later texts]
+  later --> kind{What is it?}
+  kind -->|a number| count[Baptism count saved]
+  kind -->|a picture| photo[Photo kept,<br>asks to share it]
+  kind -->|anything else| team["Team inbox in /admin<br>+ text alert"]
+  team -->|reply by text| later
+```
+
+### The baptized: sharing a story
+
+Anyone baptized can write their story. A link texted to their phone is how they get back to it, and they choose who may read it.
+
+```mermaid
+flowchart LR
+  person([Someone baptized]) --> start["/story<br>(front page or church QR code)"]
+  start --> link[[Link texted<br>to their phone]]
+  link --> write["/s/key: five guided<br>questions become a story"]
+  write --> who{Who can read it?}
+  who -->|only me| mine[Private]
+  who -->|my church| church[Church page:<br>Stories tab]
+  who -->|church and the team| team["/admin: read,<br>feature it"]
+  write --> card[Story picture<br>to post themselves]
+  write --> next["Start the first 30 days"]
+```
+
+### The newly baptized: the first 30 days
+
+Online, except one text with their link. A new day opens each day, and check-ins reach their church if they allowed it.
+
+```mermaid
+flowchart LR
+  person([Newly baptized]) --> start["/journey<br>(front page, church QR code,<br>or their story)"]
+  start --> link[[Link texted<br>to their phone]]
+  link --> days["/j/key: a reading,<br>question and step each day"]
+  days --> checkin{"Check-in on<br>days 7, 14, 21, 30"}
+  checkin -->|going well| days
+  checkin -->|"it's hard / a question"| flag
+  days -.->|quiet for 3 days| flag["Could use a call"]
+  flag --> church["Church page:<br>Newly baptized tab"]
+  church --> talked[We talked]
+  checkin -->|day 30| next([Next step:<br>group, serve, class])
+```
+
 ## Environment variables
 
 | Name | What it is |
