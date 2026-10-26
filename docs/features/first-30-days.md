@@ -6,7 +6,7 @@
 
 - Migration `20261024170000`: tables `btw_journeys`, `btw_checkins`, `btw_journey_days`, column `btw_churches.weekly_note`, Bible links as `btw_guides` key `bible_url`, prompts `j_*`, `web_*journey*`, `web_weekly_note*`, `land_journey_button` hand-translated into all 10 languages.
 - Brought closer to the hackathon brief (FaithTechGlobalLabs/faithtech-socal-hackathon, `tracks/3-first-30-days`) on 2026-10-24: gone quiet, QR code, sample people, +1 day.
-- Decided with the user: **online only, except one text.** The phone is required (it's how they get in: migration `20261025140000`) and is texted their `/j/<key>` link when they start. The same number entered again on the form texts that same link again (`j_link_resent`; the key is never shown to whoever typed the number). No reminders are texted (decided 2026-10-25).
+- Decided with the user: **online only, except one text.** The phone is required (it's how they get in: migration `20261025140000`) and is texted their `/j/<key>` link when they start. Since 2026-10-26 (the user's call) the texted link is the only way in for a new start too: the page says `j_link_sent` ("We've texted you a link. Open it to start Day 1."; migration `20261026010000`) instead of opening the days, so the number is proven before the church sees it. If the text can't be sent (the visitor's `journey_link` limit, the daily cap, a failed send) the journey is deleted again and the page says `web_wait` / `web_busy`, so trying again starts afresh. The same number entered again on the form texts that same link again (`j_link_resent`). Either way the key is never shown to whoever typed the number. Starting from a saved story (its phone already proven) or at a demo church still opens the days straight away. No reminders are texted (decided 2026-10-25).
 - The link text: originally only for those who gave a phone (`j_link_text`, migration `20261025130000`, which also reworded `j_phone_hint` from "Optional"); kind `journey_link` in `btw_web_requests`, 1 per number per 10 minutes, the daily cap; not for a simulated church.
 - **My church may contact me** (`contact_ok`: the church sees the number; reworded `j_contact`) and **may see my progress** (`j_consent`, `consent_at`; without it they're left off the church's tab and /admin's list, which only counts them as private) are optional (2026-10-25).
 - The drafted plan (Navigators-style first lessons, Mark, Acts 2 and belonging, living it out) ships as a draft editable in `/admin`. One day opens per calendar day, Read it links out, anyone can start.
@@ -18,7 +18,7 @@
 - **My church may contact me** (+ phone), consent.
 - Or **from a saved story** (`/journey?story=<key>`, button on `/s/<key>`), which carries church, name and the verified phone and returns the same journey if started again.
 - Or **from the church's QR code** (`/journey?church=<id>&lang=`, the church picked and changeable; a simulated church only this way, `via_qr`, for demos).
-- Bots get a dead link; 10 starts per visitor per hour (`journey` in `btw_web_requests`).
+- Bots get the usual "we've texted you" answer and nothing is saved; 10 starts per visitor per hour (`journey` in `btw_web_requests`).
 
 ## The days (`/j/<key>`)
 
